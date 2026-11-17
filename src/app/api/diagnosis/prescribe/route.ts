@@ -18,7 +18,7 @@ import { formulaBaseHerbsBarredForCase } from "@/lib/formula-base-herbs-barred.s
 import { activeBleedingM04Rule } from "@/lib/active-bleeding-treatment";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
 import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
-import { ageImplausibleReproductiveNotice, auxiliaryReportForeignPersonNotice, authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, activeBleedingInGroundingText, activeBleedingWording, trustedInputText } from "@/lib/diagnosis-safety";
+import { ageImplausibleReproductiveNotice, auxiliaryReportForeignPersonNotice, authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, currentAntithromboticTherapyRecorded, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, activeBleedingInGroundingText, activeBleedingWording, trustedInputText } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -374,6 +374,9 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     promptSuffixes.push(`【锁定方中本例不宜的药】锁定方或教材代表方的组成里有本例不宜的药：${caseBarredBaseHerbs.map((item) => `${item.herb}（${item.formula}；${item.reason}）`).join("、")}。本次去掉，不再沿用原方名，candidate.name 写「本例辨证组方」，可按已定治法加本例适宜的同功效药；formulaAnalysis 第一句写明参照哪首方、去了哪几味及原因。`);
   }
   if (activeBleedingInGroundingText(structuredClinicalContext)) promptSuffixes.push(activeBleedingM04Rule(activeBleedingWording(structuredClinicalContext, gated.safetyGate?.redFlags || [])));
+  if (currentAntithromboticTherapyRecorded(gated)) {
+    promptSuffixes.push("【抗凝或抗血小板药在用】主方与随症加减均不得使用《中药学》活血化瘀药类，以及受治理相互作用表中增强抗凝或增加出血方向的药；没有出血也遵守。锁定方含禁药时按上方逐味清单重选或透明改为辨证组方。减弱华法林作用的人参类不按此禁用，开始或停服中药须更频繁复查INR。慎用标签与本例已记录人群对上时，不作为可选加味；主方保留的慎用药在notApplicable说明本例人群并请医生使用前确认。");
+  }
   // 饮片使用注意与本例（2026-10-19 甲方标准病历 3：熟地黄为君，病历食欲下降、大便稀溏；《中药学》熟地黄「食少便溏者忌服」）：
   // 事先列给模型，不靠修复轮。编译器对仍写进处方的那一味逐味写明（herb-record-caution）。没有冲突时提示词不变。
   if (signedPriorReasoning?.stage === "diagnose") {

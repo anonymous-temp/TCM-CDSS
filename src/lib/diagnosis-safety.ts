@@ -21,6 +21,7 @@ import {
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
 import priorityEvaluationWindowTable from "../data/priority-evaluation-windows.source.json";
+import drugConditionSources from "../data/drug-condition-contraindications.json";
 import { DEEP_NECK_SPACE_INFECTION, evaluateDiscriminators, isFatigueFramed, redFeatureChecklistForPatient, WEAK_CONSCIOUSNESS_TERMS, type DiscriminatorOutcome } from "./redflag-discriminators";
 import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json";
 import intracranialBleedingSigns from "../data/intracranial-bleeding-signs.source.json";
@@ -45,7 +46,7 @@ import {
   structuredRedFlagEvidenceFromFacts,
   type BackstopRedFlagCategory,
 } from "./clinical-facts";
-import { CLINICAL_EXAM_NEGATION_VERB_SOURCE, affirmedCurrentMedicationText, clinicalEventTemporalScopeAt, recordedMedicationMentions } from "./clinical-polarity";
+import { CLINICAL_EXAM_NEGATION_VERB_SOURCE, affirmedCurrentMedicationText, clinicalEventTemporalScopeAt, medicationHistoryItemCandidate, recordedMedicationMentions } from "./clinical-polarity";
 import { ensureActionableFollowupSafetyNet } from "./followup-safety-net";
 import { buildThreePartLimitedStateCopyForSurface, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { clinicalFieldRequiresExplicitPrescriptionState, clinicalRequiredFieldLabel } from "./clinical-governance-tables";
@@ -7418,6 +7419,11 @@ function familyHistoryFieldTexts(state: CaseState): string[] {
   return [...fromSymptoms, ...fromHis].map((value) => value.trim()).filter((value) => value.length >= 4);
 }
 
+/** 药病禁忌等患者事实读法共用：拍平之后也不能把家族史逗号后的病名算给患者。 */
+export function withoutFamilyHistoryFields(state: CaseState, text: string): string {
+  return familyHistoryFieldTexts(state).reduce((source, family) => source.split(family).join(""), text);
+}
+
 /** 免疫抑制治疗：安全门「当前免疫抑制治疗」与注意事项「不要自行停用或减量」读同一份（2026-10-19 起导出）。 */
 export const IMMUNOSUPPRESSIVE_MEDICATION = /(?:环孢素|他克莫司|吗替麦考酚酯|霉酚酸|硫唑嘌呤|甲氨蝶呤|来氟米特|环磷酰胺|生物制剂|免疫抑制剂|长期[^。；\n]{0,8}(?:泼尼松|糖皮质激素)|正在[^。；\n]{0,8}(?:泼尼松|糖皮质激素))/i;
 /** 全身用糖皮质激素的药名（INN 词干「-松/-龙」的中文通用名与俗名，闭集）：骤停有肾上腺皮质功能不全的风险，注意事项写「不要自行停用或减量」。 */
@@ -7463,16 +7469,22 @@ export function diabetesRecorded(state: CaseState): boolean {
  * 病历「用药史」一栏的药名列表（2026-11-14 第四十五轮，甲方 100 例 C100：「用药史：地高辛、呋塞米、华法林、安眠药，具体剂量待核实」没有给药动词，
  * 注意事项的取药名办法一个都没认出）。这一栏本身就是在用药的清单：按顿号、逗号拆开，去掉「具体剂量待核实」这类说明；写着已停的不算。
  */
+const MEDICATION_LIST_LABEL_PATTERN = new RegExp(String.raw`(?:${drugConditionSources.medicationListLabels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("|")})[:：]([^。\n]+)`, "gu");
 export function recordedMedicationHistoryList(state: CaseState): string[] {
   const field = String(authoritativeFieldOrFallback(state, "yongyaoshi", state.medicationHistory) || "").normalize("NFKC");
-  if (!field.trim()) return [];
+  // 正文中明确标注的清单与用药史字段走同一入口。先按清单边界切项，再按已有候选读法去剂量、括注；
+  // 小数剂量与来源括注都由同一个候选读法归一，不让用法残片成为药名的一部分。
+  const source = familyHistoryFieldTexts(state).reduce((text, family) => text.split(family).join(""), trustedInputText(state));
+  const listed = [...source.normalize("NFKC").matchAll(MEDICATION_LIST_LABEL_PATTERN)].map((match) => match[1]);
+  const fields = [...new Set([field, ...listed].filter((item) => item.trim()))];
   // 写了停用的按现用药读法取仍在用的那部分；纯列表（没有给药动词，读法认不出）整栏就是在用药。
-  const current = /停用|已停|停药|停服/u.test(field) ? affirmedCurrentMedicationText(field) || "" : field;
+  const current = fields.map((item) => /停用|已停|停药|停服/u.test(item) ? affirmedCurrentMedicationText(item) || "" : item).join("；");
   return [...new Set(current.split(/[、，,；;。\n/]|和|及/u)
     .map((item) => item.replace(/(?:具体|用法|剂量|频次)[^、，,；;。]*$/u, "").replace(/^(?:长期|规律|平素|目前|现|正在)?(?:口服|服用|使用|服|用)/u, "")
       // 「复合维生素偶服」「降压药每日1次」：药名后面的用药频次去掉。
       .replace(/(?:偶服|偶尔服用?|间断服用?|不规律服用?|规律服用?|每日\d+次|每天\d+次|\d+(?:mg|g|片|粒)\/?[次日d]*).*$/u, "")
       .replace(/[（(][^）)]*[）)]/gu, "").trim())
+    .flatMap((item) => { const { candidate, notCurrent } = medicationHistoryItemCandidate(item); return notCurrent ? [] : [candidate]; })
     // 「未服药」「无」「否认用药」这类不是药名（第四十五轮 C024：注意事项写成「正在服用的未服药请告知医生」）。
     .filter((item) => item.length >= 2 && item.length <= 12 && !/^(?:无|否认|不详|未知|待核实|不清|未记录|未|没有|不)/u.test(item) && !/不详|未知|待核实|服药|用药/u.test(item)))];
 }
@@ -7488,17 +7500,33 @@ export function highRiskConditionsForPrecautions(state: CaseState): { conditions
   if (reasons.some((reason) => reason.startsWith("心力衰竭"))) conditions.push("heart_failure");
   if (reasons.some((reason) => reason.startsWith("当前免疫抑制"))) conditions.push("immunosuppression");
   const source = familyHistoryFieldTexts(state).reduce((text, family) => text.split(family).join(""), trustedInputText(state)).normalize("NFKC");
-  const potassium = [...source.matchAll(/(?:血钾|钾|K\+?)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*mmol\/L/giu)]
-    .map((match) => Number(match[1])).find((value) => value > 5.5 && value < 10);
+  const potassium = recordedSerumPotassium(source, 5.5);
   if (potassium != null) conditions.push("hyperkalemia");
   const medicationSource = [authoritativeFieldOrFallback(state, "yongyaoshi", state.medicationHistory), extractMedicationEvidenceText(source)].filter(Boolean).join("；");
   if (/地高辛/u.test(affirmedCurrentMedicationText(medicationSource) || "")) conditions.push("digoxin");
   return { conditions, ...(potassium != null ? { potassium: `${potassium}mmol/L` } : {}) };
 }
 
+/** 与高危注意事项共用的化验读法；保留数值供各药说明书自己的阈值比较。 */
+export function recordedSerumPotassium(text: string, above = 0, inclusive = false): number | undefined {
+  const source = text.normalize("NFKC");
+  return [...source.matchAll(/(?:血钾|钾|K\+?)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*mmol\/L/giu)]
+    .filter((match) => clauseLocalMentionPolarityAt(source, match.index!) === "affirmed")
+    .map((match) => Number(match[1])).find((value) => (inclusive ? value >= above : value > above) && value < 10);
+}
+
 /** 正在用抗凝或抗血小板药：与剂量边界「当前抗凝或抗血小板治疗」同一判据（外治项目禁忌读它，第四十六轮复核 C086）。 */
-export function currentAntithromboticTherapyRecorded(state: CaseState): boolean {
-  return highRiskDoseBoundaryReasons(state).some((reason) => reason.startsWith("当前抗凝或抗血小板治疗"));
+const currentAntithromboticTextMemo = new Map<string, boolean>();
+export function currentAntithromboticTherapyRecorded(state: CaseState | string): boolean {
+  if (typeof state === "string" && currentAntithromboticTextMemo.has(state)) return currentAntithromboticTextMemo.get(state)!;
+  // 开方合同只有接地正文；转换输入形状后仍调用剂量边界原判据，不另建药名或在用药判断。
+  const record = typeof state === "string" ? normalizeCaseStateInput({ chiefComplaint: "", symptoms: { 现病史: state } }) : state;
+  const result = Boolean(record && highRiskDoseBoundaryReasons(record).some((reason) => reason.startsWith("当前抗凝或抗血小板治疗")));
+  if (typeof state === "string") {
+    if (currentAntithromboticTextMemo.size > 2000) currentAntithromboticTextMemo.clear();
+    currentAntithromboticTextMemo.set(state, result);
+  }
+  return result;
 }
 
 export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
@@ -7523,7 +7551,8 @@ export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
   if (hasNonNegatedClinicalPattern(source, /(?:心力衰竭|心衰|HFrEF|HFpEF|射血分数\s*(?:EF)?\s*[:：]?\s*(?:[1-3]?\d(?:\.\d+)?)\s*%|EF\s*[:：]?\s*(?:[1-3]?\d(?:\.\d+)?)\s*%)/i)) {
     push("心力衰竭或射血分数降低需结合容量状态、肾功能及现用药完成剂量复核");
   }
-  if (ANTITHROMBOTIC_MEDICATION.test(activeMedication)) {
+  if (ANTITHROMBOTIC_MEDICATION.test(activeMedication) && [...activeMedication.matchAll(new RegExp(ANTITHROMBOTIC_MEDICATION.source, "giu"))]
+    .some((match) => recordMentionPolarityAt(activeMedication, match.index!) === "affirmed")) {
     push("当前抗凝或抗血小板治疗需完成出血风险与药物相互作用复核");
   }
   if (IMMUNOSUPPRESSIVE_MEDICATION.test(activeMedication)) {

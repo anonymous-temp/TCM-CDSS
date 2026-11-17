@@ -176,10 +176,12 @@ const c100 = types.normalizeCaseStateInput({
   vitals: { T: "36.2", P: "58", R: "19", BP: "98/60" },
 });
 
-await check("8.1 「用药史」一栏的药名进现用药一条；肾功能不全、心衰、血钾、地高辛各有一条", () => {
+await check("8.1 「用药史」一栏的药名进入现用药或对应药病风险；肾功能不全、心衰、血钾、地高辛各有一条", () => {
   const items = required.requiredPrecautionsForCase(safety.withSafetyGate(c100), null);
   const current = items.find((item) => item.kind === "current_medications");
-  assert.ok(current && ["地高辛", "呋塞米", "华法林"].every((name) => current.names.some((listed) => listed.includes(name))), JSON.stringify(current));
+  // 第四十九轮：地高辛合并肾功能不全单列药病风险，不能再用泛泛“是否继续”代替；其余在用药仍须列出。
+  assert.ok(current && ["呋塞米", "华法林"].every((name) => current.names.some((listed) => listed.includes(name))), JSON.stringify(current));
+  assert.ok(items.some((item) => item.kind === "drug_condition_caution" && item.ruleId === "digoxin_renal_impairment" && item.drug === "地高辛"), JSON.stringify(items));
   const highRisk = items.find((item) => item.kind === "high_risk_condition");
   assert.ok(highRisk, "有高危基础情况一条");
   for (const condition of ["renal", "heart_failure", "hyperkalemia", "digoxin"]) assert.ok(highRisk.conditions.includes(condition), condition);

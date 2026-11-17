@@ -1,14 +1,17 @@
 import { diseaseCareItemsForName } from "./western-disease-care";
-import { cleanedMedicationNameCandidate, medicationHistoryItemCandidate, MEDICATION_HISTORY_CLASS_WORD, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, MEDICATION_STILL_TAKING, medicationNotTaken, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
-import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
+import { canonicalMedicationIdentity, clinicalEventTemporalScopeAt, cleanedMedicationNameCandidate, medicationHistoryItemCandidate, MEDICATION_HISTORY_CLASS_WORD, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, MEDICATION_STILL_TAKING, medicationNotTaken, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
+import { assessLactationState, assessPregnancyState, isPositiveOrPossibleClinicalState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
 import drugConditionJson from "../data/western-drug-condition-cautions.source.json";
-import { authoritativePatientAgeYears, sourceDocumentsNegation, clauseLocalMentionPolarityAt, highRiskConditionsForPrecautions, recordedMedicationHistoryList, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
+import drugConditionContraindications from "../data/drug-condition-contraindications.json";
+import { antithromboticAntagonistHerbNames } from "./antithrombotic-herb-policy";
+import { withoutFamilyHistoryFields, authoritativePatientAgeYears, currentAntithromboticTherapyRecorded, recordedSerumPotassium, sourceDocumentsNegation, clauseLocalMentionPolarityAt, highRiskConditionsForPrecautions, recordedMedicationHistoryList, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
   labelledMedicineNamesIn,
   localPrescriptionPatentMedicineEntries,
   patentMedicineBaseName,
+  TOPICAL_MEDICATION_FORM,
   type LocalPatentMedicineEntry,
 } from "./local-patent-medicine-candidates";
 import localMedicineIndex from "../data/local-patent-medicine-index.json" with { type: "json" };
@@ -43,23 +46,39 @@ function patientAgeYears(state: CaseState): number | undefined {
   return months != null ? Number(months) / 12 : undefined;
 }
 
+type DrugCondition = {
+  egfrBelow?: number; egfrAtLeast?: number; egfrAtMost?: number; ckdStageAtLeast?: number; recordTerms?: string[]; currentRecordTerms?: string[];
+  recordedDrugAllergy?: string[]; reactionTerms?: string[];
+  ageAtLeast?: number; potassiumAbove?: number; potassiumAtLeast?: number; currentAntithrombotic?: boolean;
+  potassiumAtMost?: number; pregnancyOrConception?: boolean; renalImpairment?: boolean; currentMedicationTerms?: string[];
+  allOf?: DrugCondition[]; anyOf?: DrugCondition[];
+};
 type DrugConditionTable = {
-  rules: Array<{ id: string; drugTerms: string[]; sentence: string; condition: { egfrBelow?: number; ckdStageAtLeast?: number; recordTerms?: string[]; recordedDrugAllergy?: string[]; reactionTerms?: string[] } }>;
+  rules: Array<{ id: string; drugTerms: string[]; drugSuffixes?: string[]; sentence: string; condition: DrugCondition; enabled?: boolean; systemicOnly?: boolean; supersedes?: string[] }>;
   warfarinHerbal?: { drugTerms: string[]; decreaseHerbs: string[] };
   notMedicationFoods?: { foods: string[] };
 };
 const DRUG_CONDITION = drugConditionJson as unknown as DrugConditionTable;
-const WARFARIN_HERBAL = { drugTerms: DRUG_CONDITION.warfarinHerbal?.drugTerms || [], decreaseHerbs: DRUG_CONDITION.warfarinHerbal?.decreaseHerbs || [] };
+const DRUG_CONTRAINDICATION_RULES = (drugConditionContraindications as unknown as DrugConditionTable).rules;
+const WARFARIN_HERBAL = { drugTerms: DRUG_CONDITION.warfarinHerbal?.drugTerms || [], decreaseHerbs: [...new Set([...(DRUG_CONDITION.warfarinHerbal?.decreaseHerbs || []), ...antithromboticAntagonistHerbNames()])] };
 const NOT_MEDICATION_FOODS = new Set(DRUG_CONDITION.notMedicationFoods?.foods || []);
+/** 与在用药提示共用的明确外用途径，不从同一段中的其他药物推定途径。 */
+function recordedTopicalMedication(name: string, text: string): boolean {
+  const verbs = (drugConditionContraindications as { topicalAdministrationVerbs?: string[] }).topicalAdministrationVerbs || [];
+  return verbs.length > 0 && new RegExp(`(?:${verbs.join("|")})[^，,。；;]{0,4}${name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u").test(text);
+}
 
 /** 病历里的 eGFR 数值（「eGFR 17ml/(min·1.73m²)」「eGFR：45」；数值阈值，取最小的一个）。 */
 export function recordedEgfr(text: string): number | undefined {
-  const values = [...String(text || "").normalize("NFKC").matchAll(/eGFR\s*[:：为]?\s*(\d+(?:\.\d+)?)/giu)].map((match) => Number(match[1])).filter((value) => value > 0 && value < 200);
+  const source = String(text || "").normalize("NFKC");
+  const values = [...source.matchAll(/eGFR\s*[:：为]?\s*(\d+(?:\.\d+)?)/giu)].filter((match) => clauseLocalMentionPolarityAt(source, match.index!) === "affirmed").map((match) => Number(match[1])).filter((value) => value > 0 && value < 200);
   return values.length > 0 ? Math.min(...values) : undefined;
 }
 /** 病历写的慢性肾病分期（「慢性肾病3期」「慢性肾脏病4期」；数值）。 */
 function recordedCkdStage(text: string): number | undefined {
-  const stages = [...String(text || "").normalize("NFKC").matchAll(/慢性肾(?:脏)?病\s*(?:CKD)?\s*([1-5一二三四五])\s*期/giu)]
+  const source = String(text || "").normalize("NFKC");
+  const stages = [...source.matchAll(/慢性肾(?:脏)?病\s*(?:CKD)?\s*([1-5一二三四五])\s*期/giu)]
+    .filter((match) => clauseLocalMentionPolarityAt(source, match.index!) === "affirmed")
     .map((match) => "一二三四五".includes(match[1]) ? "一二三四五".indexOf(match[1]) + 1 : Number(match[1]));
   return stages.length > 0 ? Math.max(...stages) : undefined;
 }
@@ -68,35 +87,74 @@ function recordedCkdStage(text: string): number | undefined {
  * 在用药与本例已记录病情相抵（第四十六轮）：药名命中规则的药，病历满足规则的条件（eGFR 低于阈值、慢性肾病分期、病历肯定写着的病情词、
  * 记录的药物过敏原文里点了阿司匹林且有哮喘一类反应）时，返回给患者的那一句。规则与出处见 western-drug-condition-cautions.source.json。纯函数，供测试。
  */
-export function drugConditionCautions(names: readonly string[], grounding: string, drugAllergyPhrases: readonly string[]): Array<Extract<RequiredPrecaution, { kind: "drug_condition_caution" }>> {
+export function drugConditionCautions(names: readonly string[], grounding: string, drugAllergyPhrases: readonly string[], caseState?: CaseState): Array<Extract<RequiredPrecaution, { kind: "drug_condition_caution" }>> {
+  if (caseState) grounding = withoutFamilyHistoryFields(caseState, grounding);
   const out: Array<Extract<RequiredPrecaution, { kind: "drug_condition_caution" }>> = [];
+  const seen = new Set<string>();
   const egfr = recordedEgfr(grounding);
   const ckdStage = recordedCkdStage(grounding);
-  const affirmed = (term: string) => grounding.includes(term) && !sourceDocumentsNegation(grounding, term);
-  for (const name of names) {
-    if (out.some((item) => item.drug === name)) continue;
-    for (const rule of DRUG_CONDITION.rules) {
-      if (!rule.drugTerms.some((term) => name.includes(term))) continue;
+  const affirmed = (term: string, current = false) => {
+    for (let at = grounding.indexOf(term); at >= 0; at = grounding.indexOf(term, at + term.length)) {
+      if (clauseLocalMentionPolarityAt(grounding, at) === "affirmed" && (!current || clinicalEventTemporalScopeAt(grounding, at, term.length) === "current")) return true;
+    }
+    return false;
+  };
+  const age = caseState ? authoritativePatientAgeYears(caseState) : undefined;
+  const allergyFor = (condition: DrugCondition) => (condition.recordedDrugAllergy || []).length > 0
+    ? drugAllergyPhrases.find((phrase) => (condition.recordedDrugAllergy || []).some((term) => phrase.includes(term)) && (condition.reactionTerms || []).some((term) => phrase.includes(term)))
+    : undefined;
+  const satisfies = (condition: DrugCondition): boolean => {
+    if (condition.allOf) return condition.allOf.every(satisfies);
+    if (condition.anyOf) return condition.anyOf.some(satisfies);
+    return Boolean(
+      (condition.egfrBelow != null && egfr != null && egfr < condition.egfrBelow) ||
+      (condition.egfrAtLeast != null && egfr != null && egfr >= condition.egfrAtLeast) ||
+      (condition.egfrAtMost != null && egfr != null && egfr <= condition.egfrAtMost) ||
+      (condition.ckdStageAtLeast != null && ckdStage != null && ckdStage >= condition.ckdStageAtLeast) ||
+      (condition.recordTerms || []).some((term) => affirmed(term)) ||
+      (condition.currentRecordTerms || []).some((term) => affirmed(term, true)) || allergyFor(condition) ||
+      (condition.ageAtLeast != null && age != null && age >= condition.ageAtLeast) ||
+      (condition.potassiumAbove != null && recordedSerumPotassium(grounding, condition.potassiumAbove) != null) ||
+      (condition.potassiumAtLeast != null && recordedSerumPotassium(grounding, condition.potassiumAtLeast, true) != null) ||
+      (condition.currentAntithrombotic && currentAntithromboticTherapyRecorded(caseState || grounding)) ||
+      (condition.potassiumAtMost != null && recordedSerumPotassium(grounding) != null && recordedSerumPotassium(grounding)! <= condition.potassiumAtMost) ||
+      (condition.pregnancyOrConception && caseState && pregnancyAdviceRelevant(caseState) && (isPositiveOrPossibleClinicalState(assessPregnancyState(grounding)) || conceptionWithoutPregnancyOrLactation(grounding, age))) ||
+      (condition.renalImpairment && caseState && highRiskConditionsForPrecautions(caseState).conditions.includes("renal")) ||
+      (condition.currentMedicationTerms || []).some((term) => names.some((name) => name.includes(term)))
+    );
+  };
+  const conditionFacts = (condition: DrugCondition): string[] => {
+    const nested = condition.allOf || condition.anyOf;
+    if (nested) return [...new Set(nested.filter(satisfies).flatMap(conditionFacts))];
+    return [...(condition.recordTerms || []).filter((term) => affirmed(term)),
+      ...(condition.currentRecordTerms || []).filter((term) => affirmed(term, true)),
+      ...(condition.currentMedicationTerms || []).filter((term) => names.some((name) => name.includes(term))).map((term) => `同时使用${term}`),
+      ...(condition.renalImpairment && satisfies(condition) ? ["肾功能减退"] : [])];
+  };
+  for (const name of [...new Set(names)]) {
+    const generic = canonicalMedicationIdentity(westernDrugNameIn(name) || name);
+    for (const rule of DRUG_CONTRAINDICATION_RULES) {
+      if (rule.enabled === false) continue;
+      if (rule.systemicOnly && ((TOPICAL_MEDICATION_FORM.test(name) && !/栓剂?$/u.test(name)) || recordedTopicalMedication(name, grounding))) continue;
+      if (!rule.drugTerms.some((term) => name.includes(term)) && !(rule.drugSuffixes || []).some((suffix) => generic.endsWith(suffix))) continue;
       const condition = rule.condition;
-      const byEgfr = condition.egfrBelow != null && egfr != null && egfr < condition.egfrBelow;
-      const byStage = condition.ckdStageAtLeast != null && ckdStage != null && ckdStage >= condition.ckdStageAtLeast;
-      const byTerms = (condition.recordTerms || []).some(affirmed);
-      const allergy = (condition.recordedDrugAllergy || []).length > 0
-        ? drugAllergyPhrases.find((phrase) => (condition.recordedDrugAllergy || []).some((term) => phrase.includes(term)) && (condition.reactionTerms || []).some((term) => phrase.includes(term)))
-        : undefined;
-      if (!byEgfr && !byStage && !byTerms && !allergy) continue;
+      if (!satisfies(condition)) continue;
+      const key = `${generic}|${rule.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const allergy = allergyFor(condition);
       const hit = allergy ? (condition.reactionTerms || []).find((term) => allergy.includes(term)) : undefined;
       const reaction = !hit ? "过敏反应" : hit === "喘" ? "喘息" : hit === "过敏" ? "过敏反应" : hit;
       out.push({
         kind: "drug_condition_caution",
         ruleId: rule.id,
         drug: name,
-        sentence: rule.sentence.replace("{drug}", name).replace("{egfr}", egfr != null ? String(egfr) : "").replace("{reaction}", reaction),
+        sentence: rule.sentence.replace("{drug}", name).replace("{egfr}", egfr != null ? String(egfr) : "").replace("{reaction}", reaction).replace("{age}", age != null ? String(age) : "").replace("{potassium}", String(recordedSerumPotassium(grounding) ?? "")).replace("{condition}", conditionFacts(condition).join("、")),
       });
-      break;
     }
   }
-  return out;
+  return out.filter((item) => !out.some((higher) => higher.drug === item.drug &&
+    DRUG_CONTRAINDICATION_RULES.find((rule) => rule.id === higher.ruleId)?.supersedes?.includes(item.ruleId)));
 }
 
 const alcoholWarningMemo = new Map<string, boolean>();
@@ -260,14 +318,13 @@ export function requiredPrecautionsForCase(
   // 用法与服用情况的碎片（「偶有漏用」「今日已自行加用数次」「名称」）不收，写着用过、未用的不算在用（第四十五轮复核，甲方 100 例 20 余份）。
   // 既往史等栏里写成清单的现用药（「现用药：硝苯地平控释片30mg每日1次，二甲双胍片0.5g每日2次…」，第四十六轮 new45-n40：一个都没认出）：
   // 与「用药史」一栏同一认法逐项收。栏目标签是有限闭集（现用药、目前用药、长期用药、现服药物）。
-  const listedInText = [...grounded.normalize("NFKC").matchAll(/(?:现用药|目前用药|长期用药|现服药物|目前服用药物)[:：]([^。\n]+)/gu)]
-    .flatMap((match) => match[1].split(/[，,；;、]/u)).map((item) => item.trim()).filter(Boolean);
-  const historyNames = [...recordedMedicationHistoryList(state), ...listedInText].flatMap((item) => {
+  const historyNames = recordedMedicationHistoryList(state).flatMap((item) => {
     const { candidate, notCurrent } = medicationHistoryItemCandidate(item);
     if (notCurrent || candidate.length < 2) return [];
     if (MEDICATION_HISTORY_CLASS_WORD.test(candidate)) return [candidate];
     if (patentMedicineBaseName(candidate) !== candidate || findLocalPatentMedicineLabel(candidate)?.name.replace(/\s/g, "") === candidate) return [candidate];
     const western = westernDrugNameIn(candidate);
+    // 用法说明由共用候选读法剥除；含可识别成分的短复方名保留，不能只留下第一个成分。
     return western ? [candidate.length <= 12 && candidate.includes(western) ? candidate : western] : [];
   });
   for (const raw of [...recorded.names, ...historyNames]) {
@@ -306,7 +363,7 @@ export function requiredPrecautionsForCase(
   const classes = recordedSystemicTherapyClasses(grounded)
     .filter((label) => !listed.some((name) => label === "激素" ? CORTICOSTEROID_MEDICATION.test(name) : IMMUNOSUPPRESSIVE_MEDICATION.test(name)));
   // 与本例病情相抵的在用药（二甲双胍与 eGFR<30、非甾体抗炎药与阿司匹林诱发哮喘或肾功能减退）单写一条，不再进「是否继续由医生决定」（第四十六轮）。
-  const contraindicated = drugConditionCautions([...listed, ...items.flatMap((item) => item.kind === "self_medication" ? [item.name] : [])], grounding, drugAllergy);
+  const contraindicated = drugConditionCautions([...listed, ...items.flatMap((item) => item.kind === "self_medication" ? [item.name] : [])], grounding, drugAllergy, state);
   for (const caution of contraindicated) items.push(caution);
   const shown = [...listed, ...classes].filter((name) => !contraindicated.some((caution) => caution.drug === name)).slice(0, 6);
   const givenNames = new Set(recorded.given.map(cleanedOf));
@@ -316,7 +373,7 @@ export function requiredPrecautionsForCase(
     ((givenNames.has(name) && !formallyTaken.has(name)) || pastOnly.get(name) === "ever" || timeline.get(name) === "ask" || classes.includes(name)));
   // 激素、免疫抑制剂「不要自行停用」只说全身用药：外用的低效激素乳膏不在此列。
   // 病历写着「外用 / 外涂 / 外搽 / 外敷」的药按外用写（2026-10-24 甲方 100 例 C051：「外用低效激素间断使用」被写成「正在服用的低效激素」）。
-  const topical = shown.filter((name) => new RegExp(`(?:外用|外涂|外搽|外敷|局部涂抹)[^，,。；;]{0,4}${name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u").test(grounded));
+  const topical = shown.filter((name) => recordedTopicalMedication(name, grounded));
   const noSelfStop = shown.filter((name) => (CORTICOSTEROID_MEDICATION.test(name) || IMMUNOSUPPRESSIVE_MEDICATION.test(name)) && !topical.includes(name));
   if (shown.length > 0) {
     items.push({ kind: "current_medications", names: shown, ...(given.length > 0 ? { given } : {}), ...(redFlag ? { urgent: true } : {}), ...(noSelfStop.length > 0 ? { noSelfStop } : {}), ...(topical.length > 0 ? { topical } : {}) });
@@ -324,8 +381,11 @@ export function requiredPrecautionsForCase(
     items.push({ kind: "unnamed_medication", ...(recorded.herbal && !recorded.unnamed ? { herbal: true } : {}) });
   }
   // 抗凝、抗血小板药（与安全门同一份药名）或通常须抗栓的情形（支架术后、深静脉血栓、房颤…）：方中有活血药时写出血观察，交付面按最终处方核。
-  const antithromboticDrugs = [...shown, ...items.flatMap((item) => item.kind === "self_medication" ? [item.name] : [])]
+  const currentAntithrombotic = currentAntithromboticTherapyRecorded(state);
+  const namedAntithromboticDrugs = [...listed, ...items.flatMap((item) => item.kind === "self_medication" ? [item.name] : [])]
     .filter((name) => ANTITHROMBOTIC_MEDICATION.test(name));
+  // “正在用”的断言只接受安全层的在用判据；仅列药名不能在此另作认定。
+  const antithromboticDrugs = currentAntithrombotic ? (namedAntithromboticDrugs.length ? namedAntithromboticDrugs : ["抗凝或抗血小板药"]) : [];
   const antithromboticIndication = antithromboticDrugs.length === 0 ? antithromboticIndicationRecorded(state) : undefined;
   if (antithromboticDrugs.length > 0 || antithromboticIndication) {
     items.push({ kind: "antithrombotic_bleeding", drugs: antithromboticDrugs, ...(antithromboticIndication ? { indication: antithromboticIndication } : {}) });
@@ -400,12 +460,14 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "current_medications" && item.urgent) return `${order}病历记录患者正在使用${item.names.join("、")}，本例须先就医处置：写一条请把这些药连同药盒带去就医，告诉医生最近一次用药的时间，是否继续由医生决定；不写与中药间隔服用。`;
     if (item.kind === "self_discontinued_medication") return `${order}病历记录患者${item.irregular ? "未规律服用" : "自行停用了"}${discontinuedMedicationLabel(item)}${item.condition ? `（${item.condition}）` : ""}：写一条请${item.irregular ? "由医生评估后按医嘱规律服用" : "尽快由医生评估后调整用药并规律服用"}，不要自行停药或减量。`;
     if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来${item.topical?.length ? `；${item.topical.join("、")}病历写明是外用，按外用药写` : ""}${item.noSelfStop?.length ? `；${item.noSelfStop.join("、")}不要自行停用或减量` : ""}）。`;
-    if (item.kind === "antithrombotic_bleeding") return `${order}${item.drugs.length > 0 ? `病历记录患者正在使用${item.drugs.join("、")}` : `病历记录${item.indication}，通常在服抗凝或抗血小板药`}：本方若用了活血化瘀药（如桃仁、红花、川芎、丹参、三棱、莪术），写一条与${item.drugs.length > 0 ? "这些药" : "抗凝或抗血小板药"}同用可能增加出血、服药期间留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医；本方没有这类药时不写。`;
+    if (item.kind === "antithrombotic_bleeding") return item.drugs.length > 0
+      ? `${order}病历记录患者正在使用${item.drugs.join("、")}：主方与加减不用活血化瘀药及增强抗凝或增加出血方向的药；写明不要自行加用活血药，留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医，不自行停用抗凝或抗血小板药。`
+      : `${order}病历记录${item.indication}，通常在服抗凝或抗血小板药：请患者告知是否在用；本方若有活血药，写明同用可能增加出血，留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医。`;
     if (item.kind === "high_risk_condition") return `${order}${highRiskConditionPromptText(item)}`;
     if (item.kind === "diabetes_glucose" && item.hypoglycemia) return `${order}本次是低血糖发作：写一条请按医嘱调整降糖药、按时进餐、随身带糖果，出现心慌、出汗、手抖、头晕时立即吃含糖食物并测血糖，神志不清时立即急诊；不要写「少吃甜食」。`;
     if (item.kind === "diabetes_glucose" && item.newlyFound) return `${order}病历否认糖尿病、本次才查出血糖明显升高：写一条请尽快到医院明确诊断，在医生指导下控制血糖，服药期间少吃甜食与含糖饮料；不要写「您有糖尿病」「继续控制血糖」。`;
     if (item.kind === "drug_condition_caution") return `${order}病历记录正在用${item.drug}，与本例病情相抵：照这个意思写一条给患者的话——${item.sentence}。`;
-    if (item.kind === "warfarin_herbal") return `${order}病历记录正在服用${item.drug}：写一条开始或停服本方期间按医嘱更频繁地复查INR、留意出血；本方若用了人参、红参、西洋参，写明它们可能减弱华法林的作用。`;
+    if (item.kind === "warfarin_herbal") return `${order}病历记录正在服用${item.drug}：写一条开始或停服本方期间按医嘱更频繁地复查INR、留意出血；本方若用了${item.decreaseHerbs.join("、")}，写明它们可能减弱华法林的作用。`;
     if (item.kind === "diabetes_glucose") return item.confirmed
       ? `${order}患者有糖尿病：写一条服药期间按医嘱继续控制血糖、定期监测血糖，少吃甜食与含糖饮料；饮食建议里不要推荐红枣、蜂蜜、冰糖等含糖多的食物。`
       : `${order}患者口渴多饮、尚未确诊糖尿病：写一条请尽早到医院查空腹血糖和糖化血红蛋白，服药期间少吃甜食与含糖饮料；饮食建议里不要推荐红枣、蜂蜜、冰糖等含糖多的食物。`;

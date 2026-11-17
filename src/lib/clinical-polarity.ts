@@ -54,6 +54,8 @@ export const PATIENT_SELF_REFERENCE = /本例|该例|此例|该患者|患者|患
 // 「当时/此时/发病时/起病时」开头的否认（「当时无腹痛、水肿、发热及关节痛」）同样是否认：此前前缀不认「当时」，
 // 关节痛被读成阳性，治疗卡写「针对本例关节」（2026-10-19 验收主集 RobustSDT-single_0532）。
 const NEGATIVE_PREFIX = new RegExp(String.raw`^(?:(?:患者|病人|本人|既往体检|体检|既往|平素|平时|目前|当前|现阶段|本次|近期|近日|入院以来|就诊以来|发病以来|病程中|病程以来|随访以来|既往史|过敏史|用药史|当时|此时|彼时|发病时|起病时|就诊时|入院时)\s*[：:]?\s*)?(?:${CLINICAL_EXAM_NEGATION_VERB_SOURCE}|否认|不是(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|并非(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|不曾|没有|并无|未见|未发现|未提示|未诊断|未患|未(?:服用|使用|口服|应用)|暂(?:不|未)(?:服用|使用|口服|应用|吃)|没(?:有)?(?:服用|使用|吃)|从未|无(?!菌性|痛性|症状性|创性|脉性|意识性)|暂无(?:明确)?|已排除|已除外)`);
+// 只在用药事件中允许“服用/使用”缩成“服/用”；药物否认不应让同句的症状成为阴性。
+const MEDICATION_NEGATIVE_PREFIX = new RegExp(NEGATIVE_PREFIX.source.replaceAll("服用", "服(?:用)?").replaceAll("使用", "(?:使)?用"), NEGATIVE_PREFIX.flags);
 // Colloquial history commonly uses the aspect marker “过” instead of a formal “否认/未见”,
 // for example “没吐过血” or “没有晕厥过”. Requiring the aspect marker keeps this boundary
 // narrow enough that affirmative negative-form symptoms such as “没精神/没力气/没胃口” remain
@@ -485,6 +487,10 @@ const MEDICATION_CURRENT_TRANSITION_CUE = /(?:目前|当前|现在|现服|正在
 const MEDICATION_CURRENT_CONTINUATION = /(?:至今|目前|当前|现在)[^。；;\n]{0,12}(?:未|没有|并未|尚未)?(?:停用|停服|停药)|(?:一直|持续|仍)[^。；;\n]{0,12}(?:服用|口服|使用)(?:至今)?/;
 const MEDICATION_HISTORY_ONLY_PREFIX = /^(?:(?:在|于)\s*)?(?:(?:约|大约|大概)?(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半两]+|好几|十多|几十|几|多|数|若干)\s*(?:余|来|多)?\s*(?:小时|天|日|周|月|年)(?:余|来|多)?前|(?:19|20)\d{2}年|[零〇一二三四五六七八九]{4}年|(?:几|多|数|若干)年前|前几年|去年|前年|上世纪|小时候|儿童期|青少年时|青年时期|年轻时|大学期间|退休前|很久以前|早些年|早年|既往|曾经|曾|此前|之前|过去|原来|原先|以往|以前|从前|(?:服用过|服过|吃过|用过))/;
 const MEDICATION_LIST_DECLARATION = /^(?:目前|当前|现在|现)?\s*(?:用药|服药|药物)(?:情况)?\s*(?:包括|有|为|是)?\s*[：:]?\s*/;
+function shortMedicationNegation(clause: string): boolean {
+  const body = stripClinicalSectionLabel(clause).replace(MEDICATION_LIST_DECLARATION, "");
+  return !NEGATIVE_PREFIX.test(body) && MEDICATION_NEGATIVE_PREFIX.test(body);
+}
 const MEDICATION_FIRST_REFERENT = /(?:前者|第一种|前一种|第一个|首种)/;
 const MEDICATION_LAST_REFERENT = /(?:后者|第二种|后一种|第二个|末种)/;
 const MEDICATION_ALL_REFERENT = /(?:两者|二者|均|都|全部|上述(?:药物|用药)?)/;
@@ -1118,7 +1124,9 @@ export function medicationHistoryItemCandidate(item: string): { candidate: strin
     previous = candidate;
     candidate = candidate.replace(/^(?:长期|规律|平素|目前|现在?|正在|偶尔|偶有|偶|常备|自行|自己|网购的?|购买的?|孕期|外用|吸入(?![性剂])|口服|服用|使用|服|用|饮)/u, "");
   }
-  candidate = candidate.replace(/(?:近期|近一?[周月日天]|偶有|偶尔|漏用|漏服|不规律|按[^，,]*医嘱|服用|使用|治疗|剂量|名称|成分|品牌|处方|服后|后困倦|饮料|[一二两三四五六七八九十\d]+次).*$/u, "");
+  candidate = candidate.replace(/(?:近期|近一?[周月日天]|偶有|偶尔|漏用|漏服|不规律|按[^，,]*(?:医嘱|说明)|服用|使用|治疗|剂量|名称|成分|品牌|处方|服后|后困倦|饮料|[一二两三四五六七八九十\d]+次).*$/u, "");
+  // 剂量/名称备注可能先被截去，留下未闭合括号；药类须在清掉边界后再识别，否则「降压药(」会被通用切词删光。
+  candidate = candidate.split(/[（(]/u, 1)[0];
   if (!MEDICATION_HISTORY_CLASS_WORD.test(candidate)) candidate = cleanedMedicationNameCandidate(candidate);
   // 「一袋混合药片」「药名不明」：说不出是什么药，不当药名。
   if (/^[一两几][袋盒瓶包]|混合|不明|不详|待核实/u.test(candidate)) candidate = "";
@@ -1267,7 +1275,7 @@ export function affirmedCurrentMedicationText(value: string | null | undefined):
         continue;
       }
 
-      if (clinicalClausePolarity(clause) !== "affirmed") continue;
+      if (clinicalClausePolarity(clause) !== "affirmed" || shortMedicationNegation(clause)) continue;
       if (
         MEDICATION_HISTORY_ONLY_PREFIX.test(clause) &&
         !MEDICATION_CURRENT_TRANSITION_CUE.test(clause) &&

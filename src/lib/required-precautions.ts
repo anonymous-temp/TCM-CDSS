@@ -1,5 +1,7 @@
 import type { DiseaseCareItem } from "./western-disease-care";
 import drugConditionJson from "../data/western-drug-condition-cautions.source.json";
+import drugConditionContraindications from "../data/drug-condition-contraindications.json";
+export const ANTITHROMBOTIC_FORMULA_REVIEW = "本方须先请医生调整，确认前不要服用";
 /**
  * 本例注意事项里必须写到的内容（2026-10-17，甲方标准病历 3、7 与留出例 S143 的独立评审）。
  *
@@ -157,4 +159,14 @@ export function highRiskConditionsMissing(item: HighRiskConditionItem, lines: re
     immunosuppression: (line) => /免疫抑制/u.test(line) && /感染|发热/u.test(line),
   };
   return item.conditions.filter((condition) => !lines.some((line) => covered[condition](line)));
+}
+
+/** 按药病规则逐项核对：同一药的另一条风险提示不能抵扣本条；同一行须点名药、病情和相应处置。 */
+export function drugConditionPrecautionCovered(item: Extract<RequiredPrecaution, { kind: "drug_condition_caution" }>, lines: readonly string[]): boolean {
+  const rules = drugConditionContraindications as { rules: Array<{ id: string; coverage?: { allOf: string[][]; actionTerms?: string[] } }> };
+  const coverage = rules.rules.find((rule) => rule.id === item.ruleId)?.coverage;
+  const drug = item.drug.replace(/(?:片|胶囊|颗粒|丸|口服液|注射液|缓释片|肠溶片|分散片)$/u, "");
+  return lines.some((line) => line.includes(drug) && (coverage?.actionTerms ? coverage.actionTerms.some((term) => line.includes(term)) : /停用|禁用|避免|调整|不宜|不要再/u.test(line)) &&
+    !/是否继续(?:服用|使用)?由医生决定/u.test(line) &&
+    (!coverage || coverage.allOf.every((terms) => terms.some((term) => line.includes(term)))));
 }

@@ -170,7 +170,7 @@ await check("6.1 男性、60 岁以上的人群提示不写「月经期」，育
   assert.equal(boundary.herbBoundaryPopulationLabel("出血倾向/月经期/抗凝状态", { reproductive: true, ageYears: 30 }), "出血倾向/月经期/抗凝状态");
 });
 
-await check("6.2 编译器：72 岁男性服华法林、加桃仁的慎用提示不写「月经期」；30 岁女性照写", () => {
+await check("6.2 D2编译器：服华法林的男性与女性均不加桃仁，无抗栓在用的同证对照照列", () => {
   // 第四十七轮：以真实记录的伴随肩部刺痛测加味人群提示，主诉胸痛本身不再作条件；原有慎用正反对照保留。
   const compiler = jitiCompiler;
   const prior = types.ReasoningV2Schema.parse({
@@ -194,17 +194,15 @@ await check("6.2 编译器：72 岁男性服华法林、加桃仁的慎用提示
     modifications: [{ trigger: "肩部刺痛", targetRef: "P1", actionType: "add", herbName: "桃仁", dose: "9g", reason: "活血通络" }],
     nonPharma: { diet: "宜清淡。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
   }, prior, caseState);
-  const note = (sex, age) => compile(types.normalizeCaseStateInput({
+  const rows = (sex, age, taking = true) => compile(types.normalizeCaseStateInput({
     chiefComplaint: "胸闷刺痛1月", patient: { sex, age },
-    symptoms: { 现病史: "胸闷刺痛，痛有定处，伴肩部刺痛。房颤病史，长期口服华法林。" },
-  })).formula.modifications.find((item) => item.herbName === "桃仁")?.riskNote || "";
-  const man = note("男", 72);
-  assert.match(man, /桃仁[^；]*抗凝状态慎用/u, man);
-  assert.doesNotMatch(man, /月经期/u, man);
-  // 第四十六轮：「本例有…的记录」只写病历里记着的那一类（重跑复核 C067 月经量多加三七写成「出血倾向/月经期/抗凝状态」）。
-  // 30 岁女性服华法林、病历没写月经：写抗凝状态，不写月经期。
-  assert.match(note("女", 30), /抗凝状态/u);
-  assert.doesNotMatch(note("女", 30), /月经期/u);
+    symptoms: { 现病史: `胸闷刺痛，痛有定处，伴肩部刺痛。${taking ? "房颤病史，长期口服华法林。" : "未服药。"}` },
+  })).formula.modifications;
+  // 第四十九轮D2替代原抗凝照加并提示；人口标签自身的月经范围仍由6.1核对。
+  for (const [sex, age] of [["男", 72], ["女", 30]]) assert.ok(!rows(sex, age).some((item) => item.herbName === "桃仁"));
+  const control = rows("女", 30, false).find((item) => item.herbName === "桃仁");
+  assert.ok(control, "无抗栓在用时同证同药通过，不能靠删光加减使断言空转");
+  assert.doesNotMatch(control.riskNote || "", /本例有抗凝状态/u);
 });
 
 // ---------- 7 「复评」换成临床写法 ----------

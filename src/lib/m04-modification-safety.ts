@@ -1,4 +1,4 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04CandidateOpposingDirectionIndices, m04HerbOpposingDirectionIssue, m04ModificationSafetyIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04CandidateOpposingDirectionIndices, m04HerbOpposingDirectionIssue, m04ModificationSafetyIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose, herbAdditionPopulationConflict, recordedPopulationCautions } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
@@ -10,6 +10,7 @@ import rxConstraints from "../data/rx-case-constraints.source.json";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { herbAnyRecordCautionConflict, herbRecordCautionIsHard } from "./herb-record-caution";
 import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose";
+import { appendCaseSafetyNote } from "./candidate-boundary-text";
 
 const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ id: string; herbs: string[]; reason: string }> }).groups;
 
@@ -322,6 +323,7 @@ export function dropUnsupportedM04CandidateHerbs(
 
 const SAFETY_PRUNE_POPULATION_LABELS: Readonly<Record<string, string>> = {
   pregnancy: "孕期不宜", lactation: "哺乳期不宜", pediatric: "儿童不宜", bleeding_anticoagulation: "出血或抗凝状态不宜",
+  antithrombotic_therapy: "正在用抗凝或抗血小板药，避免增强抗凝或增加出血风险",
   older_adult: "老年人不宜", hepatic_impairment: "肝功能不全不宜", renal_impairment: "肾功能不全不宜",
   cardiovascular_disease: "心血管病不宜", cardio_glaucoma_prostate: "心血管病、青光眼或前列腺增生不宜", diabetes: "糖尿病不宜",
   frailty_gastric_weakness: "体虚胃弱不宜", athlete: "运动员不宜", allergy: "与病历记录的过敏原同源",
@@ -371,6 +373,7 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
     }
     const liquidNormalizedContent = liquidChanged
       ? `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}` : content;
+    const normalizedHerbsBeforePrune = structuredClone(herbs);
     // 须由医生单独定量的管制或濒危药材（羚羊角、麝香、生川乌…，clinicianDoseHerbClass）：合同不许系统给它们剂量，
     // 模型写了剂量整方就退成非剂量页（第二十三轮红旗集：羚角钩藤汤 2 例）。单味拿出、写明请医生另行开具；
     // 它是唯一的君药时不拿（交给修复轮重选）。
@@ -420,6 +423,8 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
       // 角色一并传入：在孕时药典孕妇慎用的饮片不作君臣（第四十五轮），臣位的单味拿出，君位同下面的规则。
       const issue = m04GenerationSpecialPopulationIssue([{ name, role: roleOf(value) }], clinicalContext);
       if (!issue) return true;
+      // D2 不代医生变更君药；保留冲突交给合同修复轮重选。
+      if (roleOf(value) === "君" && issue.endsWith("_antithrombotic_therapy")) return true;
       // 君药与管制药材同一口径：还有别的君药时拿掉这一味，它是唯一的君药时不拿（交给修复轮重选）。生产探针 C098（疑似肺栓塞、
       // 病历记录咯血丝）：丹参与桔梗同为君，丹参因活动性出血不入方，此前整方退成非剂量页（2026-10-27 第二十四轮）。
       if (roleOf(value) === "君") {
@@ -497,21 +502,47 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
         retained = retained.filter((value) => value !== drop);
       }
     }
-    if (removed.length === 0 || retained.length < SAFETY_PRUNE_MIN_RETAINED) return liquidNormalizedContent;
-    candidate.herbs = retained;
-    const foodRows = removed.filter((item) => rxConstraints.foodOnlyHerbs.includes(item.name));
-    if (foodRows.length) {
-      const care = recordValue(reasoning.nonPharma) || {};
-      const note = `${foodRows.map((item) => item.name).join("、")}属食材，如需食用请结合饮食习惯及过敏情况另行安排。`;
-      care.diet = [care.diet, note].filter(Boolean).join("；");
-      reasoning.nonPharma = care;
+    const pruningAllowed = removed.length > 0 && retained.length >= SAFETY_PRUNE_MIN_RETAINED;
+    // 原规则在不提交剔药时直接返回原正文；新增慎用说明可能仍需序列化，此时不能带出试剔过程中的君药晋位。
+    if (!pruningAllowed) candidate.herbs = normalizedHerbsBeforePrune;
+    if (pruningAllowed) {
+      candidate.herbs = retained;
+      const foodRows = removed.filter((item) => rxConstraints.foodOnlyHerbs.includes(item.name));
+      if (foodRows.length) {
+        const care = recordValue(reasoning.nonPharma) || {};
+        const note = `${foodRows.map((item) => item.name).join("、")}属食材，如需食用请结合饮食习惯及过敏情况另行安排。`;
+        care.diet = [care.diet, note].filter(Boolean).join("；");
+        reasoning.nonPharma = care;
+      }
+      if (typeof candidate.formulaAnalysis === "string") {
+        candidate.formulaAnalysis = formulaAnalysisAfterHerbRemoval(candidate.formulaAnalysis, retained.map(nameOf).filter(Boolean));
+      }
+      const note = `按本例情况已去除：${removed.map((item) => `${item.name}（${item.reason}）`).join("；")}`;
+      const previous = typeof candidate.notApplicable === "string" ? candidate.notApplicable.trim() : "";
+      candidate.notApplicable = appendCaseSafetyNote(previous, note);
     }
-    if (typeof candidate.formulaAnalysis === "string") {
-      candidate.formulaAnalysis = formulaAnalysisAfterHerbRemoval(candidate.formulaAnalysis, retained.map(nameOf).filter(Boolean));
+    // 方中原有慎用药保留，点明本例实际人群；不把君药改位或剔除。幂等，避免修复/投影重入时重复。
+    let cautionChanged = false;
+    for (const value of (candidate.herbs as unknown[])) {
+      const name = nameOf(value);
+      for (const population of recordedPopulationCautions(name, clinicalContext)) {
+        const note = `${name}${population}慎用；本例有${population}记录，使用前请医生确认`;
+        const previous = String(candidate.notApplicable || "");
+        if (!previous.includes(note)) {
+          candidate.notApplicable = appendCaseSafetyNote(previous, note);
+          cautionChanged = true;
+        }
+      }
     }
-    const note = `按本例情况已去除：${removed.map((item) => `${item.name}（${item.reason}）`).join("；")}`;
-    const previous = typeof candidate.notApplicable === "string" ? candidate.notApplicable.trim() : "";
-    candidate.notApplicable = previous ? `${previous.replace(/[。；;]+$/u, "")}；${note}` : note;
+    const formula = recordValue(reasoning.formula)!;
+    const modifications = Array.isArray(formula.modifications) ? formula.modifications : [];
+    const safeAdditions = modifications.filter((value) => {
+      const row = recordValue(value);
+      return row?.action !== "加" || !herbAdditionPopulationConflict(String(row.herbName || ""), clinicalContext);
+    });
+    const additionsChanged = safeAdditions.length !== modifications.length;
+    if (additionsChanged) formula.modifications = safeAdditions;
+    if (!pruningAllowed && !cautionChanged && !additionsChanged) return liquidNormalizedContent;
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;

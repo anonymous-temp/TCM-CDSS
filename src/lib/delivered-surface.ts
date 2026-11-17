@@ -9,7 +9,8 @@ import { settleWesternRecurrenceQualifier } from "./western-recurrence-qualifier
 import { lineageWordingMatchingDirection } from "./lineage-formula-wording";
 import { populationMatchedPrecautions } from "./population-matched-precautions";
 import { currentMedicationPrecautions } from "./current-medication-precautions";
-import { redFlagRuleIdForMessage, clinicalGroundingText, medicationPopulationAudience } from "./diagnosis-safety";
+import { redFlagRuleIdForMessage, clinicalGroundingText, medicationPopulationAudience, currentAntithromboticTherapyRecorded } from "./diagnosis-safety";
+import { antithromboticHerbAvoid } from "./antithrombotic-herb-policy";
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { projectM04FinalFacts } from "./m04-final-projection";
 import { isSourceFallbackFunctionDisplay, projectGroundedHerbFunctions, selectGroundedHerbFunction, functionClauses, herbFunctionSourceClauses } from "./herb-function-display-source";
@@ -55,7 +56,7 @@ import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { selfTakenMedicationMentions, recordedMedicationMentions, drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTaken } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, retainModificationFindings, topUpTextbookMainSymptom, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
-import { modificationDoseWithinPharmacopoeia, canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
+import { modificationDoseWithinPharmacopoeia, canonicalTcmHerbIdentity, herbAdditionPopulationConflict } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { textbookDiseaseTypicalManifestation, textbookDefinitionSuitableForDisplay, textbookDifferentialTextWithoutNumber, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
@@ -67,7 +68,7 @@ import { herbFunctionClaimUnsupportedPhrases, herbFunctionPhraseRecognized, herb
 import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment, treatmentCardUndeliverable } from "./tcm-treatment-capabilities.server";
 import { dietAdviceAvoidsRichFood, isFoodMedicineHomologyItem, recipeHasRichIngredient, textAntagonizesPrescription, type PrescribedHerbScope } from "./tcm-nondrug-textbook-plan.server";
 import { textbookOcrFixed } from "./nondrug-text-fixes";
-import { discontinuedMedicationLabel, highRiskConditionLine, highRiskConditionsMissing, type RequiredPrecaution, HIGH_POTASSIUM_FOODS } from "./required-precautions";
+import { ANTITHROMBOTIC_FORMULA_REVIEW, drugConditionPrecautionCovered, discontinuedMedicationLabel, highRiskConditionLine, highRiskConditionsMissing, type RequiredPrecaution, HIGH_POTASSIUM_FOODS } from "./required-precautions";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { currentHypoglycemiaRecorded } from "./required-precautions.server";
 import { patentMedicineCompositionIdentities, patentMedicineDuplication } from "./patent-medicine-duplication.server";
@@ -174,7 +175,7 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
   // 模型写「随身带糖果…立即吃含糖食物」不点「低血糖」三个字也算写到（第四十六轮 p100c-C032：规则又补了同一句）。
   if (item.kind === "diabetes_glucose" && item.hypoglycemia) return lines.some((line) => /低血糖|随身带糖|含糖食物/u.test(line) && /含糖|糖果|进食|进餐/u.test(line));
   if (item.kind === "diabetes_glucose" && item.newlyFound) return lines.some((line) => /血糖/u.test(line) && /明确诊断|确诊|就医|到医院|就诊/u.test(line) && !/继续控制血糖|您有糖尿病/u.test(line));
-  if (item.kind === "drug_condition_caution") return lines.some((line) => line.includes(medicationBaseName(item.drug)) && /停用|禁用|避免|调整|不宜|不要再/u.test(line) && !/是否继续(?:服用|使用)?由医生决定/u.test(line));
+  if (item.kind === "drug_condition_caution") return drugConditionPrecautionCovered(item, lines);
   // 写到复查 INR 就算（模型照提示写「开始或停服本方期间请按医嘱更频繁复查INR」常不点药名，第四十六轮 new45-n33 规则又补一句）；
   // 方中有人参类（decreaseHerbs 已按最终药味筛过）时还要点到它会减弱华法林作用。
   if (item.kind === "warfarin_herbal") return lines.some((line) => /INR/iu.test(line)) &&
@@ -252,7 +253,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
   if (item.kind === "antithrombotic_bleeding") {
     const herbs = (context.bleedingHerbs || []).slice(0, 4).join("、");
     return item.drugs.length > 0
-      ? `方中${herbs}有活血作用，与正在使用的${item.drugs.slice(0, 3).join("、")}同用可能增加出血风险；服药期间请留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医，并告诉医生您在用这些药。`
+      ? `${herbs ? `方中${herbs}与正在使用的${item.drugs.slice(0, 3).join("、")}同用可能增加出血风险，${ANTITHROMBOTIC_FORMULA_REVIEW}` : `您正在使用${item.drugs.slice(0, 3).join("、")}，不要自行加用活血药`}；请留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医，不要自行停用抗凝或抗血小板药。`
       : `您有${item.indication}病史，如正在服用抗凝或抗血小板药（如阿司匹林、氯吡格雷、华法林），请告诉医生；方中${herbs}有活血作用，同用可能增加出血风险，服药期间请留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医。`;
   }
   if (item.kind === "drug_condition_caution") return `${item.sentence}。`;
@@ -1366,7 +1367,7 @@ function deliveredDifferentialName(name: unknown): unknown {
 
 const SELF_COMPOSED_NAME = /^本例辨证组方(?:加减)?$/;
 /** 逐味安全边界句（candidate-boundary-text.ts 写的那一段）之前的通用模板句。 */
-const NOT_APPLICABLE_TEMPLATE_HEAD = /^[\s\S]*?(?=各药毒性与特殊人群提示[:：])/;
+const NOT_APPLICABLE_TEMPLATE_HEAD = /^证候、病机、舌脉或安全边界(?:发生)?变化时[^。；;]*[。；;\s]*/;
 
 const SERVER_QUALITY_BOUNDARY_ITEMS = new Set(["辨证推理质量边界", "西医诊断依据边界"]);
 
@@ -2463,19 +2464,19 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     if (options?.herbBoundaryAudience && typeof candidate.notApplicable === "string" && hasHerbBoundaryTail(candidate.notApplicable)) {
       const herbNames = records(candidate.herbs).map((herb) => typeof herb.name === "string" ? herb.name.trim() : "").filter(Boolean);
       const tail = herbBoundaryTail(herbNames.map((name) => getTcmHerbGenerationSafetyProfile(name)), options.herbBoundaryAudience);
-      // 交付面本来只留尾段（尾段前的模板句由下面同一处去掉）；一味都不剩时整栏为空。
-      candidate.notApplicable = tail ? [stripHerbBoundaryTail(candidate.notApplicable), tail].filter(Boolean).join(" ") : "";
+      // 只重写可重建的逐味尾段，保留本例去药与慎用的临床说明。
+      candidate.notApplicable = [stripHerbBoundaryTail(candidate.notApplicable), tail].filter(Boolean).join(" ");
     }
     if (typeof candidate.notApplicable === "string") {
       const text = candidate.notApplicable;
       if (/各药毒性与特殊人群提示[:：]/.test(text)) {
-        // 只留逐味的特殊人群提示（数据来自药典与说明书），去掉前面每例相同的模板句与收尾的流程话。
+        // 去掉每例相同的模板句与尾段标记；本例去药与慎用说明不能随模板一并删除。
         candidate.notApplicable = text.replace(NOT_APPLICABLE_TEMPLATE_HEAD, "")
-          .replace(/^各药毒性与特殊人群提示[:：]\s*/, "")
+          .replace(/各药毒性与特殊人群提示[:：]\s*/, "")
           .replace(/相应人群或状态请停用、替换，或经医生\/药师复核后使用。?$/, "")
           .replace(/禁用或须强复核/g, "禁用").replace(/[；;。\s]+$/g, "").trim();
-      } else if (/^证候、病机、舌脉或安全边界变化时/.test(text.trim())) {
-        candidate.notApplicable = "";
+      } else if (NOT_APPLICABLE_TEMPLATE_HEAD.test(text.trim())) {
+        candidate.notApplicable = text.trim().replace(NOT_APPLICABLE_TEMPLATE_HEAD, "");
       }
     }
     const source = record(candidate.formulaSource);
@@ -2792,8 +2793,16 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
           lactationLineMatchesTiers(line, lactationTiers));
       }
       // 抗凝、抗血小板与活血药：方中知识库标注「出血倾向/月经期/抗凝状态」慎用的药（M 集 MTCMB-7、42、62）。方中没有时这一项不补。
-      const bleedingHerbs = candidateHerbNames.filter((name) => getTcmHerbGenerationSafetyProfile(name).populationRules
+      const medicationContext = options?.recordText || (options?.caseState ? clinicalGroundingText(options.caseState as CaseState) : "");
+      const antithromboticCurrent = currentAntithromboticTherapyRecorded(medicationContext);
+      const unresolvedAntithromboticHerbs = antithromboticCurrent ? candidateHerbNames.filter(antithromboticHerbAvoid) : [];
+      const bleedingHerbs = antithromboticCurrent ? unresolvedAntithromboticHerbs : candidateHerbNames.filter((name) => getTcmHerbGenerationSafetyProfile(name).populationRules
         .some((rule) => /抗凝/u.test(rule.population)));
+      if (unresolvedAntithromboticHerbs.length > 0) {
+        // 旧缓存保留的君药仍应走修复，不能把「照用并观察出血」作为交付结论。
+        precautions = precautions.filter((line) => typeof line !== "string" || !bleedingWatchCovered([line]) ||
+          !unresolvedAntithromboticHerbs.some((name) => line.includes(name)) || line.includes(ANTITHROMBOTIC_FORMULA_REVIEW));
+      }
       // 饮食一项也看调护里的饮食段（非剂量页的调护把饮食段与注意事项排在一起，模型已写「饮食宜清淡易消化…」时不再补一句同样的话，
       // 2026-10-19 H 集 19642、1045、4393、6953）。只用于核对，补的句子仍进注意事项。
       const current = precautions.filter((line): line is string => typeof line === "string");
@@ -2807,8 +2816,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       const finalHerbNames = [...candidateHerbNames, ...records(formula?.modifications).filter((row) => row.action === "加").map((row) => String(row.herbName || "").trim()).filter(Boolean)];
       const requiredForFinal = required.map((item) => item.kind === "warfarin_herbal"
         ? { ...item, decreaseHerbs: [...new Set(finalHerbNames.filter((name) => item.decreaseHerbs.some((herb) => name.includes(herb))))] } : item);
-      const missing = requiredForFinal.filter((item) => item.kind !== "antithrombotic_bleeding" || bleedingHerbs.length > 0)
-        .filter((item) => (item.kind === "postpartum_lactation" && !lactationNamed) ||
+      const missing = requiredForFinal.filter((item) => item.kind !== "antithrombotic_bleeding" || item.drugs.length > 0 || bleedingHerbs.length > 0)
+        .filter((item) => (item.kind === "antithrombotic_bleeding" && unresolvedAntithromboticHerbs.length > 0 &&
+          !current.some((line) => line.includes(ANTITHROMBOTIC_FORMULA_REVIEW))) || (item.kind === "postpartum_lactation" && !lactationNamed) ||
           !requiredPrecautionCovered(item, item.kind === "administration_and_diet" ? coverageLines : current));
       // 补哺乳那句规则句时，模型写的哺乳一句换掉，不并存（2026-10-19 甲方病历 3：「患者一年内分娩…方中当归等哺乳期用药请先咨询医生」
       // 与「产后如正在哺乳…（方中川芎哺乳期须慎用）」同出一页，说法不一）。只换「告知医生、慎用禁用」这类哺乳用药的话；
@@ -2965,6 +2975,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
   }
   // 缓存与编译共用每条件一个独立方案；教材明确的伙伴药仍按一药一行保留。
   if (formula && Array.isArray(formula.modifications)) {
+    const populationContext = options?.recordText || (options?.caseState ? clinicalGroundingText(options.caseState as CaseState) : "");
+    formula.modifications = records(formula.modifications).filter((item) => item.action !== "加" ||
+      !herbAdditionPopulationConflict(String(item.herbName || ""), populationContext));
     // 触发条件残缺到只剩泛称的加减不留（「若临床」：教材「临床可加槟榔、木香」被切成条件，2026-10-20 第八轮 X-G-0020）。源头已在教材表载入时去掉
     //（tcm-textbook-syndromes TEXTBOOK_GENERIC_CONDITION），这里兜住已缓存的结果与模型自己写出的同类触发。
     formula.modifications = records(formula.modifications).filter((item) => !GENERIC_ONLY_TRIGGER.test(String(item.trigger || "")));
