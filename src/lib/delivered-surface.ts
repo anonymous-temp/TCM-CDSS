@@ -528,6 +528,47 @@ function withPatientFacingWorkflowWording(line: string, nonDosePage: boolean): s
 const PRECAUTION_CAP = 5;
 const GENERIC_MEDICATION_DISCLOSURE = /^(?:如|若)(?:正在|同时|另外|还在)?(?:服用|使用|服)(?:其他|其它)(?:药物|药品|药)[^。；;]*?(?:告知|告诉|咨询)医生/u;
 const PREGNANCY_TOPIC_LINE = /怀孕|妊娠|孕期|孕妇|备孕/u;
+const SAFETY_PRECAUTION_KINDS = new Set<string>(["drug_condition_caution", "high_risk_condition", "allergy", "drug_allergy", "antithrombotic_bleeding",
+  "warfarin_herbal", "toxic_self_preparation", "severe_hypertension_followup", "postpartum_lactation", "self_discontinued_medication", "menses_overdue_pregnancy_check"]);
+const PRECAUTION_SCHEMA_LIMIT = 6;
+function precautionBigrams(line: string): Set<string> {
+  const han = line.replace(/[^\u4e00-\u9fff]/gu, "");
+  return new Set([...han].map((_char, index) => han.slice(index, index + 2)).filter((pair) => pair.length === 2));
+}
+/** 两句注意事项的二字词重合度（以较短一句为分母）。 */
+function precautionBigramOverlap(left: string, right: string): number {
+  const a = precautionBigrams(left), b = precautionBigrams(right);
+  const [short, long] = a.size <= b.size ? [a, b] : [b, a];
+  return short.size === 0 ? 0 : [...short].filter((pair) => long.has(pair)).length / short.size;
+}
+/** 一句话是否写到某条必写项（高危病情多项的，写到其中一项就算）。 */
+function lineAddressesRequired(item: RequiredPrecaution, line: string): boolean {
+  if (item.kind === "high_risk_condition") return highRiskConditionsMissing(item, [line]).length < item.conditions.length;
+  if (item.kind === "disease_care") return false;
+  return requiredPrecautionCovered(item, [line]);
+}
+/**
+ * 注意事项按档排：写到安全类必写项的（含方中毒性药一句）→ 写到其他必写项的 → 其余（调护表补句、模型写的）；档内保持原顺序。
+ * 超过接口上限时截掉末尾，安全档不截。
+ */
+export function precautionsWithSafetyFirst(lines: readonly unknown[], required: readonly RequiredPrecaution[], careSentences: readonly string[] = []): unknown[] {
+  const strings = lines.filter((line): line is string => typeof line === "string");
+  // 档、档内按必写项的固定顺序（不按当前位置）：截掉的总是同几条，再投影一次补回来又截掉，结果不变（幂等）。
+  const rank = (line: string, position: number): [number, number, number] => {
+    if (careSentences.includes(line)) return [2, 0, position];
+    if (/方中/u.test(line) && /有毒|毒性/u.test(line)) return [0, required.length, position];
+    const index = required.findIndex((item) => SAFETY_PRECAUTION_KINDS.has(item.kind) && lineAddressesRequired(item, line));
+    if (index >= 0) return [0, index, position];
+    const other = required.findIndex((item) => !SAFETY_PRECAUTION_KINDS.has(item.kind) && lineAddressesRequired(item, line));
+    return other >= 0 ? [1, other, position] : [2, 0, position];
+  };
+  const ranked = strings.map((line, position) => ({ line, key: rank(line, position) }));
+  const sorted = [...ranked].sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2]);
+  if (strings.length <= PRECAUTION_SCHEMA_LIMIT && sorted.every((entry, index) => entry === ranked[index])) return [...lines];
+  const safetyCount = ranked.filter((entry) => entry.key[0] === 0).length;
+  return sorted.slice(0, Math.max(PRECAUTION_SCHEMA_LIMIT, safetyCount)).map((entry) => entry.line);
+}
+
 function withinPrecautionCap(lines: readonly unknown[]): unknown[] {
   const count = (items: readonly unknown[]) => items.filter((line) => typeof line === "string").length;
   let out = [...lines];
@@ -4149,8 +4190,25 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
         management.followupSafetyNet = followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation);
       }
       const lines = Array.isArray(care.precautions) ? care.precautions.filter((line): line is string => typeof line === "string") : [];
-      care.precautions = [...careItems.filter((item) => !diseaseCareItemCovered(item, lines)).map((item) => item.sentence), ...lines];
+      // 同一话题已有一句（规则补的「本次血钾偏高…少吃香蕉、橙子」或先补的另一条调护句）就不再补（第四十九轮 new45-n40：
+      // 慢性肾脏病与高钾血症两张调护表各补一句「血钾偏高…少吃含钾高的食物」，连同规则句共三句说同一件事）。
+      const addedCare: string[] = [];
+      for (const item of careItems) {
+        if (diseaseCareItemCovered(item, lines) || [...lines, ...addedCare].some((line) => precautionBigramOverlap(item.sentence, line) >= 0.4)) continue;
+        // 调护句说的事（血钾、肾功能…）已有规则写的必写项句说了，也不补。
+        const ruleItems = (options?.requiredPrecautions || []).filter((required) => required.kind !== "disease_care");
+        if (ruleItems.some((required) => lineAddressesRequired(required, item.sentence) && lines.some((line) => lineAddressesRequired(required, line)))) continue;
+        addedCare.push(item.sentence);
+      }
+      care.precautions = [...addedCare, ...lines];
     }
+  }
+  // 注意事项接口上限 6 条，签名前按顺序截断：规则写的安全条目（药物与病情禁忌、高危病情、过敏、抗凝出血、毒性药、孕哺）
+  // 排在最前，避免被前面补的调护句挤出（第四十九轮 new45-n40：eGFR 17 仍服二甲双胍的停药提示排在第 7 条被截掉）。
+  {
+    const care = record(projected.nonPharma);
+    const careSentences = (options?.requiredPrecautions || []).flatMap((item) => item.kind === "disease_care" ? [item.sentence] : []);
+    if (care && Array.isArray(care.precautions)) care.precautions = precautionsWithSafetyFirst(care.precautions, options?.requiredPrecautions || [], careSentences);
   }
   if (finalAnalysis) {
     records(record(projected.formula)?.candidates).forEach((candidate, index) => { candidate.formulaAnalysis = previousAnalyses[index]; });

@@ -243,4 +243,16 @@ await check('S35','药名清洗去来源说明后仍保留完整复方成分，�
  }
  assert.equal(polarity.medicationHistoryItemCandidate('氨氯地平按家属说明每日1次').candidate,'氨氯地平');
 });
+await check('S40','注意事项超过 6 条时安全类必写句排前不被截掉，调护句同话题不重复补、截断幂等（new45-n40 二甲双胍）',()=>{
+ const req=[{kind:'disease_care',sentence:'血钾偏高时应少吃含钾高的食物。'},{kind:'elderly_administration'},
+  {kind:'drug_condition_caution',ruleId:'metformin_egfr_below_30',drug:'二甲双胍片'},{kind:'high_risk_condition',conditions:['hyperkalemia','hyperkalemia_diet'],potassium:'5.7mmol/L'}];
+ const metformin='您的肾功能（eGFR 17）已低于二甲双胍可以使用的范围（说明书：eGFR低于30禁用），请尽快就医由医生调整降糖方案，不要自行加量或换药。';
+ const potassium='本次血钾偏高（5.7mmol/L），请遵医嘱尽快复查血钾，不要自行服用补钾药；少吃香蕉、橙子等含钾高的食物。';
+ const lines=['饮食清淡，忌辛辣。','避风寒，注意保暖。','情绪舒畅，规律作息。','年长者服药后起身宜缓，注意防跌倒。','血钾偏高时应少吃含钾高的食物。','服药期间如有不适请就医。',metformin,potassium];
+ const out=surface.precautionsWithSafetyFirst(lines,req,['血钾偏高时应少吃含钾高的食物。']);
+ assert.equal(out.length,6); assert.equal(out[0],metformin); assert.equal(out[1],potassium); assert.ok(out.includes('年长者服药后起身宜缓，注意防跌倒。'));
+ assert.ok(!out.includes('血钾偏高时应少吃含钾高的食物。'),'调护补句排最后被截');
+ assert.deepEqual(surface.precautionsWithSafetyFirst(out,req,['血钾偏高时应少吃含钾高的食物。']),out);
+ const short=['饮食清淡。','注意保暖。'];assert.deepEqual(surface.precautionsWithSafetyFirst(short,req,[]),short);
+});
 console.log(JSON.stringify({checks,failed}));process.exitCode=failed?1:0;
