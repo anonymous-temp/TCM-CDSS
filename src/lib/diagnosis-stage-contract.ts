@@ -1502,9 +1502,10 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
   const overview = projected.overview;
   if (!overview) return reasoning;
   const basis = nonEmptyStringList(overview.primarySyndromeBasis);
+  // 补的鉴别原句排在前面：依据上限 8 条，截断时截掉的是模型写的末几条，不是这几条（第四十九轮 r49d rt-848256）。
   overview.primarySyndromeBasis = [
-    ...basis,
     ...sourceQuotes.filter((quote) => !basis.some((item) => item.includes(quote))),
+    ...basis,
   ];
 
   const rationale = typeof overview.tcmDiagnosticRationale === "string"

@@ -251,4 +251,17 @@ await check('C91','交付的病机链节点编号连续（删节点后 P2、P3 �
  const out=surface.withContiguousChainNodeIds(r);assert.deepEqual(out.pathogenesis.chain.map(n=>n.nodeId),['P1','P2']);assert.equal(surface.withContiguousChainNodeIds(out),out);
  const rx={...structuredClone(r),stage:'prescribe'};assert.deepEqual(surface.withContiguousChainNodeIds(rx).pathogenesis.chain.map(n=>n.nodeId),['P2','P3']);
 });
+await check('C92','主证依据超过 8 条时截断不清空，补的无汗/脉浮紧原句排在前面（r49d rt-848256 风寒束表退回占位）',async()=>{
+ const types=await jiti.import('../src/lib/diagnosis-types.ts');const contract=await jiti.import('../src/lib/diagnosis-stage-contract.ts');
+ const r=base();r.overview.primarySyndrome='风寒束表证';r.overview.primarySyndromeBasis=['恶寒','发热','头痛','身痛','鼻塞','流清涕','喷嚏','咳嗽'];
+ r.overview.tcmDiagnosticRationale='恶寒重、发热轻、无汗，脉浮紧，为风寒束表。';r.pathogenesis.chain=[{nodeId:'P1',patientFact:'恶寒重、发热轻，伴无汗；脉浮紧',pathogenesis:'风寒束表',therapyDirection:'辛温解表'}];
+ const ctx='患者1天前受凉后出现恶寒、发热，恶寒重、发热轻，伴无汗、头痛；舌淡红，苔薄白，脉浮紧。';
+ const projected=contract.projectM03KeySyndromeDiscriminators(r,ctx);
+ assert.ok(projected.overview.primarySyndromeBasis.length>8,'投影后超过8条（用例须覆盖上限）');
+ const parsed=types.ReasoningV2Schema.safeParse(projected);const normalized=parsed.success?parsed.data:{overview:types.ReasoningV2Schema.shape?.overview?.parse?.(projected.overview)};
+ if(!parsed.success){const ov=types.ReasoningV2Schema.shape.overview.safeParse(projected.overview);assert.ok(ov.success,JSON.stringify(ov.error?.issues?.slice(0,2)));normalized.overview=ov.data;normalized.pathogenesis=projected.pathogenesis;}
+ assert.equal(normalized.overview.primarySyndromeBasis.length,8);
+ assert.ok(normalized.overview.primarySyndromeBasis.some(item=>/无汗/.test(item)),JSON.stringify(normalized.overview.primarySyndromeBasis));
+ assert.equal(contract.m03KeySyndromeDiscriminatorIssue(normalized,ctx),undefined);
+});
 console.log(`${passed} passed, ${failed} failed`);if(failed)process.exit(1);

@@ -350,7 +350,9 @@ const mahuangHerbs = [
       chain: [{ nodeId: "P1", patientFact: "恶寒重发热轻", syndromeEvidence: "鼻塞流清涕", pathogenesis: "风寒束表，卫阳被遏", therapyDirection: "辛温解表" }],
     },
   }, clinicalContext);
-  assert.match(projected.overview.primarySyndromeBasis.slice(2).join("；"), /无汗.*脉浮紧/s);
+  // 第四十九轮起补的原句排在依据最前（依据上限 8 条，截断时不截这几条），模型写的两条在后、原样保留。
+  assert.match(projected.overview.primarySyndromeBasis.slice(0, -2).join("；"), /无汗.*脉浮紧/s);
+  assert.deepEqual(projected.overview.primarySyndromeBasis.slice(-2), ["恶寒重发热轻", "鼻塞流清涕"]);
   assert.match(projected.overview.tcmDiagnosticRationale, /无汗.*脉浮紧/s);
   // 2026-10-17：只补缺的项并交代意义，不再把病历原句整段贴在辨证依据后面（甲方标准病历 1 两次生成都是这样）。
   assert.equal(projected.overview.tcmDiagnosticRationale, "恶寒重发热轻、鼻塞流清涕，故辨为风寒束表证；无汗、脉浮紧，为寒邪束表、腠理闭塞之征。");

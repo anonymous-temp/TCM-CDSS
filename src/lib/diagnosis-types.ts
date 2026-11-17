@@ -1385,8 +1385,10 @@ const ReasoningV2SchemaBase = z.object({
     // 空病机 → overall_pathogenesis_unstable（两者的 `!value` 分支与占位串同码），检测力度不变。
     primarySyndrome: z.string().max(1200).catch(""),
     primarySyndromeResolution: z.enum(["resolved", "bounded", "unresolved"]).optional().catch(undefined),
+    // 超过 8 条时截断，不整列清空（第四十九轮 r49d rt-848256：模型写了 8 条依据，服务端再补「无汗、脉浮紧」原句成 9 条，
+    // `.max(8).catch([])` 把整列依据归零，关键鉴别核对随之三轮不过，整份辨证退回占位结果；同 precautions 的 C051 一类）。
     primarySyndromeBasis: z.preprocess(
-      isolateInvalidItems(z.string().min(1).max(600)),
+      (value) => { const items = isolateInvalidItems(z.string().min(1).max(600))(value); return Array.isArray(items) ? items.slice(0, 8) : items; },
       z.array(z.string().min(1).max(600)).max(8).optional(),
     ).catch([]),
     primarySyndromeResolutionReason: z.string().min(1).max(800).optional().catch(undefined),
