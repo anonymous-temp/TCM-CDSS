@@ -84,7 +84,9 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
   }
   const beforeIssue = safety(reasoning);
   // 剂量、配伍、人群等安全问题照旧在这里拦（纵深防御）；只有方名身份/方向一类（路由已按自己的口径放行）不在这里判死。
-  if (beforeIssue && !/^formula_(?:direction_drift|reference_|selection_missed_lockable)/u.test(beforeIssue)) throw new Error(`m04_final_safety:${beforeIssue}`);
+  // 第四十九轮 new45 n35：修复轮截止后方已降为自拟方，进来时就带着「命名方组成不足」（方名身份类，路由的最终合同已按自己的口径受理），
+  // 在这里抛错让整页退成无剂量页。它与 direction_drift 等同属方名身份，不是剂量/配伍/人群安全，一并不在这里判死。
+  if (beforeIssue && !/^(?:formula_(?:direction_drift|reference_|selection_missed_lockable)|named_formula_positive_sufficiency_missing)/u.test(beforeIssue)) throw new Error(`m04_final_safety:${beforeIssue}`);
   // Terminal snapshot must have the same public projection on a second read.
   const projected = projectDeliveredReasoning(reasoning, { caseState, recordText: record });
   let final: ClinicalReasoningResultV2;

@@ -7,6 +7,7 @@ import natureJson from "../data/tcm-nature-lexicon.json";
 import { clauseLocalMentionPolarityAt, negationGroundingEquivalents, recordedFindingReading } from "./diagnosis-safety";
 import { EXCESS_ELEMENTS, MIN_RECORD_SIGNS, natureLabelSignTerms, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintyMissingClaims, uncertaintiesWithRecordedAnswers, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording } from "./analysis-element-closure";
 import { classifyNatureColumns, natureItemDeficiencyOrExcess } from "./nature-column-classification";
+import { coreProseAfterCut, rowsAfterCut } from "./m03-core-prose-floor";
 
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json | undefined => value && typeof value === "object" && !Array.isArray(value) ? value as Json : undefined;
@@ -132,7 +133,7 @@ export function reconcileAnalysisUncertainties(reasoning: Json, recordText: stri
     if (!kept.length) return [];
     return kept[0].item === question ? [sentence] : [`${text(kept[0].item)}尚待核实。`];
   }).join("");
-  if (overview) for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) if (typeof overview[key] === "string") overview[key] = pendingProse(text(overview[key]));
+  if (overview) for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) if (typeof overview[key] === "string") overview[key] = coreProseAfterCut(key, overview[key], pendingProse(text(overview[key])));
   for (const key of ["summary", "natureSummary"]) if (typeof pathogenesis[key] === "string") pathogenesis[key] = pendingProse(text(pathogenesis[key]));
   if (overview && typeof overview.primarySyndromeResolutionReason === "string") {
     const reason = overview.primarySyndromeResolutionReason.replace(/[^，,。；;\n]+/gu, (clause) => {
@@ -209,12 +210,12 @@ export function reconcileEmptyNatureAssertions(reasoning: Json, recordText: stri
   // No replacement prose: remove only the independent authored sentence asserting an ungrounded element.
   const cut = (value: unknown) => sentences(text(value)).filter((sentence) => !assertedNatureLabels(sentence, context).some((label) => denied.includes(label))).join("");
   if (denied.length) {
-    for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) if (typeof overview[key] === "string") overview[key] = cut(overview[key]);
-    for (const key of ["summary", "natureSummary"]) if (typeof pathogenesis[key] === "string") pathogenesis[key] = cut(pathogenesis[key]);
-    pathogenesis.chain = nodes.flatMap((node) => {
+    for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) if (typeof overview[key] === "string") overview[key] = coreProseAfterCut(key, overview[key], cut(overview[key]));
+    for (const key of ["summary", "natureSummary"]) if (typeof pathogenesis[key] === "string") pathogenesis[key] = coreProseAfterCut(key, pathogenesis[key], cut(pathogenesis[key]));
+    pathogenesis.chain = rowsAfterCut(nodes, nodes.flatMap((node) => {
       const mechanism = cut(node.pathogenesis);
       return mechanism ? [{ ...node, pathogenesis: mechanism }] : [];
-    });
+    }));
   }
   classifyNatureColumns(nature);
 }

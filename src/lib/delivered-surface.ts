@@ -3896,8 +3896,27 @@ function withEstablishedDiagnosis(projected: Json, options?: DeliveredSurfaceOpt
 }
 
 export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: DeliveredSurfaceOptions): T {
-  return traceProjection("projectDeliveredReasoning", reasoning, () => projectDeliveredReasoningInternal(reasoning, rawOptions, false),
-    { ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.projectDeliveredReasoning" });
+  return withContiguousChainNodeIds(traceProjection("projectDeliveredReasoning", reasoning, () => projectDeliveredReasoningInternal(reasoning, rawOptions, false),
+    { ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.projectDeliveredReasoning" }));
+}
+
+/**
+ * 辨证阶段交付的病机链节点编号连续（P1…Pn）。第四十九轮：撤回证素、删句兜底会整条删掉节点（hold40 h33 删掉了瘙痒那条 P1），
+ * 剩下 P2、P3；开方模型看到编号从 2 开始就把首味药的靶点写成不存在的 P1，合同 target_ref_invalid，整页成了无剂量页。
+ * 辨证结果里没有别的字段按编号引用节点；开方阶段的药味靶点引用交付后的编号，所以只在 diagnose 阶段重排（prescribe 不动）。
+ */
+export function withContiguousChainNodeIds<T>(reasoning: T): T {
+  const object = record(reasoning);
+  const chain = object?.stage === "diagnose" ? record(object.pathogenesis)?.chain : undefined;
+  if (!Array.isArray(chain)) return reasoning;
+  const ids = chain.map((node, index) => `P${index + 1}`);
+  if (chain.every((node, index) => record(node)?.nodeId === ids[index] || record(node)?.nodeId === undefined)) return reasoning;
+  const next = structuredClone(object!);
+  record(next.pathogenesis)!.chain = (chain as unknown[]).map((node, index) => {
+    const row = record(node);
+    return row && row.nodeId !== undefined ? { ...row, nodeId: ids[index] } : node;
+  });
+  return next as T;
 }
 
 /** Two-pass M03 display pass. The caller must also assert a default-projection fixed point. */

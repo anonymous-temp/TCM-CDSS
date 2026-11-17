@@ -28,7 +28,7 @@ await check('C03','空本虚有肯定断言和逐字支持引文则归栏；非�
 });
 await check('C04','无依据肯定虚性按句撤，否认句和真实句保留；无病历不猜',()=>{
  const r=base();r.overview.tcmDiagnosticRationale='胁部胀痛，为气滞。心气欲脱。未见阳虚。';r.overview.overallPathogenesis='心气欲脱。';r.pathogenesis.chain=[];r.overview.primarySyndromeBasis=['胁部胀痛'];r.pathogenesis.natureDifferentiation={items:['气滞'],rootDeficiency:[],branchExcess:['气滞'],basis:'胁部胀痛'};
- columns.reconcileEmptyNatureAssertions(r,'胁部胀痛');assert.equal(r.overview.tcmDiagnosticRationale,'胁部胀痛，为气滞。未见阳虚。');assert.equal(r.overview.overallPathogenesis,'');
+ columns.reconcileEmptyNatureAssertions(r,'胁部胀痛');assert.equal(r.overview.tcmDiagnosticRationale,'胁部胀痛，为气滞。未见阳虚。');assert.equal(r.overview.overallPathogenesis,'心气欲脱。');// 总指挥第四十九轮：删到核心下限以下保留原文（m11/h32 无剂量页）
  const n=base();n.pathogenesis.natureDifferentiation={items:[],rootDeficiency:[],branchExcess:[]};const before=n.overview.tcmDiagnosticRationale;columns.reconcileEmptyNatureAssertions(n,'');assert.equal(n.overview.tcmDiagnosticRationale,before);
 });
 await check('C05','空标实寒热瘀有逐字依据归栏，虚热不产生实热',()=>{
@@ -237,4 +237,18 @@ await check('C32','症状已记不能代答诱因和随访，缺项理由的属�
  const r=base();const triggers=pending('饮食及睡眠具体诱因','病历未记录失眠多梦、食后腹胀的诱发或缓解因素');const followup=pending('骨龄与激素随访','骨龄已记录，进展速度未明');r.pathogenesis.uncertainties=[triggers,followup];columns.reconcileAnalysisUncertainties(r,'失眠多梦，食后腹胀，骨龄8岁。');assert.deepEqual(r.pathogenesis.uncertainties,[triggers,followup]);
 });
 
+await check('C90','删句兜底不把总体病机、辨证依据、病机链删空（m11、h32 无剂量页）',async()=>{
+ const floor=await jiti.import('../src/lib/m03-core-prose-floor.ts');
+ assert.equal(floor.coreProseAfterCut('overallPathogenesis','寒邪外袭肌肤，阳气不达四末，血行凝滞',''),'寒邪外袭肌肤，阳气不达四末，血行凝滞');
+ assert.equal(floor.coreProseAfterCut('overallPathogenesis','寒邪外袭肌肤，阳气不达四末，血行凝滞','寒邪外袭肌肤，血行凝滞，络脉不通'),'寒邪外袭肌肤，血行凝滞，络脉不通');
+ assert.equal(floor.coreProseAfterCut('tcmDiagnosticRationale','原依据很长的一段话用来判断是否保留原文不被删到太短','故属。'),'原依据很长的一段话用来判断是否保留原文不被删到太短');
+ assert.deepEqual(floor.rowsAfterCut([{a:1}],[]),[{a:1}]);assert.deepEqual(floor.rowsAfterCut([{a:1},{a:2}],[{a:2}]),[{a:2}]);
+ const r=base();r.overview.overallPathogenesis='心气欲脱。';r.overview.tcmDiagnosticRationale='心气欲脱。';const out=alignment.withoutMisalignedAnalysis(r,record);
+ assert.ok(String(out.overview.overallPathogenesis).length>0);assert.ok(String(out.overview.tcmDiagnosticRationale).length>0);
+});
+await check('C91','交付的病机链节点编号连续（删节点后 P2、P3 → P1、P2；开方阶段不重排）',()=>{
+ const r=base();r.pathogenesis.chain=[{nodeId:'P2',patientFact:'头晕',pathogenesis:'血虚不能上荣',therapyDirection:'养血'},{nodeId:'P3',patientFact:'心悸',pathogenesis:'心血不足',therapyDirection:'养血'}];
+ const out=surface.withContiguousChainNodeIds(r);assert.deepEqual(out.pathogenesis.chain.map(n=>n.nodeId),['P1','P2']);assert.equal(surface.withContiguousChainNodeIds(out),out);
+ const rx={...structuredClone(r),stage:'prescribe'};assert.deepEqual(surface.withContiguousChainNodeIds(rx).pathogenesis.chain.map(n=>n.nodeId),['P2','P3']);
+});
 console.log(`${passed} passed, ${failed} failed`);if(failed)process.exit(1);

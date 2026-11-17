@@ -11,6 +11,7 @@ import { withMethodImpliedNatureElements } from "./analysis-element-closure";
 import { foreignSyndromeNames } from "./m03-rationale-coverage.server";
 import { isLineageLensSentence } from "./tcm-lineages";
 import { sanitizeOptionalPathogenesisClassifications } from "./diagnosis-visible-summary";
+import { isStructurallyEmptyM03CoreText } from "./diagnosis-stage-contract";
 
 /**
  * 辨证分析与结论对齐（2026-11-14 第四十五轮，「先定结论、再写文字」的服务端一半）。
@@ -297,18 +298,30 @@ export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): 
       });
   };
   const cut = (value: unknown): string => asSentences(text(value)).filter((sentence) => !contradictsIssue(sentence)).join("");
+  // 删句不能把核心文字删空（第四十九轮 new40 m11：对齐两次被拒，兜底删掉总体病机全部句子 → overall_pathogenesis_unstable T1 →
+  // M03 退成占位、M04 无方）。删后结构上为空或不足一句时保留原文，矛盾留给后面的核对与复核看见，不让整页作废。
+  const cutCore = (value: unknown): string => {
+    const original = text(value);
+    const kept = cut(value);
+    return kept.length >= 8 && !isStructurallyEmptyM03CoreText(kept) ? kept : original;
+  };
   for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) {
-    if (typeof overview[key] === "string") overview[key] = cut(overview[key]);
+    if (typeof overview[key] === "string") overview[key] = cutCore(overview[key]);
   }
   for (const key of ["summary", "natureSummary"]) if (typeof pathogenesis[key] === "string") pathogenesis[key] = cut(pathogenesis[key]);
   // R49: element promotion/withdrawal belongs to P6a. This fallback edits prose only.
-  if (Array.isArray(pathogenesis.chain)) pathogenesis.chain = pathogenesis.chain.filter((raw) => {
-    const node = record(raw);
-    if (!node) return true;
-    for (const key of ["pathogenesis", "syndromeEvidence", "therapyDirection"]) if (typeof node[key] === "string") node[key] = cut(node[key]);
-    // Remove the whole unexplainable item; retained node IDs remain stable for reference repair.
-    return Boolean(text(node.pathogenesis));
-  });
+  if (Array.isArray(pathogenesis.chain)) {
+    const originalChain = structuredClone(pathogenesis.chain);
+    pathogenesis.chain = pathogenesis.chain.filter((raw) => {
+      const node = record(raw);
+      if (!node) return true;
+      for (const key of ["pathogenesis", "syndromeEvidence", "therapyDirection"]) if (typeof node[key] === "string") node[key] = cut(node[key]);
+      // Remove the whole unexplainable item; retained node IDs remain stable for reference repair.
+      return Boolean(text(node.pathogenesis));
+    });
+    // 同上：病机链删到一个节点不剩时保留原链（空链是 T1 m03_chain_empty）。
+    if (pathogenesis.chain.length === 0 && originalChain.length > 0) pathogenesis.chain = originalChain;
+  }
   reconcileAnalysisUncertainties(next, recordText);
   return next;
 }

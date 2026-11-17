@@ -15,6 +15,7 @@ import { isCriticalSyndromeName } from "./m03-critical-syndrome";
 import { trueHeartPainSignal } from "./true-heart-pain";
 import { therapyItemsOnlyFor } from "./tcm-therapy-phrasing";
 import type { CaseState } from "./diagnosis-types";
+import { coreProseAfterCut, rowsAfterCut } from "./m03-core-prose-floor";
 
 /** D3：判据与命名共用一份台账；不从病机链重建病位病性，不改变安全门。 */
 type Json = Record<string, unknown>;
@@ -394,8 +395,8 @@ function withdraw(root: Json, unit: LedgerElement): boolean {
       location.details = records(location.details).filter((item) => !unit.organs.includes(text(item.location)));
     }
   }
-  for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) if (typeof overview[key] === "string") overview[key] = clean(overview[key] as string, true);
-  if (typeof path.summary === "string") path.summary = clean(path.summary);
+  for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) if (typeof overview[key] === "string") overview[key] = coreProseAfterCut(key, overview[key], clean(overview[key] as string, true));
+  if (typeof path.summary === "string") path.summary = coreProseAfterCut("summary", path.summary, clean(path.summary));
   const row = textbookRowForSyndrome(text(overview.tcmDiseaseName), text(overview.primarySyndrome));
   const textbookMethod = split(row?.therapy || "");
   const cleanMethod = (value: string) => split(value).flatMap((item) => {
@@ -409,14 +410,15 @@ function withdraw(root: Json, unit: LedgerElement): boolean {
     return remaining && !mentions(remaining, true) ? [remaining] : [];
   }).join("，");
   const therapy = object(root.therapy);
-  if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = cleanMethod(therapy.overallMethod);
-  if (typeof overview.overallTherapy === "string") overview.overallTherapy = cleanMethod(overview.overallTherapy);
-  path.chain = records(path.chain).flatMap((node) => {
+  if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = coreProseAfterCut("overallMethod", therapy.overallMethod, cleanMethod(therapy.overallMethod));
+  if (typeof overview.overallTherapy === "string") overview.overallTherapy = coreProseAfterCut("overallTherapy", overview.overallTherapy, cleanMethod(overview.overallTherapy));
+  const chainBefore = records(path.chain);
+  path.chain = rowsAfterCut(chainBefore, chainBefore.flatMap((node) => {
     const mechanism = clean(text(node.pathogenesis));
     const method = cleanMethod(text(node.therapyDirection));
     if (!mechanism || !method) return [];
     return [{ ...node, pathogenesis: mechanism, therapyDirection: method }];
-  });
+  }));
   if (therapy && Array.isArray(therapy.subTherapies)) therapy.subTherapies = records(therapy.subTherapies).flatMap((row) => {
     const targetPathogenesis = clean(text(row.targetPathogenesis));
     const method = cleanMethod(text(row.therapy));
