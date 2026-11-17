@@ -4418,5 +4418,104 @@
    "精神欠佳",
    "精神差"
   ]
+ },
+ "deterministicCombinations": {
+  "deepNeckSpaceInfection": {
+   "rule": "口腔/咽部感染背景伴张口受限、吞咽困难、流涎、含物音或深部肿胀即需立即急诊，不要求发热；张口异常或颈部/口底肿胀伴气道受累也直接成立。张口受限+吞咽痛/局部征象+发热仍作确定性兜底。",
+   "exception": "有限闭集、构词守卫及数值阈值；每条证据均须为患者本人当前肯定事实。弱咽痛须伴真实吞咽障碍或头颈强征象；不把哮喘等下气道呼吸困难伴咽痛发热直接归为颈深感染。共享补语「吞咽和/及/与呼吸困难」按有限构词式读吞咽障碍。",
+   "trismusPatterns": [
+    "(?:张口|开口)(?:明显|轻度|稍|略)?(?:受限|困难|不利)",
+    "牙关紧闭",
+    "张不开口"
+   ],
+   "localCompanionPatterns": [
+    "吞咽(?:稍|稍有|轻度|轻微|明显|较)?(?:疼痛|痛|困难)"
+   ],
+   "swellingPatterns": [
+    "(?:颈部|口底|颌下)(?:明显|轻度|局部)?(?:肿胀|肿痛)"
+   ],
+   "airwayPatterns": [
+    "呼吸困难",
+    "喘鸣",
+    "喉鸣"
+   ],
+   "swallowingDangerPatterns": [
+    "吞咽困难",
+    "不能吞咽",
+    "无法吞咽",
+    "不能咽口水",
+    "咽不下口水",
+    "吞咽(?:和|及|与)呼吸困难"
+   ],
+   "droolingPatterns": [
+    "流涎",
+    "流口水"
+   ],
+   "voicePatterns": [
+    "热土豆音",
+    "含物音",
+    "声音改变"
+   ],
+   "oralInfectionPatterns": [
+    "牙痛",
+    "牙龈(?:明显|轻度|局部)?(?:肿胀|肿痛)",
+    "(?:面颊|颊部)(?:明显|轻度|局部)?肿胀",
+    "智齿冠周炎",
+    "牙脓肿",
+    "扁桃体炎",
+    "(?:口腔|咽部|咽喉|口底|颌面|颈部)(?:感染|脓肿|蜂窝织炎)",
+    "急性咽炎",
+    "急性咽喉炎"
+   ],
+   "throatPainPatterns": [
+    "(?<!吞)咽痛",
+    "咽喉(?:疼痛|痛)"
+   ],
+   "linkedThroatSwallowPatterns": [
+    "(?:咽痛|咽喉痛)(?:伴有?|并有?|及|和|与|[、，,。；;\\n\\s])*(?:吞咽困难|不能吞咽|无法吞咽)",
+    "(?:吞咽困难|不能吞咽|无法吞咽)(?:伴有?|并有?|及|和|与|[、，,。；;\\n\\s])*(?:咽痛|咽喉痛)"
+   ],
+   "feverPatterns": [
+    "发热",
+    "发烧",
+    "高热"
+   ],
+   "feverTemperatureAtLeast": 38,
+   "evidence": {
+    "researchTitle": "R1-deep-neck-infection.json（2026-11-17）",
+    "isSynthesis": true,
+    "interpretationZh": "研究明确发热不是感染背景下转诊的必要条件。吞咽痛本身不等同不能吞咽；只有任务要求的三联兜底或感染背景伴真正的转诊征象才升级。普通牙痛、咽痛发热和非感染性张口受限不升级。语料回放证实，咽痛发热伴哮喘不单独构成颈深感染背景；急性咽炎等明确局部感染背景与真实吞咽障碍仍按研究转诊。",
+    "sources": [
+     {
+      "source": "SDCEP Drug Prescribing for Dentistry — Dental abscess",
+      "url": "https://www.sdcepdentalprescribing.nhs.scot/guidance/bacterial-infections/dental-abscess/",
+      "accessed": "2026-11-17",
+      "quotes": [
+       "significant trismus, floor-of-mouth swelling, difficulty breathing, difficulty swallowing",
+       "transfer the patient to hospital as an emergency."
+      ],
+      "verification": "本工作包亦已直接核对SDCEP原页，和R1逐字引文一致"
+     },
+     {
+      "source": "NHS Dental abscess",
+      "url": "https://www.nhs.uk/conditions/dental-abscess/",
+      "accessed": "2026-11-17",
+      "quotes": [
+       "are finding it hard to breathe, speak or swallow",
+       "are finding it hard to open your mouth",
+       "a high temperature"
+      ],
+      "applicationZh": "NHS明确列出牙源感染背景下呼吸、吞咽或张口困难的急诊指征；本规则按R1补充SDCEP的不要求发热口径。没有感染背景的慢性吞咽障碍伴呼吸困难不单独归为颈深感染。"
+     },
+     {
+      "source": "NICE NG84 rec 1.1.13",
+      "url": "https://www.nice.org.uk/guidance/ng84/chapter/Recommendations",
+      "accessed": "2026-11-17",
+      "quote": "severe suppurative complications (such as quinsy [peri-tonsillar abscess] or cellulitis, parapharyngeal abscess or retropharyngeal abscess or Lemierre syndrome).",
+      "verification": "研究文件已逐字核对原页；本工作包直页请求403"
+     }
+    ]
+   }
+  }
  }
 }

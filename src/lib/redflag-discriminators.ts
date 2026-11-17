@@ -47,6 +47,9 @@ export function isFatigueFramed(clause: string): boolean {
 /** 意识改变的弱字样（嗜睡）。 */
 export const WEAK_CONSCIOUSNESS_TERMS: readonly string[] = DISCRIMINATOR_WEAK_ANCHORS.get("objective-altered-mental-state") || [];
 
+/** 第四十九轮：只由确定性层读取的颌面/颈深感染组合；闭集和构词式来自受治理源表。 */
+export const DEEP_NECK_SPACE_INFECTION = table.deterministicCombinations.deepNeckSpaceInfection;
+
 export const CONTEXT_FEVER = "ctx-fever";
 export const CONTEXT_INFECTION = "ctx-infection-suspected";
 

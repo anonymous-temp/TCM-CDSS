@@ -21,7 +21,7 @@ import {
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
 import priorityEvaluationWindowTable from "../data/priority-evaluation-windows.source.json";
-import { evaluateDiscriminators, isFatigueFramed, redFeatureChecklistForPatient, WEAK_CONSCIOUSNESS_TERMS, type DiscriminatorOutcome } from "./redflag-discriminators";
+import { DEEP_NECK_SPACE_INFECTION, evaluateDiscriminators, isFatigueFramed, redFeatureChecklistForPatient, WEAK_CONSCIOUSNESS_TERMS, type DiscriminatorOutcome } from "./redflag-discriminators";
 import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json";
 import intracranialBleedingSigns from "../data/intracranial-bleeding-signs.source.json";
 import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
@@ -5450,6 +5450,59 @@ function vitalsRecordedAndStableByNews2(measurements: CurrentVitalMeasurements):
 const VITAL_INSTABILITY = priorityEvaluationWindowTable.vitalInstability;
 type VitalInstabilityContext = keyof typeof VITAL_INSTABILITY.contexts;
 
+/**
+ * 有限闭集/构词式的当前肯定提及。子句极性避免无关背景否认吞掉下一句阳性；
+ * 原文时态、主体与后置阴性仍逐处核对，不改旧红旗的共享谓词（第四十九轮）。
+ */
+function currentCombinationFinding(text: string, patterns: readonly string[]): string | undefined {
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(new RegExp(pattern, "gu"))) {
+      const at = match.index ?? 0;
+      if (clauseLocalMentionPolarityAt(text, at) !== "affirmed") continue;
+      if (isLocalHeatNotFeverAt(text, at, match[0])) continue;
+      if (isPostfixNegatedAt(text, at, match[0].length)) continue;
+      if (isHistoricalOrResolvedAt(text, at, match[0].length)) continue;
+      return match[0];
+    }
+  }
+  return undefined;
+}
+
+function combinationFeverFinding(state: CaseState, text: string, rule: { feverPatterns: readonly string[]; feverTemperatureAtLeast: number }): string | undefined {
+  const fever = currentCombinationFinding(text, rule.feverPatterns);
+  if (fever) return fever;
+  const temperature = currentVitalMeasurements(state).temperature;
+  return temperature != null && temperature >= rule.feverTemperatureAtLeast ? `体温${temperature}℃` : undefined;
+}
+
+/** R1：感染背景伴转诊征象无需同时发热；弱咽痛的关系按受治理构词守卫读取。 */
+function deepNeckSpaceInfectionRedFlag(state: CaseState, text: string): string | undefined {
+  const rule = DEEP_NECK_SPACE_INFECTION;
+  const normalized = normalizeClinicalText(text);
+  const trismus = currentCombinationFinding(normalized, rule.trismusPatterns);
+  const swelling = currentCombinationFinding(normalized, rule.swellingPatterns);
+  const swallowing = currentCombinationFinding(normalized, rule.swallowingDangerPatterns);
+  const drooling = currentCombinationFinding(normalized, rule.droolingPatterns);
+  const voice = currentCombinationFinding(normalized, rule.voicePatterns);
+  const local = currentCombinationFinding(normalized, rule.localCompanionPatterns) || swallowing || drooling || swelling;
+  const airway = currentCombinationFinding(normalized, rule.airwayPatterns);
+  if (airway && (trismus || swelling)) {
+    return `${trismus || swelling}伴${airway}，需立即急诊评估气道并排除颌面间隙或颈深部感染`;
+  }
+  const oral = currentCombinationFinding(normalized, rule.oralInfectionPatterns);
+  const throat = currentCombinationFinding(normalized, rule.throatPainPatterns);
+  const linkedSwallowing = swallowing && currentCombinationFinding(normalized, rule.linkedThroatSwallowPatterns);
+  const fever = combinationFeverFinding(state, normalized, rule);
+  const pharyngeal = throat && (trismus || swelling || drooling || voice || linkedSwallowing || (fever && swallowing));
+  const danger = trismus || swelling || swallowing || drooling || voice || airway;
+  if ((oral || pharyngeal) && danger) {
+    const companion = local && local !== danger ? `、${local}` : "";
+    return `${oral || throat}伴${danger}${companion}${fever ? `、${fever}` : ""}，需立即急诊排除颌面间隙或颈深部感染`;
+  }
+  if (!trismus || !local) return undefined;
+  return fever ? `${trismus}伴${local}、${fever}，需立即急诊排除颌面间隙或颈深部感染` : undefined;
+}
+
 /** 成人生命体征合起来提示的不稳定：NEWS2 总分 ≥7，或休克指数 ≥1.0 且有失血/失液/灌注不足记录。返回红旗理由，未达到返回 undefined。 */
 export function vitalInstabilityRedFlag(state: CaseState, text: string): string | undefined {
   const age = numberFromClinicalText(patientAgeText(withPatientObject(state)));
@@ -5809,6 +5862,8 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   // 「胸闷」「走路发飘」这类伴随表现的规则替它命名（第四十六轮 C003、n03）。
   const vitalInstability = vitalInstabilityRedFlag(state, text);
   if (vitalInstability) redFlags.push(vitalInstability);
+  const deepNeckInfection = deepNeckSpaceInfectionRedFlag(state, text);
+  if (deepNeckInfection) redFlags.push(deepNeckInfection);
   const ketoacidosisSigns = severeKetoacidosisSigns(state, text);
   if (ketoacidosisSigns.length > 0) {
     redFlags.push(`高血糖伴酮体升高（已达糖尿病酮症酸中毒的血糖与酮体标准）并见${ketoacidosisSigns.join("、")}，需立即急诊查血气与电解质，排除糖尿病酮症酸中毒`);
@@ -8077,6 +8132,17 @@ function collectPriorityEvaluationEntries(state: CaseState, semanticSourceText: 
       entries.push({ text: item.text, window: "within_24h", focus: item.focus });
     }
   }
+  // 三联征不等模型写出具体病名才收紧；放在专门路径之后，同样紧的时限保留其专科去向。
+  // 已有急腹症红旗仍由红旗通道决定立即就诊。
+  const abdominal = priorityEvaluationWindowTable.abdominalPainVomitingFever;
+  const normalized = normalizeClinicalText(semanticSourceText);
+  const abdominalPain = `${governedTermAlternation(GOVERNED_ACUTE_ABDOMEN_SYMPTOMS.filter(term => /痛|疼/u.test(term)))}|${ABDOMINAL_PAIN_COMPOSITION}`;
+  if (!hasAcuteAbdominalSignal(semanticSourceText) &&
+      currentCombinationFinding(normalized, [abdominalPain]) &&
+      currentCombinationFinding(normalized, abdominal.vomitingPatterns) &&
+      combinationFeverFinding(state, normalized, abdominal)) {
+    entries.push({ text: abdominal.text, focus: abdominal.focus, window: abdominal.window as PriorityEvaluationWindowId });
+  }
   // 模型写的「需排除：X」对上指南时限表的某一行时，时限取较紧的一档（只收紧）；专门路径的条目自带时限，不动。
   const defaultWindow = priorityEvaluationWindowTable.defaultWindow as PriorityEvaluationWindowId;
   for (const entry of entries) {
@@ -9139,7 +9205,7 @@ export function priorityEvaluationFirstStep(target: PriorityEvaluationTarget | s
   if (counts) return `${lead}请${when}${plan.visit}；${plan.clearance}，服完${counts.doses}剂药（约${counts.days}天后）再复诊。${after}`;
   if (plan.withoutRegimenTail) return `${lead}请${when}${plan.visit}，${plan.withoutRegimenTail}。${after}`;
   return priorityEvaluationTarget(target).focus || plan.lead
-    ? `${lead}请${when}${plan.visit}，再按医生安排服药与复诊。`
+    ? `${lead}请${when}${plan.visit}，再按医生安排服药与复诊。${after}`
     : `请${when}${plan.visit}后，再按医生安排服药与复诊。`;
 }
 /**

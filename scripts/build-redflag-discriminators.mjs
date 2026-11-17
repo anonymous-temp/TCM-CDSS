@@ -38,6 +38,12 @@ const output = {
   // 只靠弱字样（嗜睡）成立的判别、且所在分句是疲乏写法（神疲嗜睡）时不采信：判别读者与闸门兜底提示读同一份词（第四十轮）。
   weakAnchors: source.quoteAnchors?.weakAnchors || {},
   fatigueFraming: source.quoteAnchors?.fatigueFraming || [],
+  // 确定性组合仍读同一受治理源，不交给模型，不把完整引文带入客户端表。
+  deterministicCombinations: Object.fromEntries(Object.entries(source.deterministicCombinations || {}).map(([id, rule]) => {
+    const { evidence, ...runtime } = rule;
+    void evidence;
+    return [id, runtime];
+  })),
   rows,
 };
 const text = `${JSON.stringify(output)}\n`;
