@@ -521,6 +521,7 @@ gzip -c m05-request.json | curl -X POST "$BASE_URL/api/diagnosis/assess" \
    `candidates[].keyEvidence/againstEvidence` 与 `differentials[]`；病名因缺确诊检查而写到上一级（「贫血」「多囊卵巢综合征待查」）时，
    推理说明写「考虑X可能」，原病名在鉴别里注明「尚未取得确诊所需的检查或病程依据」。
 4. **证据标签的含义**（`evidence: {evidenceLevel, source, confidence}`，V2.38 起按来源写）：
+   - 病位、病性栏为 `resolved` 且每个要素各有逐字可回溯的病历依据时，`confidence` 为「高」，表示该栏各项依据已核对；有界判断保持「中」或「低」，红旗病例不提升。
    - `kb_entry`（标准资料）：对上规划教材该证型（`source` 如「《中医内科学》心悸·心虚胆怯证」）、教材该证的加减原文（「…加减：兼心血不足，加阿胶、制何首乌、龙眼肉」）、
      《中医诊断学》辨证要点（「《中医诊断学》血虚证辨证要点」），或所用成方的组成（`source` 同方剂出处）。服务端逐字核对资料属实才写这一级。
    - `model_inference`（病例内推理）：由本例病历推出、没有对上上述资料的，如病机链第二个节点、加味的药；按本证常见兼症写的条件式加减 `confidence` 为「低」。

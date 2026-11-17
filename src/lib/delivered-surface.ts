@@ -1,3 +1,7 @@
+import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
+import { recordCourseDays, courseSpans } from "./western-record-course";
+import { withResolvedAxisEvidenceConfidence, isGenericClinicalDescription } from "./diagnosis-visible-summary";
+import { governedSyndromeName, governedSyndromeReplacement, renamedSyndromeMentions } from "./clinical-terminology";
 import rxtextPolicy from "../data/rxtext-content-policy.source.json";
 import { afterMealAdministrationRequired, afterMealAdministration, afterMealPrecaution } from "./hypoglycemia-administration";
 import { settleEncounterPrimary } from "./western-encounter-primary";
@@ -1214,7 +1218,7 @@ export function withoutDanglingPredicateClauses(text: string): string {
   const next = withoutRepeatedAdjacentClause(text.replace(DANGLING_PREDICATE_CLAUSE, (match, lead: string) => (lead === "。" ? "。" : "")))
     // 删掉一个顿号项之后留下的「热毒偏盛、。」（第三十五轮 C006）。
     .replace(/、(?=[。；;，,]|$)/gu, "");
-  return next === text ? text : next.replace(/^[，,；;。\s]+/u, "").replace(/[，,；;]+(?=。|$)/gu, "").replace(/([，,；;])[，,；;]+/gu, "$1");
+  return next === text ? text : next.replace(/^[，,；;。\s]+/u, "").replace(/[，,；;]+(?=。|$)/gu, "").replace(/([，,；;、])[，,；;、]+/gu, "$1");
 }
 
 export function deliveredWesternDiagnosisName(name: unknown, coding?: unknown): string {
@@ -1391,6 +1395,103 @@ export function recordedAccountConflict(recordText: string | undefined): string 
   return undefined;
 }
 
+/** 只规范已经选定的证名；同步解释中的整名，患者引文与证素栏保持原样。 */
+export function withGovernedSyndromeNames(reasoning: Json): Array<{ from: string; to: string }> {
+  const overview = record(reasoning.overview);
+  if (!overview) return [];
+  const pathogenesis = record(reasoning.pathogenesis);
+  const nature = record(pathogenesis?.natureDifferentiation);
+  const natures = [nature?.items, nature?.rootDeficiency, nature?.branchExcess].flatMap((value) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
+  const analysis = [overview.tcmDiagnosticRationale, overview.overallPathogenesis].filter((value) => typeof value === "string").join("；");
+  const renames: Array<{ from: string; to: string }> = [];
+  const rename = (name: string, field: string): string => {
+    if (!name.trim() || name === "无" || governedSyndromeName(name)) return name;
+    const to = governedSyndromeReplacement(name, natures, analysis);
+    if (to) { renames.push({ from: name, to }); return to; }
+    // 不打印病历和未治理原词，只给字段与固定原因；不增加公开接口字段。
+    console.info("[tcm-cdss:telemetry] syndrome_name_ungoverned", { field, reason: "no_equivalent_governed_name" });
+    return name;
+  };
+  if (typeof overview.primarySyndrome === "string") overview.primarySyndrome = rename(overview.primarySyndrome, "primarySyndrome");
+  if (Array.isArray(overview.secondarySyndromes)) overview.secondarySyndromes = overview.secondarySyndromes.map((name) => typeof name === "string" ? rename(name, "secondarySyndromes") : name);
+  // 与 compositeSyndromeRename 一样只换解释中的证名；不把「血淋」这类病名的所有提及都改成证名。
+  for (const { from, to } of renames) {
+    for (const [object, keys] of [
+      [overview, ["tcmDiagnosticRationale", "overallPathogenesis", "primarySyndromeResolutionReason"]],
+      [pathogenesis, ["summary"]],
+      ...records(pathogenesis?.chain).map((node) => [node, ["pathogenesis"]]),
+      ...records(pathogenesis?.symptomClusters).map((row) => [row, ["mechanism"]]),
+      ...records(pathogenesis?.uncertainties).map((row) => [row, ["item", "reason", "affects"]]),
+      ...records(record(reasoning.therapy)?.subTherapies).map((row) => [row, ["targetPathogenesis"]]),
+    ] as Array<[Json | undefined, string[]]>) {
+      if (!object) continue;
+      for (const key of keys) {
+        if (typeof object[key] !== "string") continue;
+        const value = String(object[key]);
+        object[key] = renamedSyndromeMentions(value, from, to);
+      }
+    }
+  }
+  return renames;
+}
+
+const ASSERTION_POLICY = textConsistency.recordBoundAssertions;
+const COURSE_ASSERTION = new RegExp(ASSERTION_POLICY.coursePattern, "gu");
+const ONSET_ASSERTION = new RegExp(ASSERTION_POLICY.onsetPattern, "gu");
+const LOCATION_ASSERTION = new RegExp(ASSERTION_POLICY.locationPattern, "gu");
+
+/** 最小断言删除：只核对三类有限句式，不从教材定义补患者所见。 */
+export function withoutUnrecordedCourseAndLocation(text: string, recordText: string, presentIllness?: unknown): string {
+  const course = recordCourseDays(recordText, new RegExp(ASSERTION_POLICY.nonCoursePrefixPattern, "u"), presentIllness);
+  const nonAssertion = new RegExp(ASSERTION_POLICY.nonAssertionPrefix, "u");
+  const isAssertion = (whole: string, at: number, input: string) => !isGenericClinicalDescription(at, input, true) && !nonAssertion.test(input.slice(0, at)) &&
+    !new RegExp(ASSERTION_POLICY.nonAssertionSuffixPattern, "u").test(input.slice(at + whole.length));
+  const clean = (value: string) => value
+    .replace(/^[\s，,；;。、]+/u, "")
+    .replace(/[，,；;、]+([。；;])/gu, "$1")
+    .replace(/([，,；;、])[，,；;、]+/gu, "$1")
+    .replace(/[，,；;、]+$/u, "").trim();
+  const numericalCourseSupported = (whole: string): boolean | undefined => {
+    const claimed = courseSpans(whole);
+    if (claimed.length === 0) return undefined;
+    if (!course) return false;
+    const tolerance = /[年月]/u.test(whole) ? course.lower * ASSERTION_POLICY.calendarComparisonToleranceRatio : 0;
+    return claimed.every((span) => span.lower <= course.upper + tolerance && span.upper + tolerance >= course.lower &&
+      !(span.lower === course.upper && course.upperExclusive) && !(span.upper === course.lower && span.upperExclusive));
+  };
+  const withoutCourse = text.replace(COURSE_ASSERTION, (whole: string, at: number, input: string) => {
+    if (!isAssertion(whole, at, input)) return whole;
+    if (!course) return "";
+    const numerical = numericalCourseSupported(whole);
+    if (numerical !== undefined) return numerical ? whole : "";
+    if (new RegExp(ASSERTION_POLICY.longPattern, "u").test(whole)) return course.lower >= ASSERTION_POLICY.shortCourseDays ? whole : "";
+    if (new RegExp(ASSERTION_POLICY.shortPattern, "u").test(whole)) return course.upper < ASSERTION_POLICY.shortCourseDays ? whole : "";
+    return whole;
+  });
+  const withoutOnset = withoutCourse.replace(ONSET_ASSERTION, (whole: string, at: number, input: string) => {
+    if (!isAssertion(whole, at, input)) return whole;
+    if (!course) return "";
+    if (numericalCourseSupported(whole) === false) return "";
+    const direction = new RegExp(ASSERTION_POLICY.acutePattern, "u").test(whole) ? "acute" : "gradual";
+    return new RegExp(ASSERTION_POLICY.onsetRecordPatterns[direction], "u").test(recordText) ? whole : "";
+  });
+  const withoutLocation = withoutOnset.replace(LOCATION_ASSERTION, (whole: string, place: string, at: number, input: string) => {
+    if (!isAssertion(whole, at, input)) return whole;
+    const site = place.replace(/[\s“”「」]/gu, "").replace(new RegExp(ASSERTION_POLICY.locationAssertionTailPattern, "u"), "");
+    return site.length > 0 && (recordText.includes(site) || ASSERTION_POLICY.locationEquivalents.some((row) => row.claim === site && row.record.some((term) => recordText.includes(term)))) ? whole : "";
+  });
+  return withoutLocation === text ? text : clean(withoutLocation);
+}
+
+function withRecordBoundAssertions(reasoning: Json, recordText: string, presentIllness?: unknown): void {
+  const overview = record(reasoning.overview);
+  const pathogenesis = record(reasoning.pathogenesis);
+  for (const [object, keys] of [[overview, ["tcmDiseaseRationale", "tcmDiagnosticRationale", "overallPathogenesis"]], [pathogenesis, ["summary"]]] as Array<[Json | undefined, string[]]>) {
+    if (!object) continue;
+    for (const key of keys) if (typeof object[key] === "string") object[key] = withoutUnrecordedCourseAndLocation(String(object[key]), recordText, presentIllness);
+  }
+}
+
 function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, readOnlyConclusions = false): void {
   // 证名跟着辨证依据（第三十七轮）：病历原文在手时才判（开方阶段回传的是已投影的辨证结果，不再判）。
   // 治法在治的实邪（渗湿、化痰、活血…），分析也写了、病历有两条以上表现时，病性栏列出它（analysis-element-closure，第四十六轮
@@ -1398,6 +1499,9 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
   if (!readOnlyConclusions && options?.recordText && !isLimitedDiagnose(reasoning)) {
     withMethodImpliedNatureElements(reasoning, options.recordText);
     compositeSyndromeRename(reasoning, options.recordText);
+  }
+  if (!readOnlyConclusions && !isLimitedDiagnose(reasoning)) {
+    withGovernedSyndromeNames(reasoning);
   }
   // 辨证依据末尾「不另立兼证」「未立兼证」「无兼证可立」（被改成「未诉兼证可立」）是讲辨证规则的话（第四十一轮 r1054 回顾 13 份）：去掉这一小句，
   // 前面「属主证可解释的伴随表现」照留。
@@ -3268,7 +3372,7 @@ function withoutContradictingRecommendation(diet: string, foods: readonly string
   const clauses = diet.split(/(?<=[，,；;。])/u);
   const kept = clauses.filter((clause) => /忌|禁|少食|少吃|少喝|少饮|避免|不宜|勿|戒/u.test(clause) || !foods.some((food) => mentionsFood(clause, food)));
   if (kept.length === clauses.length) return diet;
-  const joined = kept.join("").replace(/[，,；;]+$/u, "");
+  const joined = kept.join("").replace(/[，,；;、]+$/u, "");
   return joined && !/[。！？]$/u.test(joined) ? `${joined}。` : joined;
 }
 
@@ -3287,7 +3391,7 @@ export function withoutEatingRecommendations(diet: string): string {
   const clauses = diet.split(/(?<=[，,；;。])/u);
   const kept = clauses.filter((clause) => PROHIBITION.test(clause));
   if (kept.length === clauses.length) return diet;
-  const joined = kept.join("").replace(/[，,；;]+$/u, "").trim();
+  const joined = kept.join("").replace(/[，,；;、]+$/u, "").trim();
   return joined && !/[。！？!?]$/u.test(joined) ? `${joined}。` : joined;
 }
 
@@ -4025,6 +4129,10 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
     if (candidate.name !== "自拟方") continue;
     candidate.formulaSource = { ...record(candidate.formulaSource), evidenceLevel: "model_inference", confidence: record(candidate.formulaSource)?.confidence || "中",
       source: selfDevisedSourceForAnalysis(String(candidate.formulaAnalysis || "")) };
+  }
+  if (projected.stage === "diagnose" && options?.recordText) {
+    withRecordBoundAssertions(projected, options.recordText, options.caseState?.symptoms?.["现病史"]);
+    withResolvedAxisEvidenceConfidence(projected, options.recordText, redFlagActiveFor(options));
   }
   return delivered as T;
 }

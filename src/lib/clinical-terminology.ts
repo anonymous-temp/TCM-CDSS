@@ -1,3 +1,10 @@
+import syndromeLexicon from "../data/tcm-syndrome-lexicon.json" with { type: "json" };
+import textbookSyndromes from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
+import textbookSupplement from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
+import diagnosticsSyndromes from "../data/tcm-diagnostics-syndrome-criteria.json" with { type: "json" };
+import compositeNames from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
+import jingfangPatterns from "../data/tcm-jingfang-patterns.json" with { type: "json" };
+import syndromeNamePolicy from "../data/tcm-syndrome-name-policy.source.json" with { type: "json" };
 import diseaseSubtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" with { type: "json" };
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm } from "./clinical-governance-tables";
@@ -399,4 +406,47 @@ export function withCanonicalClinicalTerminology<T extends TerminologyReasoning>
     // supported principle instead of silently turning every case into “因人制宜”.
     ...(therapy ? { therapy } : {}),
   } as T;
+}
+
+// 证名合法性与既有病名/证名术语归一放在同一个模块；只核对整名，不用子串猜证。
+const syndromeNameKey = (name: string) => name.normalize("NFKC").trim().replace(/证$/u, "");
+const GOVERNED_SYNDROME_NAMES = new Set([
+  ...[...syndromeLexicon.entries, ...syndromeLexicon.clinicalExtensions]
+    .filter((entry) => entry.termClass !== "category_heading")
+    .flatMap((entry) => [entry.canonical, ...entry.aliases]),
+  ...[...textbookSyndromes.rows, ...textbookSupplement.rows].map((row) => row.syndromeName),
+  ...diagnosticsSyndromes.entries.map((entry) => entry.name),
+  ...Object.keys(diagnosticsSyndromes.aliases),
+  ...compositeNames.rules.map((rule) => rule.composite),
+  ...jingfangPatterns.patterns.flatMap((row) => [row.syndromeName, row.patternName]),
+].filter(Boolean).map(syndromeNameKey));
+
+/** 核对受治理来源里的整名；裸肾虚和病名分型不作为可交付证名。 */
+export function governedSyndromeName(name: string): boolean {
+  if (syndromeNamePolicy.bareLabels.includes(syndromeNameKey(name))) return false;
+  return GOVERNED_SYNDROME_NAMES.has(syndromeNameKey(name));
+}
+
+export const GOVERNED_NEUTRAL_SYNDROME_NAMES = syndromeNamePolicy.neutralNames.filter(governedSyndromeName);
+
+/** 确定性同义改名；不补证素、不推兼证，歧义原名交给遥测。 */
+export function governedSyndromeReplacement(name: string, natures: readonly string[], analysis: string): string | undefined {
+  if (governedSyndromeName(name)) return undefined;
+  // 同名命中多个虚性方向时保留歧义，不按规则顺序擅选一个。
+  const replacements = new Set<string>();
+  for (const rule of syndromeNamePolicy.renames) {
+    if (!rule.from.some((from) => syndromeNameKey(from) === syndromeNameKey(name))) continue;
+    if ("requiresNature" in rule && !rule.requiresNature?.every((label) => natures.some((item) => item.includes(label)))) continue;
+    if ("requiresAnalysis" in rule && !rule.requiresAnalysis?.some((phrase) => analysis.includes(phrase))) continue;
+    if (governedSyndromeName(rule.to)) replacements.add(rule.to);
+  }
+  return replacements.size === 1 ? [...replacements][0] : undefined;
+}
+
+/** 解释中的证名允许省去「证」字；只在明确命名位置同步，普通病机词不替换。 */
+export function renamedSyndromeMentions(text: string, from: string, to: string): string {
+  const full = from.endsWith("证") ? text.split(from).join(to)
+    : text.replace(new RegExp(`${from}(?=$|[\\s，,。；;、：:）)])`, "gu"), to);
+  if (!from.endsWith("证")) return full;
+  return full.replace(new RegExp(`(${syndromeNamePolicy.namingPrefixPattern})${from.slice(0, -1)}(?=$|[\\s，,。；;、：:）)])`, "gu"), `$1${to}`);
 }

@@ -59,8 +59,13 @@ export function chiefComplaintLine(recordText: string): string {
   return line.length <= 60 ? line : "";
 }
 
-export function recordCourseDays(recordText: string): { lower: number; upper: number; upperExclusive: boolean } | undefined {
-  const spans = courseSpans(chiefComplaintLine(recordText));
+export function recordCourseDays(recordText: string, nonCoursePrefix?: RegExp, presentIllness?: unknown): { lower: number; upper: number; upperExclusive: boolean } | undefined {
+  const chief = chiefComplaintLine(recordText);
+  // 交付文字核对可排除「孕20周」这类上下文时长；默认调用保持既有判据。
+  const eligible = (text: string) => courseSpans(text).filter((span) => !nonCoursePrefix?.test(text.slice(0, span.index)));
+  let spans = eligible(chief);
+  // 主诉留了占位、但本次现病史有明确病程时，用同一数值读法；不从既往史或用药史补时长。
+  if (spans.length === 0 && typeof presentIllness === "string") spans = eligible(presentIllness);
   if (spans.length === 0) return undefined;
   const upper = Math.max(...spans.map((span) => span.upper));
   return {
