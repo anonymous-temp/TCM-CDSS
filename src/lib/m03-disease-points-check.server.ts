@@ -162,7 +162,7 @@ export function diseasePointsRedrawInstruction(disease: string, verdict: Extract
   if (verdict.kind === "defining_missing" || verdict.kind === "refinement") return [
     "【病名须符合教材定义性表现】",
     verdict.kind === "defining_missing" ? `上一稿病名「${disease}」所需的「${verdict.point}」在病历中尚无肯定记载，不能把教材定义写成本例所见。` : `请核对「${disease}」与「${verdict.better}」的教材判别表现，只依据本例原文细分病名。`,
-    `在原有【教材病证候选】闭集内重定病名${verdict.better ? `，优先核对「${verdict.better}」` : "，没有更合适的病则保留原名并写清待核实的定义性表现"}；根据病历重写本半，不补造症状、体征或检查。`,
+    `在原有【教材病证候选】里重新选定病名${verdict.better ? `，优先核对「${verdict.better}」` : "，没有更合适的病则保留原名并写清待核实的定义性表现"}；根据病历重写本半，不补造症状、体征或检查。`,
   ].join("\n");
   const why = verdict.kind === "contradicted"
     ? `病历「${verdict.recordQuote}」与教材${disease}的诊断要点「${verdict.point}」相反`
