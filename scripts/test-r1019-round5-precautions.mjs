@@ -242,8 +242,9 @@ await check("5.1 产后哺乳情况未记录：模型写「三棱、莪术、丁
   assert.equal(wrong[0], "产后如正在哺乳，请服药前告知医生（方中三棱、莪术、川楝子哺乳期禁用，丁香、小茴香哺乳期须慎用），由医生评估后再服。");
   assert.ok(!wrong.some((line) => /三棱、莪术、丁香、小茴香哺乳期须慎用/u.test(line)));
   const right = "如正在哺乳请先告知医生：方中三棱、莪术、川楝子哺乳期禁用，丁香、小茴香哺乳期慎用。";
-  // 川楝子有小毒，另有有毒药一句补在最后；哺乳那句原样。
-  assert.deepEqual(project(rx([right, "饭后温服。"], herbs), { requiredPrecautions: [{ kind: "postpartum_lactation" }] }).nonPharma.precautions.slice(0, 2), [right, "饭后温服。"]);
+  // 川楝子有小毒，另有有毒药一句（第四十九轮起安全句排在最前，precautionsWithSafetyFirst）；哺乳那句原样。
+  assert.deepEqual(project(rx([right, "饭后温服。"], herbs), { requiredPrecautions: [{ kind: "postpartum_lactation" }] }).nonPharma.precautions
+    .filter((line) => !/在药典中标注有毒/u.test(line)).slice(0, 2), [right, "饭后温服。"]);
 });
 
 // ───── 6 残句 ─────
@@ -327,14 +328,15 @@ await check("9.1 「并备血」去掉、「须经医生与药师复核后使用
     "方中姜半夏、制天南星为化痰峻品，须经医生与药师复核后使用。",
     "方中酒牛膝孕期需慎用，服药前请医生确认。",
     "服药期间如出现皮疹，请及时告知医生。",
-  ], herbs)).nonPharma.precautions.slice(0, 4);
+  ], herbs)).nonPharma.precautions.filter((line) => !/在药典中标注有毒/u.test(line)).slice(0, 4);
   assert.deepEqual(out, [
     "当前黑便量增多，须立即急诊评估循环状态、安排急诊内镜，不得延误。",
     "方中姜半夏、制天南星为化痰峻品，请遵医嘱服用。",
     "方中酒牛膝孕期需慎用，服药前请先咨询医生。",
     "服药期间如出现皮疹，请及时告知医生。",
   ]);
-  const nonDose = project(rx(["方中细辛用量宜轻，须由医生按现行药典与院内规则复核后使用。"], herbs), { nonDosePage: true }).nonPharma.precautions[0];
+  const nonDose = project(rx(["方中细辛用量宜轻，须由医生按现行药典与院内规则复核后使用。"], herbs), { nonDosePage: true }).nonPharma.precautions
+    .filter((line) => !/在药典中标注有毒/u.test(line))[0];
   assert.equal(nonDose, "方中细辛用量宜轻，是否使用由医生面诊后决定。");
 });
 

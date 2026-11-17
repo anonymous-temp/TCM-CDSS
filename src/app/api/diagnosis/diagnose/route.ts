@@ -1,4 +1,5 @@
 import { m03TcmTwoPassPolicy } from "@/lib/m03-tcm-two-pass.server";
+import { TRUE_HEART_PAIN_DISEASE, trueHeartPainSignal } from "@/lib/true-heart-pain";
 import { buildM03TcmRuntimeContext } from "@/lib/m03-tcm-runtime.server";
 import { alignAnalysisWithConclusion } from "@/lib/m03-analysis-alignment.server";
 import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapFinalStageContent } from "@/lib/stage-prefetch.server";
@@ -353,7 +354,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
               );
               // 脱证落在兼证栏时提为主证（m03-critical-syndrome，急则治标），在其余核对之后、教材锚定之前。
               // 并行治法补写/依据重写完成后再落一次同一决定，避免把已撤的名外证素补回。
-              return promoteCriticalSecondarySyndrome(applyElementSupportDecision(withVerifiedMethodItemFrom(withLensFrom(reattributed, completed, lensChecked), methodCovered), elementDecision));
+              return promoteCriticalSecondarySyndrome(applyElementSupportDecision(withVerifiedMethodItemFrom(withLensFrom(reattributed, completed, lensChecked), methodCovered), elementDecision),
+                { preferredCollapseDisease: trueHeartPainSignal(trustedInputText(safeState), gated.safetyGate?.redFlags || []) ? TRUE_HEART_PAIN_DISEASE : undefined });
             };
             const disease = tcmHalfDiseaseName(tcmContent);
             // 既往确诊病对照（第三十八轮）：辨证半写成了既往确诊病在教材里的邻近病（乳蛾 ↔ 喉痹）时，按既往病的发作重写一次。

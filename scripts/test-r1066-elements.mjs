@@ -255,4 +255,15 @@ await check('E40', '立兼证时补进总治法的是四字规范治法（脾气
   for (const [name, method] of Object.entries(promo.secondaryMethods)) if (!name.startsWith('_')) assert.ok(governed.has(method), `${name}→${method}`);
   assert.equal(promo.secondaryMethods['脾气虚证'], '健脾益气');
 });
+await check('E50','真心痛判据成立时脱证落在真心痛的心阳欲脱证，不改成虚脱；判据不成立照旧（retest rt-450368）', async () => {
+  const crit = await jiti.import('../src/lib/m03-critical-syndrome.ts');
+  const half = (disease, primary) => JSON.stringify({ overview: { tcmDiseaseName: disease, primarySyndrome: primary, secondarySyndromes: [], tcmDiagnosticRationale: `大汗、气短为心阳外泄，故属${primary}。`, tcmDiseaseRationale: '胸骨后压榨性疼痛持续不缓解，属虚脱危候。' }, therapy: { overallMethod: '回阳固脱' } });
+  const out = JSON.parse(crit.promoteCriticalSecondarySyndrome(half('虚脱', '正虚阳脱证'), { preferredCollapseDisease: '真心痛' }));
+  assert.equal(out.overview.tcmDiseaseName, '真心痛'); assert.equal(out.overview.primarySyndrome, '心阳欲脱证');
+  assert.ok(!out.overview.tcmDiseaseRationale.includes('虚脱'), out.overview.tcmDiseaseRationale);
+  const kept = JSON.parse(crit.promoteCriticalSecondarySyndrome(half('虚脱', '正虚阳脱证')));
+  assert.equal(kept.overview.tcmDiseaseName, '虚脱');
+  const same = crit.promoteCriticalSecondarySyndrome(half('真心痛', '心阳欲脱证'), { preferredCollapseDisease: '真心痛' });
+  assert.equal(JSON.parse(same).overview.primarySyndrome, '心阳欲脱证');
+});
 console.log(JSON.stringify({checks,failed}));process.exitCode=failed?1:0;

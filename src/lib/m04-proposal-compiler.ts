@@ -3011,7 +3011,7 @@ export function fillTextbookModificationConditions(rows: Record<string, unknown>
   // 补出与本例无关的「若见痰多色黄稠加桑白皮」；腰痛·肾阴虚证借虚劳行的「腰酸、遗精甚」对已记腰部酸痛是相关的）。
   const borrowedRow = "neutralFillFallback" in textbook || !textbookFillRowOfDisease(textbook, String(diagnosis.overview?.tcmDiseaseName || ""));
   const ageYears = authoritativePatientAgeYears(caseState);
-  const fillDose = (limit: { min?: number; max?: number }) => ageYears !== undefined && ageYears >= 18 && limit.max && limit.min
+  const fillDose = (limit: { min?: number | null; max?: number | null }) => ageYears !== undefined && ageYears >= 18 && limit.max && limit.min
     ? `${Math.max(limit.min, Math.round((limit.min + limit.max) / 2))}g` : `${limit.min}g`;
   // 已记录的教材条件优先；D1 缺省开，false 时仍允许已记表现的教材加强。
   const entries = [...textbook.modifications].sort((left, right) => Number(!modificationConditionAlreadyPresent(left.condition, recordText)) - Number(!modificationConditionAlreadyPresent(right.condition, recordText)));

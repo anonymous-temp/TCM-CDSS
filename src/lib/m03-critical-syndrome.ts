@@ -1,4 +1,4 @@
-import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { textbookFormulaRowsForDisease, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 
 /**
  * 脱证落在兼证栏时提为主证（2026-10-24 甲方 100 例 C053）。
@@ -28,7 +28,7 @@ export function isCriticalSyndromeName(name: unknown): boolean {
 }
 
 /** 纯函数（供测试）：返回改写后的中医半 JSON 文本；不需要改时原样返回。 */
-export function promoteCriticalSecondarySyndrome(tcmContent: string): string {
+export function promoteCriticalSecondarySyndrome(tcmContent: string, options: { preferredCollapseDisease?: string } = {}): string {
   let root: Json | undefined;
   try { root = record(JSON.parse(tcmContent)); } catch { return tcmContent; }
   const overview = record(root?.overview);
@@ -61,6 +61,21 @@ export function promoteCriticalSecondarySyndrome(tcmContent: string): string {
   }
 
   const disease = typeof overview.tcmDiseaseName === "string" ? overview.tcmDiseaseName.trim() : "";
+  // 病历符合真心痛（持续胸痛 + 脱象 + 急性心脏红旗，true-heart-pain.ts 同一判据）时，脱证落在真心痛自己的脱证行（心阳欲脱证），
+  // 不改成「虚脱」（第四十九轮 r49e 甲方复测 rt-450368：同一病历一次真心痛·心阳欲脱证、一次虚脱·正虚阳脱证）。
+  const preferred = options.preferredCollapseDisease;
+  const preferredRow = preferred && preferred !== disease
+    ? textbookFormulaRowsForDisease(preferred).find((row) => isCriticalSyndromeName(row.syndromeName) || /欲脱|暴脱/u.test(row.syndromeName))
+    : undefined;
+  if (preferred && preferredRow && (!disease || disease === "虚脱" || !textbookRowForSyndrome(disease, critical))) {
+    const name = preferredRow.syndromeName.endsWith("证") ? preferredRow.syndromeName : `${preferredRow.syndromeName}证`;
+    overview.tcmDiseaseName = preferred;
+    overview.primarySyndrome = name;
+    for (const key of ["tcmDiagnosticRationale", "tcmDiseaseRationale"] as const) {
+      if (typeof overview[key] === "string") overview[key] = String(overview[key]).split(critical).join(name).split("虚脱").join(preferred);
+    }
+    return JSON.stringify(root);
+  }
   if (alreadyPrimary && (!disease || disease === "虚脱" || textbookRowForSyndrome(disease, critical))) return tcmContent;
   if (disease && disease !== "虚脱" && !textbookRowForSyndrome(disease, critical)) {
     overview.tcmDiseaseName = "虚脱";

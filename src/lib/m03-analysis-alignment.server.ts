@@ -320,7 +320,7 @@ export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): 
       return Boolean(text(node.pathogenesis));
     });
     // 同上：病机链删到一个节点不剩时保留原链（空链是 T1 m03_chain_empty）。
-    if (pathogenesis.chain.length === 0 && originalChain.length > 0) pathogenesis.chain = originalChain;
+    if ((pathogenesis.chain as unknown[]).length === 0 && originalChain.length > 0) pathogenesis.chain = originalChain;
   }
   reconcileAnalysisUncertainties(next, recordText);
   return next;
