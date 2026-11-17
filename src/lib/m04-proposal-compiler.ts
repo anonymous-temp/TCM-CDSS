@@ -2326,8 +2326,16 @@ function modificationAddDose(herbName: string, modelDose: string | undefined, pe
   if (min == null || max == null || max <= 0) return null;
   const ceiling = pediatric ? pediatricDoseCeilingG(max, pediatric, herbName) : max;
   if (typeof ceiling !== "number" || !(ceiling > 0)) return null;
-  const floor = Math.min(min, ceiling);
   const requested = modelDose ? parseFloat(modelDose) : NaN;
+  if (pediatric) {
+    // 儿童：成人量（不低于成人下限）按年龄分数折算，已是儿童量的保留；封顶、不再以成人下限保底（第四十九轮 r49c 8 月龄婴儿
+    // 补位「加党参9g」——旧写法保底取成人下限 9g，主方却是 2～3g）。年龄分数法见 pediatric-dose-rule.ts（无下限，最低 0.5g）。
+    const adult = Number.isFinite(requested) && requested > 0 ? requested : (min + max) / 2;
+    const scaled = adult >= min && typeof pediatric.fraction === "number" && pediatric.fraction > 0 && pediatric.fraction < 1
+      ? Math.max(0.5, Math.floor(adult * pediatric.fraction * 2) / 2) : adult;
+    return `${Number(Math.min(ceiling, scaled).toFixed(1))}g`;
+  }
+  const floor = Math.min(min, ceiling);
   const base = Number.isFinite(requested) && requested > 0 ? requested : 10;
   const dose = Math.min(ceiling, Math.max(floor, base));
   return `${Number(dose.toFixed(1))}g`;

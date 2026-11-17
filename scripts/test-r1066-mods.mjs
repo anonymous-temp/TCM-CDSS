@@ -176,3 +176,13 @@ await check('23','借来的教材行只补与本例已记表现相关的条件�
  assert.equal(c.textbookFillConditionRelated('痰多色黄稠','平素易疲乏，短气自汗，小便清长，大便稀溏。'),false);
  assert.equal(c.textbookFillConditionRelated('大便秘结','大便调，纳可。'),false);
 });
+await check('24','儿童加减剂量按年龄分数折算、不以成人下限保底（r49c 8 月龄婴儿「加党参9g」）',()=>{
+ const st=types.normalizeCaseStateInput({patient:{sex:'男',age:'8个月'},chiefComplaint:'腹泻3天',symptoms:{现病史:'腹泻3天，每日4次，神疲乏力，纳差，舌淡苔白，指纹淡。'}});
+ const p={...prior,overview:{...prior.overview,tcmDiseaseName:'泄泻',primarySyndrome:'脾虚泻'},therapy:{overallMethod:'健脾益气，助运止泻'}};
+ const row=c.topUpModificationRow({trigger:'神疲乏力',herbName:'党参',dose:'9g',reason:'健脾益气'},{prior:p,caseState:st,candidateHerbNames:['白术','茯苓'],existingTriggers:[]});
+ if(row){const g=parseFloat(row.doseOrHandling);assert.ok(g<=5,`婴儿加党参应折算，实得 ${row.doseOrHandling}`);}
+ const adult=types.normalizeCaseStateInput({patient:{sex:'男',age:40},chiefComplaint:'腹泻3天',symptoms:{现病史:'腹泻3天，每日4次，神疲乏力，纳差，舌淡苔白，脉缓弱。'}});
+ const arow=c.topUpModificationRow({trigger:'神疲乏力',herbName:'党参',dose:'15g',reason:'健脾益气'},{prior:p,caseState:adult,candidateHerbNames:['白术','茯苓'],existingTriggers:[]});
+ if(arow)assert.equal(arow.doseOrHandling,'15g');
+ assert.ok(row||arow,'两行至少一行能编出，否则用例没测到');
+});
