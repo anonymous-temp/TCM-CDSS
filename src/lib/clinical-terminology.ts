@@ -446,6 +446,27 @@ export function governedSyndromeReplacement(name: string, natures: readonly stri
   return replacements.size === 1 ? [...replacements][0] : undefined;
 }
 
+/**
+ * 模型把病名加括号当证名（「感冒（湿滞中焦、气机不畅）」，第四十九轮 r49d rt-621376）或写成几个病机短语时：取括号里（没有括号取去掉末尾「证」的部分）
+ * 第一个能对上受治理证名的病机短语——原样，或只把邪气停滞类的动词互换（滞/阻/困/蕴/郁）——如「湿滞中焦」→ 湿困中焦证。对不上返回 undefined。
+ * 只换动词，不添病性、病位，不选别的证。
+ */
+const STAGNATION_VERBS = ["滞", "阻", "困", "蕴", "郁"];
+export function governedSyndromeFromMechanismPhrases(name: string): string | undefined {
+  const raw = String(name || "").trim();
+  const inner = (raw.match(/[（(]([^）)]+)[）)]/u)?.[1] || raw).replace(/证$/u, "");
+  const phrases = inner.split(/[、，,；;]|和|及|与|兼/u).map((phrase) => phrase.trim()).filter((phrase) => phrase.length >= 3 && phrase.length <= 6);
+  for (const phrase of phrases) {
+    const variants = [phrase, ...[...phrase].flatMap((char, index) => STAGNATION_VERBS.includes(char)
+      ? STAGNATION_VERBS.filter((verb) => verb !== char).map((verb) => phrase.slice(0, index) + verb + phrase.slice(index + 1)) : [])];
+    for (const variant of variants) {
+      const named = `${variant}证`;
+      if (governedSyndromeName(named)) return named;
+    }
+  }
+  return undefined;
+}
+
 /** 解释中的证名允许省去「证」字；只在明确命名位置同步，普通病机词不替换。 */
 export function renamedSyndromeMentions(text: string, from: string, to: string): string {
   const full = from.endsWith("证") ? text.split(from).join(to)

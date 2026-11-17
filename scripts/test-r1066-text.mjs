@@ -111,4 +111,10 @@ await check('T29','占位主诉而本次现病史已记病程时沿用原数值�
 await check('T21','接口文档说明已明确逐项有据的高以及红旗边界',()=>{
  const doc=readFileSync('docs/中医CDSS-对外接口文档.md','utf8');assert.ok(doc.includes('每个要素各有逐字可回溯的病历依据'));assert.ok(doc.includes('红旗病例不提升'));
 });
+await check('T40','病名加括号当证名、病机短语当证名时，取第一个对得上受治理证名的短语（只互换滞/阻/困/蕴/郁），对不上不改',()=>{
+ assert.equal(terms.governedSyndromeFromMechanismPhrases('感冒（湿滞中焦、气机不畅）'),'湿滞中焦证');assert.ok(terms.governedSyndromeName('湿滞中焦证'));assert.equal(terms.governedSyndromeFromMechanismPhrases('感冒（湿郁中焦）'),'湿滞中焦证');
+ assert.equal(terms.governedSyndromeFromMechanismPhrases('中焦气机不和证'),undefined);
+ const r={schemaVersion:'tcm-cdss-reasoning-v2',stage:'diagnose',overview:{tcmDiseaseName:'感冒',primarySyndrome:'感冒（湿滞中焦、气机不畅）',secondarySyndromes:[],tcmDiagnosticRationale:'头晕、食欲减退为湿滞中焦。'},pathogenesis:{natureDifferentiation:{items:['湿']}}};
+ surface.withGovernedSyndromeNames(r);assert.equal(r.overview.primarySyndrome,'湿滞中焦证');
+});
 console.log(`${count-failed}/${count} passed`);if(failed)process.exitCode=1;

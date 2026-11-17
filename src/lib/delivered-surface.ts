@@ -1,7 +1,7 @@
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import { recordCourseDays, courseSpans } from "./western-record-course";
 import { withResolvedAxisEvidenceConfidence, isGenericClinicalDescription } from "./diagnosis-visible-summary";
-import { governedSyndromeName, governedSyndromeReplacement, renamedSyndromeMentions } from "./clinical-terminology";
+import { governedSyndromeName, governedSyndromeReplacement, governedSyndromeFromMechanismPhrases, renamedSyndromeMentions } from "./clinical-terminology";
 import { modificationDecoctionPhrase } from "./herb-decoction-rules";
 import { reconcileAnalysisUncertainties, reconcilePathogenesisColumns } from "./pathogenesis-columns";
 export { uncertaintyAlreadySettled } from "./pathogenesis-columns";
@@ -1445,7 +1445,7 @@ export function withGovernedSyndromeNames(reasoning: Json): Array<{ from: string
   const renames: Array<{ from: string; to: string }> = [];
   const rename = (name: string, field: string): string => {
     if (!name.trim() || name === "无" || governedSyndromeName(name)) return name;
-    const to = governedSyndromeReplacement(name, natures, analysis);
+    const to = governedSyndromeReplacement(name, natures, analysis) || governedSyndromeFromMechanismPhrases(name);
     if (to) { renames.push({ from: name, to }); return to; }
     // 不打印病历和未治理原词，只给字段与固定原因；不增加公开接口字段。
     console.info("[tcm-cdss:telemetry] syndrome_name_ungoverned", { field, reason: "no_equivalent_governed_name" });
