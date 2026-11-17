@@ -158,3 +158,9 @@ await check('20','旧全量备用开关保留三条教材条件，不按D1上限
  assert.equal(c.distinctModificationConditions(rows),3,'需三个真实且可编译的教材条件隔离回退守卫');
  process.env.CDSS_STANDBY_MODIFICATIONS='true';try{assert.deepEqual(fill(rows),rows);}finally{delete process.env.CDSS_STANDBY_MODIFICATIONS;}
 });
+await check('21','D1 补位不补与病历部位相悖的分部位教材条件（r49a 病历8「若见发于头面」），本证常见变化照补',()=>{
+ const rec='右侧胁肋部皮肤成簇水疱，灼热刺痛，疼痛剧烈，口苦咽干，心烦易怒，大便调，舌红苔黄，脉弦数。';
+ assert.equal(c.textbookFillSiteVariantAbsent('发于头面',rec),true);
+ assert.equal(c.textbookFillSiteVariantAbsent('发于头面','头面部簇集水疱，灼痛。'),false);
+ for(const cond of ['疼痛剧烈','大便秘结','口渴甚','恶寒甚'])assert.equal(c.textbookFillSiteVariantAbsent(cond,rec),false,cond);
+});

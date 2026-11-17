@@ -1044,6 +1044,15 @@ export function modificationConditionSymptomTerms(trigger: string): string[] {
   return [...terms];
 }
 
+/** D1 补位：教材按部位分列的条件（「发于头面」），病历没有记载这个部位时不补（与本例无关）。其余条件照补。 */
+export function textbookFillSiteVariantAbsent(condition: string, recordText: string): boolean {
+  const pattern = (triggerPolicy as { fillSiteVariantPattern?: string }).fillSiteVariantPattern;
+  const site = pattern ? new RegExp(pattern, "u").exec(String(condition || "").trim())?.[1] : undefined;
+  if (!site) return false;
+  const parts = site.length === 4 ? [site, site.slice(0, 2), site.slice(2)] : [site];
+  return !parts.some((part) => part.length >= 1 && String(recordText || "").includes(part));
+}
+
 /** 病历里有没有一句**肯定地**写到这个词（同一个否定谓词逐句判）。 */
 function recordAffirmsTerm(recordText: string, term: string): boolean {
   return affirmingRecordSentence(recordText, term) !== undefined;
@@ -2946,6 +2955,9 @@ export function fillTextbookModificationConditions(rows: Record<string, unknown>
     const mainSymptom = mainPresent?.trigger.replace(/^本例已见/u, "");
     if (mainSymptom && kept.some((item) => String(item.reason || "").includes(mainSymptom))) continue;
     if (!present && !main && (!modificationTextbookFillEnabled() || standbyModificationsDelivered())) continue;
+    // D1 补位只补与本例已记表现相关的变化（「若疼痛剧烈」对已记疼痛），不补按病泛列、与本例无关的分型或部位
+    //（第四十九轮 r49a 甲方病历8 胁肋带状疱疹补了两条「若见发于头面」，评审判错；甲方 11.05 也点过「按疾病本身推荐」）。
+    if (!present && !main && textbookFillSiteVariantAbsent(condition, recordText)) continue;
     const trigger = `若见${condition}`;
     const taken = [...candidateHerbNames, ...kept.map((item) => String(item.herbName || ""))];
     const absent = entry.herbs.filter((herb) => !taken.some((name) => sameHerbIdentity(name, herb)));
