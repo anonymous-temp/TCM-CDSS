@@ -1,3 +1,4 @@
+import { natureItemDeficiencyOrExcess } from "./nature-column-classification";
 import "server-only";
 import { checkNonStrictStructuredContent } from "./model-response-format";
 import { deterministicM03TcmFacts } from "./m03-tcm-facts.server";
@@ -79,7 +80,7 @@ export function buildM03TcmRuntimeContext(state: CaseState, preferredDiseases: r
         if (ctx.units.some(item => item.id === id)) continue;
         const criteriaName = diagnosticsCriteriaFor(`${entry.canonical}证`) ? `${entry.canonical}证` : row.syndromeName;
         const definition = diagnosticsCriteriaFor(criteriaName);
-        ctx.units.push({ id, label: entry.canonical, aliases: entry.aliases, kind: entry.kind === "deficiency" ? "root" : "branch", locationIds: [],
+        ctx.units.push({ id, label: entry.canonical, aliases: entry.aliases, kind: natureItemDeficiencyOrExcess(entry.canonical) || "branch", locationIds: [],
           criteriaIds: definition ? criteriaItemsFor(definition) : [], criteriaName: definition ? criteriaName : undefined });
       }
       if (!complete) continue;

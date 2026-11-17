@@ -1,3 +1,4 @@
+import { natureItemDeficiencyOrExcess } from "./nature-column-classification";
 import policy from "../data/delivery-facts-policy.source.json";
 import natureJson from "../data/tcm-nature-lexicon.json";
 import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, reviewAuthoredFormulaAnalysis } from "./formula-analysis-review";
@@ -40,8 +41,8 @@ export function buildDeliveryInvariantGovernance(input: Omit<InvariantScanInput,
   for (const label of [...asStrings(nature.items), ...asStrings(nature.rootDeficiency), ...asStrings(nature.branchExcess)]) axis[label] = governedAxisElements(label);
   const elementSides: Record<string, "root" | "branch"> = {};
   for (const entry of natureJson.entries) {
-    if (entry.kind === "deficiency") elementSides[entry.id] = "root";
-    else if (entry.kind !== "eight_principles" && entry.kind !== "disharmony" && entry.id !== "qi_collapse" && entry.id !== "qi_sinking") elementSides[entry.id] = "branch";
+    const side = natureItemDeficiencyOrExcess(entry.canonical);
+    if (side) elementSides[entry.id] = side;
   }
   const pending: Record<string, GovernedElements> = {};
   // Pending element IDs must be supplied via reviewed sidecar, never promoted from model JSON.

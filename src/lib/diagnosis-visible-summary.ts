@@ -12,7 +12,8 @@ import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMo
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import coldHeatSignsJson from "../data/tcm-cold-heat-signs.source.json" with { type: "json" };
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
-import natureLexiconJson from "../data/tcm-nature-lexicon.json" with { type: "json" };
+import { classifyNatureColumns } from "./nature-column-classification";
+export { natureItemDeficiencyOrExcess } from "./nature-column-classification";
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndexes, withOneOfDecoctionResolved, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
@@ -1041,24 +1042,7 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       for (const key of ["items", "rootDeficiency", "branchExcess"] as const) {
         nature[key] = semanticItems(nature[key]);
       }
-      // 虚热、虚火（「虚火上扰」「虚热内扰」）是阴虚所生的热，属本虚，不是标实（第四十一轮 r1054 回顾：标实栏写「虚热」，
-      // 治则写虚则补之，读来自相矛盾）。只挪栏位，不增删病性。
-      const deficiencyHeat = (item: string) => /^虚(?:热|火)|阴虚(?:火旺|内热)/u.test(item);
-      const isRoot = (item: string) => deficiencyHeat(item) || natureItemDeficiencyOrExcess(item) === "root";
-      const movedToRoot = (nature.branchExcess as string[]).filter(isRoot);
-      if (movedToRoot.length > 0) {
-        nature.branchExcess = (nature.branchExcess as string[]).filter((item) => !isRoot(item));
-        nature.rootDeficiency = [...new Set([...(nature.rootDeficiency as string[]), ...movedToRoot])];
-      }
-      // 病性列了、本虚标实两栏都没放的条目，按受治理病性词表归栏（2026-11-14 第四十五轮：甲方 100 例 C073「气滞（本虚：无；标实：无）」、
-      // rt-171200「外感风邪（标实：无）」，同一行自相矛盾）。虚、亏、不足、脱、陷归本虚；病邪、病理产物、气滞气逆、瘀、血热归标实。只补栏，不增删病性。
-      for (const item of nature.items as string[]) {
-        // 栏里已有条目写到了它（标实「风寒外束」之于「寒」）不再补：补了读来重复（test:diagnosis-display 风寒束表一例）。
-        if ([...(nature.rootDeficiency as string[]), ...(nature.branchExcess as string[])].some((existing) => existing.includes(item))) continue;
-        const side = natureItemDeficiencyOrExcess(item);
-        if (side === "root") nature.rootDeficiency = [...(nature.rootDeficiency as string[]), item];
-        else if (side === "branch") nature.branchExcess = [...(nature.branchExcess as string[]), item];
-      }
+      classifyNatureColumns(nature);
       // 病性栏放的是属性词(气虚/血瘀/寒/热)。写成机理句(胃失和降、气机郁滞)的条目是填错栏位:
       // 同一临床内容已经完整保留在 overallPathogenesis 与 pathogenesis.chain 中。这里只删除
       // 错栏条目,不改写、不新增任何病性;删空后由下面的 resolution 归一化自动降级为 unresolved。
@@ -1184,19 +1168,6 @@ export function withoutUnrecordedNormalCommentary(value: string, recordText: str
     // 苔薄白腻、脉平缓而无力不能只截前半词当作正常所见。
     return named.length > 0 && named.every((form) => new RegExp(`${form}(?=$|[，,。；;：:、苔脉舌])`, "u").test(source));
   }).join("");
-}
-
-/** 病性条目归本虚还是标实（tcm-nature-lexicon 的类别）；判不出时 undefined。 */
-const NATURE_LEXICON_ENTRIES = (natureLexiconJson as { entries: Array<{ canonical: string; aliases: string[]; kind: string }> }).entries;
-export function natureItemDeficiencyOrExcess(item: string): "root" | "branch" | undefined {
-  const text = String(item || "").normalize("NFKC").trim();
-  if (!text) return undefined;
-  if (/虚|亏|不足|衰|脱|陷|耗伤|不固/u.test(text)) return "root";
-  const hit = NATURE_LEXICON_ENTRIES.find((entry) => [entry.canonical, ...entry.aliases].some((name) => name.length >= 1 && text.includes(name)));
-  if (!hit) return undefined;
-  if (hit.kind === "deficiency") return "root";
-  if (hit.kind === "disharmony" || hit.kind === "eight_principles") return undefined;
-  return "branch";
 }
 
 export function recordHasTongueAndPulse(clinicalContext: string): boolean {

@@ -1,3 +1,4 @@
+import { classifyNatureColumns } from "./nature-column-classification";
 import type { ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
 import { activeM03TcmUnits, assertM03TcmConclusion, m03TcmHash, verifyFrozenM03TcmConclusion,
   type FrozenM03TcmConclusion, type M03TcmContext } from "./m03-tcm-conclusion";
@@ -45,6 +46,8 @@ export function projectM03TcmHalf(record: FrozenM03TcmConclusion, narrative: M03
   };
   const roots = record.root.map((unit) => unit.label);
   const branches = record.branch.map((unit) => unit.label);
+  const natureColumns = { items: unique([...roots, ...branches]), rootDeficiency: roots, branchExcess: branches };
+  classifyNatureColumns(natureColumns);
   const natureQuotes = unique([...record.root, ...record.branch].flatMap((unit) => unit.quoteIds));
   const locationQuotes = unique(record.locations.flatMap((unit) => unit.quoteIds));
   const boundary = record.primary.resolution === "resolved" ? "现有表现支持本次辨证。" : "现有表现可作初步辨证，尚需补充鉴别信息。";
@@ -68,7 +71,7 @@ export function projectM03TcmHalf(record: FrozenM03TcmConclusion, narrative: M03
       locationDifferentiation: { items: record.locations.map((unit) => unit.label),
         details: record.locations.map((unit) => ({ location: unit.label, basis: quoteText(unit.quoteIds) })),
         resolution: record.locations.length > 0 ? "resolved" : "bounded", evidence: evidence(locationQuotes) },
-      natureDifferentiation: { items: unique([...roots, ...branches]), rootDeficiency: roots, branchExcess: branches,
+      natureDifferentiation: { ...natureColumns,
         basis: quoteText(natureQuotes), resolution: natureQuotes.length > 0 ? record.primary.resolution : "bounded", evidence: evidence(natureQuotes) },
       symptomClusters: [], chain,
       uncertainties: narrative.uncertainties.map((row) => ({ item: row.item.text, reason: row.reason.text, affects: row.affects.text })),

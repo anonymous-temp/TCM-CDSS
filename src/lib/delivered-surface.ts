@@ -3,6 +3,8 @@ import { recordCourseDays, courseSpans } from "./western-record-course";
 import { withResolvedAxisEvidenceConfidence, isGenericClinicalDescription } from "./diagnosis-visible-summary";
 import { governedSyndromeName, governedSyndromeReplacement, renamedSyndromeMentions } from "./clinical-terminology";
 import { modificationDecoctionPhrase } from "./herb-decoction-rules";
+import { reconcileAnalysisUncertainties, reconcilePathogenesisColumns } from "./pathogenesis-columns";
+export { uncertaintyAlreadySettled } from "./pathogenesis-columns";
 import rxtextPolicy from "../data/rxtext-content-policy.source.json";
 import { afterMealAdministrationRequired, afterMealAdministration, afterMealPrecaution } from "./hypoglycemia-administration";
 import { settleEncounterPrimary } from "./western-encounter-primary";
@@ -88,7 +90,7 @@ import { assessPregnancyState } from "./clinical-state";
 import { allergenAvoidPhrase, allergenHerbMatch, allergenMatchesInText, allergenRecordPhrase, recordedAllergensInText } from "./allergen-profile";
 import dietRestrictionCategoriesJson from "../data/diet-restriction-food-categories.source.json" with { type: "json" };
 import drugConditionCautionsJson from "../data/western-drug-condition-cautions.source.json" with { type: "json" };
-import { MIN_RECORD_SIGNS, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintiesWithRecordedAnswers, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
+import { MIN_RECORD_SIGNS, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, recordExcessSigns, uncertaintiesWithRecordedAnswers, withMethodImpliedNatureElements } from "./analysis-element-closure";
 import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, priorityTargetWithEstablishedDiagnosis, quoteWithoutDeniedLeadingItems, recordedFindingReading, recordedMedicationHistoryList, type DoseWithheldFollowupKind, type PriorityEvaluationTarget } from "./diagnosis-safety";
 
 /**
@@ -870,13 +872,6 @@ export function withoutReasonEchoingItem(pathogenesis: Json | undefined): void {
   });
 }
 
-/** 待核实项自己说这件事已经定了（「已明」「已排除」「已明确」）、又没有任何仍待核实的说法。纯函数，供测试。 */
-export function uncertaintyAlreadySettled(row: { item?: unknown; reason?: unknown }): boolean {
-  const text = `${typeof row.item === "string" ? row.item : ""}；${typeof row.reason === "string" ? row.reason : ""}`;
-  if (!/已明(?!显)|已排除|已除外|已明确|已确定|已确认|无需(?:再)?核实/u.test(text)) return false;
-  return !/是否|待|尚|需|有无|未明|不明|未记录|未诉|未见|不清|缺/u.test(text.replace(/已明(?!显)|已排除|已除外|已明确|已确定|已确认|无需(?:再)?核实/gu, ""));
-}
-
 /** 中成药/西药一行的定位（受控四值）对应的与汤剂关系说明。 */
 const MEDICINE_POSITIONING_RELATIONSHIP: Readonly<Record<string, string>> = {
   联合治疗: "可与本方汤剂同期服用，两者间隔约1小时",
@@ -1513,25 +1508,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
     overviewForSecondaryNote.tcmDiagnosticRationale = withoutOrphanMechanismFragments(withoutSecondaryRuleNote(overviewForSecondaryNote.tcmDiagnosticRationale));
     if (options?.recordText) overviewForSecondaryNote.tcmDiagnosticRationale = withoutUnrecordedNormalCommentary(String(overviewForSecondaryNote.tcmDiagnosticRationale), options.recordText);
   }
-  // 待核实栏问的是病历已经否认的事（「有无咳嗽咯血」而病历写「无咳嗽、咯血」，第四十一轮 r1054 回顾）：这一条不留。
-  // 只认「有无/是否有/是否伴」后面的那几项都被病历否认（recordedFindingReading = denied）；有一项没被否认就整条照留。
-  const pathogenesisForUncertainty = record(reasoning.pathogenesis);
-  if (options?.recordText && pathogenesisForUncertainty && Array.isArray(pathogenesisForUncertainty.uncertainties)) {
-    pathogenesisForUncertainty.uncertainties = uncertaintiesWithRecordedAnswers(records(pathogenesisForUncertainty.uncertainties), options.recordText);
-    pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).filter((row) => !uncertaintyAsksDeniedFinding(String(row.item || ""), options.recordText || ""));
-  }
-  // 待核实栏里写着「已明」「已排除」的条目（模型写「有汗无汗已明…表虚表实鉴别已排除」，第四十四轮回看）：自己说已经定了，就不是待核实的事，不留。
-  // 只认整条都在说已定、没有「是否/待/尚/需」这类仍待核实的词。
-  if (pathogenesisForUncertainty && Array.isArray(pathogenesisForUncertainty.uncertainties)) {
-    pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).filter((row) => !uncertaintyAlreadySettled(row));
-    // 第四十六轮（逐字复核 n27、n39、C098、m02、m13、C043）：待核实项不收这几类——照抄提示段内部说法的（「按否认读」「病历读法」，
-    // 提示词用语外露）、评论证名本身的（「是否作为独立病性要素」「证名未列」）、问病历已写明的四诊属性的（舌苔厚薄而病历记苔薄、
-    // 肢温而查体记皮肤湿冷、里急后重而病历写无里急后重）、问「是否兼X」而病位栏、病性栏已列着X的。判据见 analysis-element-closure。
-    pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).filter((row) =>
-      !uncertaintyLeaksPromptWording(row) && !uncertaintyDiscussesSyndromeNaming(row) &&
-      !(options?.recordText && uncertaintyAnsweredByRecord(String(row.item || ""), options.recordText)) &&
-      !uncertaintyAsksListedElement(String(row.item || ""), pathogenesisForUncertainty));
-  }
+  reconcileAnalysisUncertainties(reasoning, options?.recordText || "");
   // 鉴别的「建议核实」模型写成字符串 null 的，按空值交付（2026-10-17 留出例 S132「建议核实：null」）。
   const overviewForNulls = record(reasoning.overview);
   for (const row of [
@@ -4132,6 +4109,7 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   }
   // 去理由里的重复放在措辞替换之后：红旗边界句先换成「急危重风险未排除，请先完成急诊或转诊评估…」才对得上项目「急危重风险尚未排除」
   //（此前在替换前比，理由开头是「急危重风险未排除：以下辨证…」，冒号连着后半句，比不上，红旗病例的待核实照样重复；第四十五轮复核 20 余份）。
+  reconcilePathogenesisColumns(projected, options?.recordText || "");
   withoutReasonEchoingItem(record(projected.pathogenesis));
   if (projected.stage === "prescribe") {
     const careItems = (options?.requiredPrecautions || []).filter((item) => item.kind === "disease_care");
