@@ -35,7 +35,7 @@ await check('T06','整名覆盖国标别名、教材、诊断学、复合名、�
  for(const name of ['虚构胃气证','胃气不和证兼虚构证','血淋','劳淋','热淋','石淋','气淋','膏淋','肾虚','血淋证','肾虚证'])assert.equal(terms.governedSyndromeName(name),false,name);
 });
 await check('T07','气机中性名按受治理等义表改，依据和总述及链同步整名',()=>{
- for(const [from,to] of [['中焦气机不和证','脾胃不和证'],['中焦气滞证','脾胃不和证'],['肺气不和证','肺气郁痹证'],['肺气壅塞证','肺气郁痹证'],['耳窍气滞证','气滞耳窍证'],['气机逆乱证','气机失调证'],['风邪客表证','风邪袭表证']]){
+ for(const [from,to] of [['中焦气机不和证','脾胃不和证'],['中焦气滞证','脾胃不和证'],['肺气不和证','肺气上逆证'],['肺气壅塞证','肺气上逆证'],['耳窍气滞证','气滞耳窍证'],['气机逆乱证','气机失调证'],['风邪客表证','风邪袭表证']]){
  const r=base();r.overview.primarySyndrome=from;r.overview.tcmDiagnosticRationale=`属${from}。`;r.overview.overallPathogenesis=`${from}为主。`;r.pathogenesis.summary=`${from}。`;r.pathogenesis.chain=[{patientFact:from,pathogenesis:`${from}失调。`}];const axes=structuredClone([r.pathogenesis.locationDifferentiation,r.pathogenesis.natureDifferentiation]);surface.withGovernedSyndromeNames(r);assert.equal(r.overview.primarySyndrome,to);assert.ok(r.overview.tcmDiagnosticRationale.includes(to));assert.ok(r.overview.overallPathogenesis.includes(to));assert.ok(r.pathogenesis.summary.includes(to));assert.ok(r.pathogenesis.chain[0].pathogenesis.includes(to));assert.equal(r.pathogenesis.chain[0].patientFact,from);assert.deepEqual([r.pathogenesis.locationDifferentiation,r.pathogenesis.natureDifferentiation],axes);
  }
 });
