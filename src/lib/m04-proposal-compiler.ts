@@ -4,6 +4,7 @@ import { populationMatchedPrecautions } from "./population-matched-precautions";
 import { currentMedicationPrecautions } from "./current-medication-precautions";
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import triggerPolicy from "../data/tcm-modification-trigger-policy.source.json" with { type: "json" };
+import coldHeatSignsJson from "../data/tcm-cold-heat-signs.source.json" with { type: "json" };
 import { redFlagActiveFor } from "./clinical-red-flag-context";
 import { alignQuoteToSource } from "./source-quote-alignment";
 import rxConstraints from "../data/rx-case-constraints.source.json";
@@ -1042,6 +1043,47 @@ export function modificationConditionSymptomTerms(trigger: string): string[] {
     terms.add(part);
   }
   return [...terms];
+}
+
+/** 借来的教材行条件与本例已记表现是否相关：症状词（四字词再拆两半）至少一个被病历肯定记载（身体功能泛称不算）。 */
+export function textbookFillConditionRelated(condition: string, recordText: string): boolean {
+  const generic = new Set<string>((triggerPolicy as { fillRelationGenericTerms?: string[] }).fillRelationGenericTerms || []);
+  const base = modificationConditionSymptomTerms(condition);
+  const plain = String(condition || "").replace(/[^\u4e00-\u9fff]/gu, "");
+  const pieces = [...base, ...[...base, plain].flatMap((term) => term.length === 4 ? [term.slice(0, 2), term.slice(2)] : []),
+    ...plain.split(/[、，,]/u)];
+  // 两三字的词允许病历里中间隔一两个字（「腰酸」对「腰部酸痛」），同一子句、肯定语境。
+  const looselyAffirmed = (term: string) => {
+    if (recordAffirmsTerm(recordText, term)) return true;
+    if (term.length < 2 || term.length > 3) return false;
+    const pattern = new RegExp([...term].map((char) => char.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("[^，,。；;、\\s]{0,2}"), "gu");
+    for (const match of String(recordText || "").matchAll(pattern)) if (clauseLocalMentionPolarityAt(recordText, match.index ?? 0) === "affirmed") return true;
+    return false;
+  };
+  return [...new Set(pieces)].some((term) => term.length >= 2 && !generic.has(term) && looselyAffirmed(term));
+}
+
+/** 教材行是否属于本病（病名或别名一致；「血证（便血）」对「血证」）。 */
+function textbookFillRowOfDisease(row: { disease?: string; diseaseAliases?: readonly string[] }, diseaseName: string): boolean {
+  const core = String(diseaseName || "").replace(/[（(].*?[)）]/gu, "").trim();
+  if (!core) return false;
+  return [row.disease, ...(row.diseaseAliases || [])].some((name) => typeof name === "string" && name.replace(/[（(].*?[)）]/gu, "").trim() === core);
+}
+
+/** 条件里写的寒热征象与病历肯定记载的寒热相反（《中医诊断学》寒证/热证表现分维度闭集，tcm-cold-heat-signs.source.json）。 */
+export function textbookFillConditionOpposesRecordedColdHeat(condition: string, recordText: string): boolean {
+  const dims = (coldHeatSignsJson as { dimensions: Array<{ cold?: string; heat?: string }> }).dimensions;
+  const has = (text: string, side: "cold" | "heat", affirmedOnly: boolean) => dims.some((dim) => {
+    const pattern = dim[side];
+    if (!pattern) return false;
+    for (const match of String(text || "").matchAll(new RegExp(pattern, "gu"))) {
+      if (!affirmedOnly || clauseLocalMentionPolarityAt(text, match.index ?? 0) === "affirmed") return true;
+    }
+    return false;
+  });
+  const conditionHeat = has(condition, "heat", false), conditionCold = has(condition, "cold", false);
+  const recordHeat = has(recordText, "heat", true), recordCold = has(recordText, "cold", true);
+  return (conditionHeat && !conditionCold && recordCold && !recordHeat) || (conditionCold && !conditionHeat && recordHeat && !recordCold);
 }
 
 /** D1 补位：教材按部位分列的条件（「发于头面」），病历没有记载这个部位时不补（与本例无关）。其余条件照补。 */
@@ -2942,6 +2984,12 @@ export function fillTextbookModificationConditions(rows: Record<string, unknown>
   if (distinctModificationConditions(kept) >= 2) return kept;
   const textbook = textbookFillRow(diagnosis.overview);
   if (!textbook || !textbookRowCitable(textbook)) return kept;
+  // 借别的病的同名证型行（本病行没有加减条目时）只补与本例已记表现相关的条件（r49d 甲方病历5 虚劳·肺脾两虚证借了肺胀行，
+  // 补出与本例无关的「若见痰多色黄稠加桑白皮」；腰痛·肾阴虚证借虚劳行的「腰酸、遗精甚」对已记腰部酸痛是相关的）。
+  const borrowedRow = !textbookFillRowOfDisease(textbook, String(diagnosis.overview?.tcmDiseaseName || ""));
+  const ageYears = authoritativePatientAgeYears(caseState);
+  const fillDose = (limit: { min?: number; max?: number }) => ageYears !== undefined && ageYears >= 18 && limit.max && limit.min
+    ? `${Math.max(limit.min, Math.round((limit.min + limit.max) / 2))}g` : `${limit.min}g`;
   // 已记录的教材条件优先；D1 缺省开，false 时仍允许已记表现的教材加强。
   const entries = [...textbook.modifications].sort((left, right) => Number(!modificationConditionAlreadyPresent(left.condition, recordText)) - Number(!modificationConditionAlreadyPresent(right.condition, recordText)));
   for (const entry of entries) {
@@ -2958,6 +3006,9 @@ export function fillTextbookModificationConditions(rows: Record<string, unknown>
     // D1 补位只补与本例已记表现相关的变化（「若疼痛剧烈」对已记疼痛），不补按病泛列、与本例无关的分型或部位
     //（第四十九轮 r49a 甲方病历8 胁肋带状疱疹补了两条「若见发于头面」，评审判错；甲方 11.05 也点过「按疾病本身推荐」）。
     if (!present && !main && textbookFillSiteVariantAbsent(condition, recordText)) continue;
+    // 条件里的寒热征象与病历已记的寒热相反（病历只有寒象，条件写黄稠痰、口渴…）不补。
+    if (!present && !main && textbookFillConditionOpposesRecordedColdHeat(condition, recordText)) continue;
+    if (!present && !main && borrowedRow && !textbookFillConditionRelated(condition, recordText)) continue;
     const trigger = `若见${condition}`;
     const taken = [...candidateHerbNames, ...kept.map((item) => String(item.herbName || ""))];
     const absent = entry.herbs.filter((herb) => !taken.some((name) => sameHerbIdentity(name, herb)));
@@ -2971,12 +3022,12 @@ export function fillTextbookModificationConditions(rows: Record<string, unknown>
         prior: diagnosis, caseState, candidateHerbNames: [...taken, ...additions.map((item) => String(item.herbName || ""))], existingTriggers: kept.map((item) => String(item.trigger || "")),
         allowTextbookMain: true, textbookFill: modificationTextbookFillEnabled(), baseHerbNames: candidateHerbNames, priorityEvaluation: options.priorityEvaluation,
       };
-      let compiled = topUpModificationRow({ trigger, herbName, dose: `${limit.min}g`, reason: textbookModificationReason(entry.raw, herbName, entry.herbs, { sex: caseState.patient?.sex, ageYears: authoritativePatientAgeYears(caseState) ?? undefined, recordText }) }, compileContext);
+      let compiled = topUpModificationRow({ trigger, herbName, dose: fillDose(limit), reason: textbookModificationReason(entry.raw, herbName, entry.herbs, { sex: caseState.patient?.sex, ageYears: authoritativePatientAgeYears(caseState) ?? undefined, recordText }) }, compileContext);
       if (!compiled) continue;
       if (options.prepareRow) {
         options.prepareRow(compiled);
         // 炮制名若变，仍按同一个编译入口重新核药、量、出处和人群，不让二次投影才处理。
-        compiled = topUpModificationRow({ trigger: String(compiled.trigger), herbName: String(compiled.herbName), dose: `${limit.min}g`, reason: String(compiled.reason) }, compileContext);
+        compiled = topUpModificationRow({ trigger: String(compiled.trigger), herbName: String(compiled.herbName), dose: fillDose(limit), reason: String(compiled.reason) }, compileContext);
         if (!compiled) continue;
       }
       if (additions.length) compiled.reason = `与${String(additions[0].herbName)}同用，针对${condition}，${String(compiled.reason)}`;

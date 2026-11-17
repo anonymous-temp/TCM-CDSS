@@ -164,3 +164,15 @@ await check('21','D1 补位不补与病历部位相悖的分部位教材条件�
  assert.equal(c.textbookFillSiteVariantAbsent('发于头面','头面部簇集水疱，灼痛。'),false);
  for(const cond of ['疼痛剧烈','大便秘结','口渴甚','恶寒甚'])assert.equal(c.textbookFillSiteVariantAbsent(cond,rec),false,cond);
 });
+await check('22','D1 不补与病历已记寒热相反的条件（病历寒象、条件黄稠痰），只从本病自己的教材行补（r49d 病历5 借肺胀行）',()=>{
+ const cold='平素易疲乏、短气自汗，食欲下降，小便清长，大便稀溏，舌淡，苔白，脉虚弱。';
+ assert.equal(c.textbookFillConditionOpposesRecordedColdHeat('痰多色黄稠',cold),true);
+ assert.equal(c.textbookFillConditionOpposesRecordedColdHeat('痰多色黄稠','咳嗽，痰黄稠，口渴，舌红苔黄。'),false);
+ assert.equal(c.textbookFillConditionOpposesRecordedColdHeat('畏寒肢冷','口干口苦，小便短黄，舌红苔黄，脉数。'),true);
+ assert.equal(c.textbookFillConditionOpposesRecordedColdHeat('咳甚',cold),false);
+});
+await check('23','借来的教材行只补与本例已记表现相关的条件：腰酸对腰部酸痛相关，黄稠痰对无痰病历不相关',()=>{
+ assert.equal(c.textbookFillConditionRelated('腰酸、遗精甚','腰部酸痛，舌红少苔，脉细数。'),true);
+ assert.equal(c.textbookFillConditionRelated('痰多色黄稠','平素易疲乏，短气自汗，小便清长，大便稀溏。'),false);
+ assert.equal(c.textbookFillConditionRelated('大便秘结','大便调，纳可。'),false);
+});
