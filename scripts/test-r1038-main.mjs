@@ -97,7 +97,8 @@ await check("4.2 路由在证素撤下与本例说法删片段之后才核舌脉
   const fs = await import("node:fs");
   const route = fs.readFileSync(new URL("../src/app/api/diagnosis/diagnose/route.ts", import.meta.url), "utf8");
   assert.match(route, /reattributeStrandedKeyFindings\(\s*applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals, patientClaimRecord\),/u);
-  assert.match(route, /checkLineageLensInContent\(completed,[\s\S]{0,240}completeMethodCoverage\(completed,[\s\S]{0,1200}return promoteCriticalSecondarySyndrome\(withVerifiedMethodItemFrom\(withLensFrom\(reattributed, completed, lensChecked\), methodCovered\)\);/u);
+  // 第四十九轮 D3：补法后重落决定，再提脱证主证；前一处删片段后核舌脉的顺序不变。
+  assert.match(route, /checkLineageLensInContent\(completed,[\s\S]{0,240}completeMethodCoverage\(completed,[\s\S]{0,1200}return promoteCriticalSecondarySyndrome\(applyElementSupportDecision\(withVerifiedMethodItemFrom\(withLensFrom\(reattributed, completed, lensChecked\), methodCovered\), elementDecision\)\);/u);
 });
 
 // ---------- 5 追问两份采样取共识 ----------

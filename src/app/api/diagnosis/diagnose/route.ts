@@ -15,7 +15,7 @@ import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { alignWesternPrimaryAndName } from "@/lib/western-primary-reselect.server";
 import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consistency.server";
-import { applyElementSupportDecision, decideElementSupport } from "@/lib/m03-element-support.server";
+import { applyElementSupportDecision, decideElementSupport } from "@/lib/m03-syndrome-element-closure.server";
 import { promoteCriticalSecondarySyndrome } from "@/lib/m03-critical-syndrome";
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patientClaimRecordText } from "@/lib/m03-patient-claim-check.server";
 import { completeRationaleCoverage, reattributeStrandedKeyFindings } from "@/lib/m03-rationale-coverage.server";
@@ -340,7 +340,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
               const [reconciled, claimRemovals, elementDecision, lensChecked, methodCovered] = await Promise.all([
                 reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
                 decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
-                decideElementSupport(completed, { recordText: trustedInputText(safeState) }, transformSignal),
+                decideElementSupport(completed, { recordText: trustedInputText(safeState), caseState: safeState, gateRedFlags: gated.safetyGate?.redFlags || [] }, transformSignal),
                 checkLineageLensInContent(completed, { recordText: patientClaimRecord, lineage: safeState.tcmLineagePreference }, transformSignal),
                 completeMethodCoverage(completed, { recordText: patientClaimRecord, chiefComplaint: safeState.chiefComplaint || "" }, transformSignal),
               ]);
@@ -352,7 +352,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
                 transformSignal,
               );
               // 脱证落在兼证栏时提为主证（m03-critical-syndrome，急则治标），在其余核对之后、教材锚定之前。
-              return promoteCriticalSecondarySyndrome(withVerifiedMethodItemFrom(withLensFrom(reattributed, completed, lensChecked), methodCovered));
+              // 并行治法补写/依据重写完成后再落一次同一决定，避免把已撤的名外证素补回。
+              return promoteCriticalSecondarySyndrome(applyElementSupportDecision(withVerifiedMethodItemFrom(withLensFrom(reattributed, completed, lensChecked), methodCovered), elementDecision));
             };
             const disease = tcmHalfDiseaseName(tcmContent);
             // 既往确诊病对照（第三十八轮）：辨证半写成了既往确诊病在教材里的邻近病（乳蛾 ↔ 喉痹）时，按既往病的发作重写一次。
