@@ -1,3 +1,4 @@
+import { classifyNatureColumns } from "./nature-column-classification";
 import closureJson from "../data/tcm-analysis-element-closure.source.json" with { type: "json" };
 import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
 
@@ -148,7 +149,7 @@ export function withMethodImpliedNatureElements(reasoning: Json, recordText: str
     if (signs.length < MIN_RECORD_SIGNS) continue;
     const label = excessElement(id).label;
     nature.items = [...strings(nature.items), label];
-    nature.branchExcess = [...strings(nature.branchExcess), label];
+    classifyNatureColumns(nature);
     const basis = text(nature.basis);
     const quotes = signs.slice(0, 2).map((item) => item.quote).filter((quote) => quote && !basis.includes(quote));
     if (quotes.length > 0) nature.basis = [basis, ...quotes].filter(Boolean).join("；");
@@ -207,6 +208,13 @@ export function uncertaintyAnsweredByRecord(item: string, recordText: string): b
 }
 
 /** 组合问项只剩一部分未答时，交付剩余问项，不能把已有回答也写成“未记录”。 */
+export function uncertaintyMissingClaims(reason: string): string[] {
+  return reason.split(/[，,。；;]/u).flatMap((clause) => {
+    const claim = MISSING_ANSWER_CLAIM.exec(clause)?.[1]?.replace(/等[^、及和与]*$/u, "");
+    return claim ? [claim] : [];
+  });
+}
+
 export function uncertaintyWithRecordedAnswers<T extends { item?: unknown; reason?: unknown }>(row: T, recordText: string): T | undefined {
   // 兼证判据计的是“独立于主证”的表现，并不表示整组教材要点在病历中缺失。
   // 旧缓存中的服务端句式整条重新写，不能继续交付那份与本例混在一起的要点目录。
@@ -218,10 +226,7 @@ export function uncertaintyWithRecordedAnswers<T extends { item?: unknown; reaso
   let matches = PROJECTION_ANSWER_ROWS.filter((entry) => entry.asked.test(item));
   // 问项写成宽标题（「饮食偏好细节」）时，实际说缺什么的是 reason。
   // 只接收完整的缺项声明且其所有名词均能归入闭集，不能用其中一个已答词删除整条复合问题。
-  const claims = text(row.reason).split(/[，,。；;]/u).flatMap((clause) => {
-    const claim = MISSING_ANSWER_CLAIM.exec(clause)?.[1]?.replace(/等[^、及和与]*$/u, "");
-    return claim ? [claim] : [];
-  });
+  const claims = uncertaintyMissingClaims(text(row.reason));
   if (claims.length > 0) {
     if (claims.length !== 1) return row;
     item = claims[0];

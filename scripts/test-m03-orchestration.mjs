@@ -451,7 +451,8 @@ try {
   // ["气虚", "血虚"]——病性列了、本虚标实两栏都没放的条目按受治理病性词表归栏（甲方 100 例「气滞（本虚：无；标实：无）」同一行自相矛盾）。
   // 2026-11-15 第四十六轮：本夹具病性依据为空、证名心脾两虚已含气虚血虚，说明句照旧（只点名证名以外病历找不到表现的那几条），指纹不变。
   // r1064 C3：HEAD/当前各导出 synthetic signed 后逐字段核对，仅多寐鉴别增加教材定义、primary.guidelineReferences 缺省改为 []；/var/tmp/r1064/dx/orchestration-*-signed.json。
-  assert.equal(m03ClinicalDecisionHash(signed), "sha256:a3df60311de8b8df1048feb606792f205830ce1a77a7d600c624c67e14101686", "the settled projection must preserve the final clinical payload");
+  // R49 P6b：逐字段导出比对仅 chain[0].therapyDirection 由「健脾益气，养血安神」收为总法已有的「养血安神」。其余临床载荷逐字不变。
+  assert.equal(m03ClinicalDecisionHash(signed), "sha256:1f2a56a2463c2ded0e1f0c8f5c4225e89bee5a99caab4d9f717aad369dddf947", "the settled projection must preserve the final clinical payload");
   assert.deepEqual(signed.westernDiagnosis.primary.supportingFacts, [signed.westernDiagnosis.primary.clinicalRationale], "交付的辨证结果症状依据栏只放一句诊断依据");
   assert.deepEqual(signed.westernDiagnosis.primary.limitations, [], "交付的辨证结果不带待查依据");
   assert.deepEqual(signed.westernDiagnosis.primary.suggestedChecks, [], "交付的辨证结果不带检查建议");

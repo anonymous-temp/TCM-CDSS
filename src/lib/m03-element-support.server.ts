@@ -1,3 +1,4 @@
+import { classifyNatureColumns } from "./nature-column-classification";
 import "server-only";
 
 import lexiconJson from "../data/tcm-deficiency-element-lexicon.source.json" with { type: "json" };
@@ -543,7 +544,7 @@ export function applyExcessElementDecisions(root: Json, excess: NonNullable<Elem
       applySecondaryConsistencyDecision(root, { decision: "add", secondarySyndrome: unit.secondaryName!, method: treats ? "" : unit.methodItem, evidence: verdict.quotes || [] });
       if (nature && !natureListsElement(nature, unit.id)) {
         nature.items = [...(Array.isArray(nature.items) ? nature.items : []), unit.label];
-        nature.branchExcess = [...(Array.isArray(nature.branchExcess) ? nature.branchExcess : []), unit.label];
+        classifyNatureColumns(nature);
       }
       changed = true;
       continue;

@@ -2929,8 +2929,9 @@ async function callPrimaryTextModelStream(
       // finalization a no-op and the attestation hash only needs a deterministic rebind.
       const finalizeM03Candidate = async (
         content: string,
-      ): Promise<{ content: string; reasoning: ClinicalReasoningResultV2 } | undefined> => {
+      ): Promise<{ content: string; reasoning?: ClinicalReasoningResultV2; alignmentRejected?: boolean } | undefined> => {
         if (opts.structuredStage !== "diagnose") return undefined;
+        let alignmentChanged = false;
         try {
           let transformed = await preparedDiagnoseContent(content);
           transformed = applyDeterministicFormulaReferences(transformed, opts.structuredClinicalContext, opts.structuredLineagePreference, formulaReferenceCaseSafety(opts.structuredClinicalContext));
@@ -2952,10 +2953,13 @@ async function callPrimaryTextModelStream(
           if (opts.m03AnalysisAlignment) {
             const aligned = await opts.m03AnalysisAlignment(transformed, upstreamController.signal).catch(() => transformed);
             if (typeof aligned === "string" && aligned.trim() && aligned !== transformed) {
+              alignmentChanged = true;
               let next = opts.outputTransform ? opts.outputTransform(aligned) : aligned;
               next = synchronizeVisibleClinicalSummary(next, "diagnose", opts.structuredClinicalContext || "", opts.structuredCaseState);
               next = settleM03ClinicalOutput(next, opts.structuredClinicalContext || "");
-              if (validatedStructuredReasoning(next, "diagnose", opts.structuredClinicalContext, undefined, true)) transformed = next;
+              // R49: rejected alignment may deliberately cut a required field. Let the existing contract/repair
+              // path reject that candidate; retaining transformed here would resurrect the contradictory original.
+              transformed = next;
             }
           }
           const reasoning = validatedStructuredReasoning(
@@ -2966,9 +2970,10 @@ async function callPrimaryTextModelStream(
             true,
           );
           finalDelivery?.observe("finalize_m03", content, transformed);
+          if (!reasoning && alignmentChanged) return { content: transformed, alignmentRejected: true };
           return reasoning ? { content: transformed, reasoning } : undefined;
         } catch {
-          return undefined;
+          return alignmentChanged ? { content: "", alignmentRejected: true } : undefined;
         }
       };
       // M04 mirror of the same invariant: the server-owned decoction/follow-up rendering and the
@@ -3166,9 +3171,13 @@ async function callPrimaryTextModelStream(
       const verifyM03Candidate = async (
         content: string,
         reasoning: ClinicalReasoningResultV2,
-      ): Promise<{ content: string; reasoning: ClinicalReasoningResultV2 }> => {
+      ): Promise<{ content: string; reasoning: ClinicalReasoningResultV2 | undefined }> => {
         const finalizedCandidate = await finalizeM03Candidate(content);
-        const verified = finalizedCandidate || { content, reasoning };
+        // A failed alignment is a rejected candidate, not permission to attest the pre-alignment prose.
+        if (finalizedCandidate?.alignmentRejected) return { content: finalizedCandidate.content, reasoning: undefined };
+        const verified = finalizedCandidate?.reasoning
+          ? { content: finalizedCandidate.content, reasoning: finalizedCandidate.reasoning }
+          : { content, reasoning };
         enterVerificationPhase();
         m03DiagnosticReviewStatus = "unavailable";
         m03ClinicalReviewAttestation = clinicalReviewNotPerformedAttestation(verified.reasoning);

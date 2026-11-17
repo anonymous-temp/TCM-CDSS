@@ -308,7 +308,8 @@ await check("D19", "对齐重写拒收后删矛盾句/条目/链，结论与原�
   assert.ok(!JSON.stringify(out.overview).includes("瘀血阻络"));
   assert.ok(out.overview.tcmDiagnosticRationale.includes("未见血瘀"));
   assert.ok(out.overview.tcmDiagnosticRationale.includes("尚不足以另立血瘀主证"));
-  assert.deepEqual(out.pathogenesis.natureDifferentiation.branchExcess, []);
+  // R49 P6b只处理对齐失败后的文字；名外证素的进名/撤回由P6a负责，不能在此再删轴。
+  assert.deepEqual(out.pathogenesis.natureDifferentiation, value.pathogenesis.natureDifferentiation);
   assert.equal(out.pathogenesis.chain.length, 0);
 });
 await check("D20", "缺项不编依据或抹掉真实分析，未解决finding保留；旧接受条件仍拒绝假引文", () => {

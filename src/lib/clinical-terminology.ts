@@ -1,3 +1,4 @@
+import { classifyNatureColumns } from "./nature-column-classification";
 import diseaseSubtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" with { type: "json" };
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm } from "./clinical-governance-tables";
@@ -369,6 +370,13 @@ export function withCanonicalClinicalTerminology<T extends TerminologyReasoning>
   ) => Array.isArray(values)
     ? [...new Set(values.map((value) => canonicalize(value)?.canonical || value.trim()).filter(Boolean))]
     : values;
+  const natureColumns = nature ? {
+    ...nature,
+    items: canonicalList(nature.items, canonicalTcmNatureTerm),
+    rootDeficiency: canonicalList(nature.rootDeficiency, canonicalTcmNatureTerm),
+    branchExcess: canonicalList(nature.branchExcess, canonicalTcmNatureTerm),
+  } : undefined;
+  if (natureColumns) classifyNatureColumns(natureColumns);
   return {
     ...normalized,
     overview: {
@@ -385,12 +393,7 @@ export function withCanonicalClinicalTerminology<T extends TerminologyReasoning>
           },
         } : {}),
         ...(nature ? {
-          natureDifferentiation: {
-            ...nature,
-            items: canonicalList(nature.items, canonicalTcmNatureTerm),
-            rootDeficiency: canonicalList(nature.rootDeficiency, canonicalTcmNatureTerm),
-            branchExcess: canonicalList(nature.branchExcess, canonicalTcmNatureTerm),
-          },
+          natureDifferentiation: natureColumns,
         } : {}),
       },
     } : {}),

@@ -1,12 +1,13 @@
+import { classifyNatureColumns } from "./nature-column-classification";
+import { reconcileAnalysisUncertainties } from "./pathogenesis-columns";
 import "server-only";
 
 import factPolicy from "../data/delivery-facts-policy.source.json";
 import natureLexiconJson from "../data/tcm-nature-lexicon.json" with { type: "json" };
 import { primaryModelJsonTask } from "./cross-model-small-task.server";
 import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
-import { governedAxisElements, governedSyndromeElements } from "./delivery-invariant-governance";
 import { compositeSyndromeRename } from "./delivered-surface";
-import { uncertaintyAnsweredByRecord, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
+import { withMethodImpliedNatureElements } from "./analysis-element-closure";
 import { foreignSyndromeNames } from "./m03-rationale-coverage.server";
 import { isLineageLensSentence } from "./tcm-lineages";
 import { sanitizeOptionalPathogenesisClassifications } from "./diagnosis-visible-summary";
@@ -228,8 +229,9 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
   const nextNature = record(nextPathogenesis.natureDifferentiation)!;
   nextOverview.tcmDiagnosticRationale = rationale;
   nextNature.items = items;
-  nextNature.rootDeficiency = [...new Set(rewrite.rootDeficiency)];
-  nextNature.branchExcess = [...new Set(rewrite.branchExcess)];
+  nextNature.rootDeficiency = [];
+  nextNature.branchExcess = [];
+  classifyNatureColumns(nextNature);
   nextNature.basis = segments.join("；");
   if (rewrite.overallPathogenesis && rewrite.overallPathogenesis.length <= 140) {
     nextOverview.overallPathogenesis = rewrite.overallPathogenesis;
@@ -237,15 +239,15 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
   }
   // 重写稿的待核实项不收三类（第四十六轮）：评论证名本身的（「湿邪是否作为独立病性要素——结论证名未列湿」，m13）、照抄提示段内部说法的、
   // 问病历已写明的四诊属性的（舌苔厚薄而病历记苔薄）。剩下的才换上去。
-  const uncertainties = rewrite.uncertainties.filter((row) => !uncertaintyDiscussesSyndromeNaming(row) && !uncertaintyLeaksPromptWording(row) && !uncertaintyAnsweredByRecord(row.item, recordText));
-  if (uncertainties.length > 0) nextPathogenesis.uncertainties = uncertainties;
+  nextPathogenesis.uncertainties = rewrite.uncertainties;
+  reconcileAnalysisUncertainties(next, recordText);
   const remaining = analysisMisalignments(next, recordText)
     .filter((issue) => issue.code !== "nature_element_unnamed" || ![...originalElements].some((id) => !namedElements.has(id) && issue.detail.includes(LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical || "\u0000")));
   return remaining.length === 0 ? next : reject(`still:${remaining.map((issue) => issue.code).join("+")}`);
 }
 
 /**
- * R47 rejection fallback. Whole offending sentences/items are removed; locked conclusions and patient quotations stay.
+ * R49 rejection fallback. Issue-directed offending prose is removed; element arrays belong to P6a.
  * Omissions cannot be repaired by inventing evidence or erasing all valid analysis; leave contract failure visible.
  */
 export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): Json {
@@ -254,14 +256,10 @@ export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): 
   const next = structuredClone(reasoning);
   const overview = record(next.overview)!;
   const pathogenesis = record(next.pathogenesis)!;
-  const nature = record(pathogenesis.natureDifferentiation)!;
   const primary = deliveredPrimary(reasoning, recordText);
   const secondary = strings(overview.secondarySyndromes);
-  const concluded = conclusionElements([primary, ...secondary].join("、"), text(record(reasoning.therapy)?.overallMethod) || text(overview.overallTherapy));
-  const namedAuthority = governedSyndromeElements([primary, ...secondary]);
-  const forbidden = new Set(namedAuthority.complete ? [...strings(nature.items), ...strings(nature.rootDeficiency), ...strings(nature.branchExcess)]
-    .flatMap((item) => { const governed = governedAxisElements(item); return governed.complete ? governed.ids.map(groupOf) : []; })
-    .filter((id) => !concluded.has(id)) : []);
+  const forbidden = new Set(issues.filter((issue) => issue.code === "nature_element_unnamed").flatMap((issue) =>
+    LEXICON.filter((entry) => issue.detail.includes(`病性栏的${entry.canonical}，`)).map((entry) => groupOf(entry.id))));
   // A missing element/root is an unresolved omission, not proof that every authored sentence is false.
   // Remove only contradicted material below; leave the omission visible to final contracts/findings.
   const contradicts = (value: string): boolean => {
@@ -287,17 +285,23 @@ export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): 
     }
     return false;
   };
-  const cut = (value: unknown): string => asSentences(text(value)).filter((sentence) => !contradicts(sentence)).join("");
+  const contradictsIssue = (sentence: string): boolean => {
+    if (contradicts(sentence)) return true;
+    if (!issues.some((issue) => issue.code === "rationale_other_syndrome")) return false;
+    const probe = structuredClone(reasoning);
+    record(probe.overview)!.tcmDiagnosticRationale = sentence;
+    return analysisMisalignments(probe, recordText).some((issue) => issue.code === "rationale_other_syndrome") &&
+      factPolicy.alignmentAssertionMarkers.filter((marker) => marker.length >= 2).some((marker) => {
+        const at = sentence.indexOf(marker);
+        return at >= 0 && !/(?:不|未|非)$/u.test(sentence.slice(0, at)) && clauseLocalMentionPolarityAt(sentence, at + marker.length) === "affirmed";
+      });
+  };
+  const cut = (value: unknown): string => asSentences(text(value)).filter((sentence) => !contradictsIssue(sentence)).join("");
   for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) {
     if (typeof overview[key] === "string") overview[key] = cut(overview[key]);
   }
   for (const key of ["summary", "natureSummary"]) if (typeof pathogenesis[key] === "string") pathogenesis[key] = cut(pathogenesis[key]);
-  for (const key of ["items", "rootDeficiency", "branchExcess"]) nature[key] = strings(nature[key]).filter((item) => {
-    const governed = governedAxisElements(item);
-    return !governed.complete || !governed.ids.some((id) => forbidden.has(groupOf(id)));
-  });
-  delete nature.resolutionReason;
-  nature.resolution = "bounded";
+  // R49: element promotion/withdrawal belongs to P6a. This fallback edits prose only.
   if (Array.isArray(pathogenesis.chain)) pathogenesis.chain = pathogenesis.chain.filter((raw) => {
     const node = record(raw);
     if (!node) return true;
@@ -305,13 +309,7 @@ export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): 
     // Remove the whole unexplainable item; retained node IDs remain stable for reference repair.
     return Boolean(text(node.pathogenesis));
   });
-  if (Array.isArray(pathogenesis.uncertainties)) pathogenesis.uncertainties = pathogenesis.uncertainties.filter((row) => {
-    const item = record(row);
-    if (!item) return true;
-    const probe = structuredClone(reasoning);
-    record(probe.pathogenesis)!.uncertainties = [item];
-    return !analysisMisalignments(probe, recordText).some((issue) => issue.code === "uncertainty_asks_named_element");
-  });
+  reconcileAnalysisUncertainties(next, recordText);
   return next;
 }
 function asSentences(value: string): string[] {
@@ -336,7 +334,7 @@ export async function alignAnalysisWithConclusion(content: string, context: { re
   const overview = record(reasoning.overview)!;
   const pathogenesis = record(reasoning.pathogenesis)!;
   const nature = record(pathogenesis.natureDifferentiation)!;
-  const rewrite = await rewriteTask("m03_analysis_alignment", "diagnose", [
+  const messages: Parameters<typeof primaryModelJsonTask>[2] = [
     { role: "system", content: SYSTEM },
     { role: "user", content: JSON.stringify({
       record: context.recordText.slice(0, 3_000),
@@ -352,10 +350,18 @@ export async function alignAnalysisWithConclusion(content: string, context: { re
       },
       problems: issues.map((issue) => issue.detail),
     }) },
-  ], { maxTokens: 900, timeoutMs: TIMEOUT_MS }, parse, signal).catch(() => undefined);
-  const rejection = { reason: "" };
-  const accepted = rewrite ? acceptedAlignmentRewrite(reasoning, rewrite, context.recordText, rejection) : undefined;
-  console.info("[tcm-cdss:telemetry] m03_analysis_alignment", { issues: issues.map((issue) => issue.code), rewritten: Boolean(rewrite), accepted: Boolean(accepted), rejected: rejection.reason || null });
+  ];
+  let accepted: Json | undefined;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (signal?.aborted) break;
+    const rewrite = await rewriteTask("m03_analysis_alignment", "diagnose", messages,
+      { maxTokens: 900, timeoutMs: TIMEOUT_MS }, parse, signal).catch(() => undefined);
+    const rejection = { reason: rewrite ? "" : "task_failed_or_invalid_json" };
+    accepted = rewrite ? acceptedAlignmentRewrite(reasoning, rewrite, context.recordText, rejection) : undefined;
+    console.info("[tcm-cdss:telemetry] m03_analysis_alignment", { issues: issues.map((issue) => issue.code), attempt, rewritten: Boolean(rewrite), accepted: Boolean(accepted), rejected: rejection.reason || null });
+    if (accepted) break;
+    messages.push({ role: "user", content: JSON.stringify({ rejected: rejection.reason, previousRewrite: rewrite, instruction: "上次稿件未通过同一核对。请修正拒绝原因，仍只重写同一组字段，遵守原结论和逐字病历依据要求。" }) });
+  }
   if (!accepted) {
     const cut = withoutMisalignedAnalysis(reasoning, context.recordText);
     // Do not run a normalizer that may restore rejected prose. The existing caller revalidates the contract.
