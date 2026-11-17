@@ -310,7 +310,9 @@ await check("D19", "对齐重写拒收后删矛盾句/条目/链，结论与原�
   assert.ok(out.overview.tcmDiagnosticRationale.includes("尚不足以另立血瘀主证"));
   // R49 P6b只处理对齐失败后的文字；名外证素的进名/撤回由P6a负责，不能在此再删轴。
   assert.deepEqual(out.pathogenesis.natureDifferentiation, value.pathogenesis.natureDifferentiation);
-  assert.equal(out.pathogenesis.chain.length, 0);
+  // 第四十九轮起病机链删到一个不剩时保留原链（空链是 T1 m03_chain_empty，整页作废；m03-core-prose-floor），总体病机删空时只陈述已定证名。
+  assert.equal(out.pathogenesis.chain.length, value.pathogenesis.chain.length);
+  assert.equal(out.overview.overallPathogenesis, "本例为脾气虚证。");
 });
 await check("D20", "缺项不编依据或抹掉真实分析，未解决finding保留；旧接受条件仍拒绝假引文", () => {
   const value = base(); value.overview.tcmDiagnosticRationale += "。未见便血，不支持热结或肠结。纳食一般属表证影响，不作兼证。"; value.pathogenesis.natureDifferentiation.items = ["气滞"]; value.pathogenesis.natureDifferentiation.branchExcess = ["气滞"];

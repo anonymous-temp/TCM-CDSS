@@ -300,13 +300,17 @@ export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): 
   const cut = (value: unknown): string => asSentences(text(value)).filter((sentence) => !contradictsIssue(sentence)).join("");
   // 删句不能把核心文字删空（第四十九轮 new40 m11：对齐两次被拒，兜底删掉总体病机全部句子 → overall_pathogenesis_unstable T1 →
   // M03 退成占位、M04 无方）。删后结构上为空或不足一句时保留原文，矛盾留给后面的核对与复核看见，不让整页作废。
-  const cutCore = (value: unknown): string => {
+  // 总体病机删空时不回到矛盾原文，改写成只陈述已定证名的一句（「本例为脾气虚证。」），既不留矛盾也不触发空病机（r1064-facts D19）。
+  const primaryName = text(overview.primarySyndrome).trim();
+  const cutCore = (value: unknown, key: string): string => {
     const original = text(value);
     const kept = cut(value);
-    return kept.length >= 8 && !isStructurallyEmptyM03CoreText(kept) ? kept : original;
+    if (kept.length >= 8 && !isStructurallyEmptyM03CoreText(kept)) return kept;
+    if (key === "overallPathogenesis" && kept !== original && primaryName) return `本例为${primaryName}。`;
+    return original;
   };
   for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) {
-    if (typeof overview[key] === "string") overview[key] = cutCore(overview[key]);
+    if (typeof overview[key] === "string") overview[key] = cutCore(overview[key], key);
   }
   for (const key of ["summary", "natureSummary"]) if (typeof pathogenesis[key] === "string") pathogenesis[key] = cut(pathogenesis[key]);
   // R49: element promotion/withdrawal belongs to P6a. This fallback edits prose only.
