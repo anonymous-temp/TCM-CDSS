@@ -1,3 +1,4 @@
+import { modificationDecoctionPhrase } from "./herb-decoction-rules";
 import rxtextPolicy from "../data/rxtext-content-policy.source.json";
 import { afterMealAdministrationRequired, afterMealAdministration, afterMealPrecaution } from "./hypoglycemia-administration";
 import { settleEncounterPrimary } from "./western-encounter-primary";
@@ -50,7 +51,7 @@ import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormu
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { selfTakenMedicationMentions, recordedMedicationMentions, drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTaken } from "./clinical-polarity";
-import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, retainModificationFindings, topUpTextbookMainSymptom, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
+import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, retainModificationFindings, modificationIsTextbookFill, fillTextbookModificationConditions, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
 import { modificationDoseWithinPharmacopoeia, canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { textbookDiseaseTypicalManifestation, textbookDefinitionSuitableForDisplay, textbookDifferentialTextWithoutNumber, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable } from "./tcm-textbook-syndromes";
@@ -69,7 +70,7 @@ import { patentMedicineCompositionIdentities, patentMedicineDuplication } from "
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName, patentMedicineLabelIsTonic, tonicMedicineCategory, TOPICAL_MEDICATION_FORM } from "./local-patent-medicine-candidates";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
-import { internalMustProcessHerb, processedHerbName, purposeProcessedHerbName, withProcessedHerbMentions } from "./herb-processing-forms";
+import { internalMustProcessHerb, isGovernedPreparedHerbName, processedHerbName, purposeProcessedHerbName, withProcessedHerbMentions } from "./herb-processing-forms";
 import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose";
 import { settleWesternDiagnosisBasis, withoutUnrecordedTestCitations } from "./recorded-test-claims";
 import { withoutLabelPlaceholders } from "./instruction-record-pool";
@@ -1780,6 +1781,9 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
       if (!riskNote.includes(handling)) row.riskNote = [riskNote, handling].filter(Boolean).join("；");
     }
     const entry = String(record(row.evidence)?.source || "");
+    // 教材已明确指定这一炮制品时沿用原品；未写规格的药仍按本例用途选炮制。
+    const textbookExplicitForm = record(row.evidence)?.evidenceLevel === "kb_entry" && entry.includes(name) && isGovernedPreparedHerbName(name);
+    if (textbookExplicitForm) continue;
     const textbookForm = [...entry.matchAll(new RegExp(`([煅炒焦蜜炙酒醋盐姜制煨]{1,2})${name}`, "gu"))].map((match) => `${match[1]}${name}`)
       .find((form) => isKnownTcmHerbName(form) && getTcmHerbDoseLimit(form));
     const rowPurpose = [row.reason, row.targetPathogenesis].filter((item) => typeof item === "string").join("；");
@@ -2247,6 +2251,16 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     }
     // 原方的药引（甲方 10.29 测评：归脾汤原方「加姜、枣，水煎服」，处方不便列时在用法里说明；第四十六轮起姜枣以外的药引也写：
     // 八正散灯心、银翘散鲜苇根汤煎）。用法里已写到的药引不再加。
+    const tableNames = records(candidate.herbs).map((herb) => String(herb.name || ""));
+    const addedHandlingInMethod = records(formula?.modifications).some((item) => item.action === "加" &&
+      !tableNames.some((name) => canonicalTcmHerbIdentity(name) === canonicalTcmHerbIdentity(String(item.herbName || ""))) &&
+      modificationDecoctionPhrase(String(item.herbName || "")) && String(record(candidate.decoction)?.method || "").includes(String(item.herbName || "")));
+    if (addedHandlingInMethod) {
+      const rebuilt = projectDeterministicDecoctionMethod({ stage: "prescribe", therapy: reasoning.therapy,
+        formula: { candidates: [candidate] } }, options?.recordText || "", options?.herbBoundaryAudience?.ageYears ?? undefined);
+      const current = record(candidate.decoction), next = record(rebuilt.formula.candidates[0].decoction);
+      if (current && next && typeof next.method === "string") current.method = next.method;
+    }
     const candidateDecoction = record(candidate.decoction);
     if (candidateDecoction && typeof candidateDecoction.method === "string") {
       candidateDecoction.method = candidateDecoction.method.replace(/[；;]?原方以[^，,；;。]+为引，煎时可酌加/gu, "").replace(/[；;\s]+$/u, "");
@@ -2828,15 +2842,15 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
   }
   // 辨证阶段已采纳的患者原话（主证依据与各病机节点的患者事实）：随证加减的触发条件说的症状这里已有，就不是「若」出现的变化。
   const recordedFacts = modificationPresenceFactsFor(options?.recordText || "", { overview: priorOverview as { primarySyndromeBasis?: unknown } | undefined, pathogenesis: { chain: records(record(reasoning.pathogenesis)?.chain) } });
-  const triggerContext = { caseState: options?.caseState, recordText: options?.recordText, prior: { overview: { tcmDiseaseName: String(priorOverview?.tcmDiseaseName || ""), primarySyndrome: String(priorOverview?.primarySyndrome || "") } }, priorityEvaluation: options?.priorityEvaluation };
+  const triggerContext = { caseState: options?.caseState, recordText: options?.recordText, prior: { overview: { tcmDiseaseName: String(priorOverview?.tcmDiseaseName || ""), primarySyndrome: String(priorOverview?.primarySyndrome || ""), recommendedFormulaNames: Array.isArray(priorOverview?.recommendedFormulaNames) ? priorOverview.recommendedFormulaNames as string[] : [] } }, priorityEvaluation: options?.priorityEvaluation };
   if (formula && Array.isArray(formula.modifications)) formula.modifications = retainModificationFindings(records(formula.modifications), triggerContext);
   // 备用加减（「若X」而病历里没有X）不交付（第四十四轮，2026-11-14 用户：甲方页面默认勾选、没有确认的地方，评审按患者实际病情判）。
   // 编译阶段已按同一判据不列；这里兜住补写、核对之后的行与旧缓存。病历原文拿不到时（没传 recordText）不动，免得把已见的也删了。
   if (formula && Array.isArray(formula.modifications) && options?.recordText && !standbyModificationsDelivered()) {
     formula.modifications = records(formula.modifications).filter((item) =>
-      !(typeof item.trigger === "string" && /^\s*(?:若|如果?|倘若|假如)/u.test(item.trigger) && !presentModificationCondition(item.trigger, recordedFacts, triggerContext)));
+      modificationIsTextbookFill(item, triggerContext) || !(typeof item.trigger === "string" && /^\s*(?:若|如果?|倘若|假如)/u.test(item.trigger) && !presentModificationCondition(item.trigger, recordedFacts, triggerContext)));
   }
-  for (const modification of records(formula?.modifications)) {
+  const projectModification = (modification: Json) => {
     // 触发条件是病历已有的症状（「若抽搐」而病历已有抽搐，2026-10-20 第八轮 X-G-0570、X-G-0617）：条件式「若X」是给还没出现的变化备的，
     // 现症写成「若」是把事实当假设。改成「本例已见X」；依据是模型自拟的备用加减时一并换成病历原句。判据与改写见 presentModificationCondition。
     if (recordedFacts && typeof modification.trigger === "string" && /^\s*(?:若|如果?)/u.test(modification.trigger)) {
@@ -2851,12 +2865,16 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       }
     }
     if (typeof modification.riskNote === "string" && /药味工作台|重新审方/.test(modification.riskNote)) modification.riskNote = "";
+    const handling = modification.action === "加" ? modificationDecoctionPhrase(String(modification.herbName || "")) : "";
+    if (handling && !String(modification.riskNote || "").includes(handling)) modification.riskNote = [handling, modification.riskNote].filter(Boolean).join("；");
     // 加减理由里这味药没有的功效（2026-10-19 M 集 BEST4SDT-193 北沙参「益气养阴」、TCM-SD-448967 连翘「清热散结兼通肠腑」）：
     // 与药味功效栏同一判据（herbFunctionClaimUnsupportedPhrases），从小句头尾去掉；夹在中间去不干净的小句整句不留（只剩它时不动）。
     if (!(m04FinalContentPolicy().enabled && m04FinalContentPolicy().modifications === "on") && typeof modification.reason === "string" && typeof modification.herbName === "string" && modification.reason.trim()) {
       modification.reason = withoutUnsupportedReasonPhrases(modification.reason, herbFunctionKnowledgeForDisplay(modification.herbName), modification.herbName.trim());
     }
-  }
+  };
+  for (const modification of records(formula?.modifications)) projectModification(modification);
+
   // 缓存与编译共用每条件一个独立方案；教材明确的伙伴药仍按一药一行保留。
   if (formula && Array.isArray(formula.modifications)) {
     // 触发条件残缺到只剩泛称的加减不留（「若临床」：教材「临床可加槟榔、木香」被切成条件，2026-10-20 第八轮 X-G-0020）。源头已在教材表载入时去掉
@@ -2879,8 +2897,11 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     });
   }
   if (formula && options?.caseState && options.recordText && Array.isArray(formula.modifications)) {
-    formula.modifications = topUpTextbookMainSymptom(records(formula.modifications), reasoning as unknown as ClinicalReasoningResultV2, options.caseState as CaseState,
-      records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")));
+    formula.modifications = fillTextbookModificationConditions(records(formula.modifications), reasoning as unknown as ClinicalReasoningResultV2, options.caseState as CaseState,
+      records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")), { recordText: options.recordText, priorityEvaluation: options.priorityEvaluation,
+        prepareRow: (row) => deliveredProcessedHerbNames({ formula: { candidates: [], modifications: [row] } }, options) });
+    // 新补的行在同一次投影里也完成现症写法、理由与煎法附注清理。
+    for (const modification of records(formula.modifications)) projectModification(modification);
   }
   if (formula && Array.isArray(formula.patentAndWestern)) {
     const herbs = records(records(formula.candidates)[0]?.herbs).map((herb) => ({ name: String(herb.name || ""), role: String(herb.role || "") }));

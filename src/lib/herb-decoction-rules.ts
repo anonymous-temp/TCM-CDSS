@@ -401,6 +401,11 @@ export function specialDecoctionPhrase(name: string, declared = ""): string {
   return specialDecoctionOrderIndexes(name, declared).map((index) => SPECIAL_DECOCTION_ORDER[index].phrase(name)).join("，");
 }
 
+/** 加减行附注：时机/包裹沿用同一药典规则，准备步骤也只留在该行。 */
+export function modificationDecoctionPhrase(name: string): string {
+  return [specialDecoctionPhrase(name), /捣碎|打碎/u.test(requiredDecoctionRequirement(name) || "") ? `${name}用前捣碎` : ""].filter(Boolean).join("，");
+}
+
 /** 特殊煎法标注（改变下药时机或方式的那几种）。「捣碎」「打碎」是准备，不在此列。 */
 const SPECIAL_DECOCTION_LABEL = /先煎|久煎|后下|包煎|另煎|另炖|烊化|冲服|兑服/gu;
 

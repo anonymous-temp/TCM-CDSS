@@ -1,4 +1,4 @@
-// 第四十八轮主会话：主症加强行的保留口径。合成夹具，不复制甲方病历。
+// 第四十九轮：主症加强须引出已记程度/特点；教材主症甚沿用既有判据。合成夹具，不复制甲方病历。
 import assert from 'node:assert/strict';
 import { createJiti } from 'jiti';
 const jiti = createJiti(import.meta.url, { alias: { '@': `${process.cwd()}/src`, 'server-only': `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
@@ -6,11 +6,11 @@ const compiler = await jiti.import('../src/lib/m04-proposal-compiler.ts');
 const safety = await jiti.import('../src/lib/diagnosis-safety.ts');
 let failed = 0;
 const check = async (id, title, run) => { if (process.env.R1065_ONLY && process.env.R1065_ONLY !== id) return; try { await run(); console.log(`✓ ${id} ${title}`); } catch (e) { failed++; console.error(`✗ ${id} ${title}\n${e.stack}`); } };
-const state = { patient: { age: 45, sex: '女' }, chiefComplaint: '头胀1周', symptoms: { 现病史: '头胀1周，后枕部发紧，口苦。' } };
+const state = { patient: { age: 45, sex: '女' }, chiefComplaint: '头胀1周', symptoms: { 现病史: '头胀明显1周，后枕部发紧，口苦。' } };
 const prior = { overview: { tcmDiseaseName: '眩晕', primarySyndrome: '肝阳上亢证' } };
 const ctx = { prior, caseState: state, recordText: safety.clinicalGroundingText(state) };
-await check('1.1', '普通条件不足两项时保留一条本例已见主症的加强行', () => {
-  const rows = [{ trigger: '本例已见后枕部发紧', herbName: '葛根' }, { trigger: '本例已见头胀', herbName: '菊花' }, { trigger: '头胀明显', herbName: '钩藤' }];
+await check('1.1', '不足两项时可保留引出已记程度的主症加强行，裸主症不算', () => {
+  const rows = [{ trigger: '本例已见后枕部发紧', herbName: '葛根' }, { trigger: '本例已见头胀明显', herbName: '菊花' }, { trigger: '头胀', herbName: '钩藤' }];
   const kept = compiler.retainModificationFindings(rows, ctx);
   assert.deepEqual(kept.map((row) => row.herbName), ['葛根', '菊花']);
 });

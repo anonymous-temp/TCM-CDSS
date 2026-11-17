@@ -269,7 +269,12 @@ assert.equal(textbook.textbookRowForSyndrome("不存在的病", "热证"), undef
     nonPharma: { diet: "饮食清淡。", lifestyle: "规律作息。", emotion: "保持心情舒畅。", tcmTreatments: [], precautions: ["若皮疹迅速扩散，须及时就医。"] },
   });
   const row1 = { trigger: "若渗液较多", targetRef: "P1", actionType: "add", herbName: "薏苡仁", dose: "15g", reason: "利水渗湿，健脾", symptomPathogenesis: "脾虚湿盛，浸淫肌肤" };
-  const kept = compileM04Proposal(proposal([row1]), prior).formula.modifications;
+  // 第四十九轮：方内茯苓/泽泻已利水渗湿，同功效小类、理由同作用的行不留。
+  const duplicated = compileM04Proposal(proposal([row1]), prior);
+  assert.equal(duplicated.formula.modifications.some(item => item.herbName === "薏苡仁"), false);
+  assert.ok(duplicated.formula.modificationReview.droppedReasons.some(item => item.code === "action_conflicts_with_candidate"));
+  // 理由明确是另一作用时仍按原先的条件、药名与剂量路径编译，不全面禁止同类药。
+  const kept = compileM04Proposal(proposal([{ ...row1, reason: "健脾止泻" }]), prior).formula.modifications;
   assert.deepEqual(kept.map((item) => [item.trigger, item.herbName, item.doseOrHandling]), [["若渗液较多", "薏苡仁", "15g"]]);
   assert.equal(kept[0].evidence.source, "按本证常见兼症变化拟定的备用加减");
   assert.equal(finalGrounded("若渗液较多", prior), true, "最终合同同一判据");

@@ -3,7 +3,7 @@ import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
 import { herbCautionReferenceText, herbClaimReferenceText, herbPropertyReferenceText } from "./m04-formula-analysis-claim-check.server";
-import { retainModificationFindings, modificationTriggerNotFinding, distinctModificationConditions, standbyModificationsDelivered, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
+import { retainModificationFindings, fillTextbookModificationConditions, modificationTriggerNotFinding, distinctModificationConditions, standbyModificationsDelivered, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { compositionIdentityName } from "./tcm-formula-provenance";
 import { quoteGroundedInText } from "./verbatim-quote";
@@ -42,7 +42,7 @@ const SYSTEM = [
   "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药；实热、火热证为非主诉的次要表现加温性药，如胃热炽盛证「纳差」加焦山楂——property 是《中药学》药性，次要表现由主证病机所致、主方清其病机即可），或这个条件不是本病会出现的变化；这个表现是主病直接引起的（高热、热毒内陷致拒食纳差，剧痛致失眠，失血、气脱致头晕），治好主病自然缓解，另加偏性药不当（如热毒证拒食加焦山楂、失血头晕加天麻）；药的功效与这个表现在本证里的病机对不上（气血不足的头晕加平肝息风的天麻，固摄缩尿写桑椹、白术）。不因为有更好的选择就判 misfit。",
   "caution：两种 kind 都判。每一行先读 caution（《中药学》使用注意原文）：它点名慎用或忌用的某个症状（自汗、盗汗、便溏、失眠、出血…）本例病历写着，就判 caution，不论这一行的条件写的是什么（如麻黄 caution「表虚自汗、阴虚盗汗…慎用」，病历写「自汗」）。只看症状，「内有实热者慎用」这类说的是证候，不算；quote 摘病历里那个症状的逐字原文。",
   "unrelated：两种 kind 都判。条件说的情况与本例已记录的表现都无关——不是本例已有某个症状的加重或演变，也不是主诉主症的变化，而是另一组本例一条相关表现都没有的情况（如胃痛病例「若兼头晕目眩」而病历没有头晕；咳嗽病例「若兼有瘀血」而病历没有任何瘀象）。条件里的症状本例已有（程度不同也算）、或是本例主症常见的加重，不算 unrelated。quote 留空。",
-  "not_finding：两种 kind 都判。主诉主症已经由主方治疗，主症本身、频次或形态不作加减条件；缓解/加重因素、表情神态、闸门红旗或优先评估所引用的危重表现、脱水休克灌注不足征象也不作条件。条件说的不是患者此刻的一个症状、体征或舌脉：生活习惯或诱因（熬夜、久坐、加班、屏幕使用时间长、饮食不节）、缓解因素（吃糖后好转、休息后减轻）、病名或基础病（慢性肾病3期、焦虑症病史）、检查或就诊经过（未接受检查、拒绝说明）、病历里的说明（家属与本人描述不同）、正常情况（睡眠尚可）。quote 留空。",
+  "not_finding：两种 kind 都判。主诉主症已经由主方治疗，单写主症本身、频次或形态不作加减条件；已记录的程度或特点可同向加强，条件必须带该词；教材“主症甚”按教材判据保留；缓解/加重因素、表情神态、闸门红旗或优先评估所引用的危重表现、脱水休克灌注不足征象也不作条件。条件说的不是患者此刻的一个症状、体征或舌脉：生活习惯或诱因（熬夜、久坐、加班、屏幕使用时间长、饮食不节）、缓解因素（吃糖后好转、休息后减轻）、病名或基础病（慢性肾病3期、焦虑症病史）、检查或就诊经过（未接受检查、拒绝说明）、病历里的说明（家属与本人描述不同）、正常情况（睡眠尚可）。quote 留空。",
   "ok：其余。",
   "只输出 JSON：{\"rows\":[{\"line\":0,\"verdict\":\"ok\",\"quote\":\"\"}]}",
 ].join("\n");
@@ -220,7 +220,7 @@ export function withModificationsFrom(target: string, source: string): string {
 
 const TOP_UP_SYSTEM = [
   "你是中医主治医师。证型、治法、方药已定，现在为本例补写随证加减。随证加减是给这位患者这次就用的，不写「若…」这种以后才可能出现的备用条件。",
-  "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如便溏、口干、咽痛、眠差、咳痰、多汗、小便不利；舌苔、舌质、脉象只能和症状写在同一条里作条件，如「口苦、苔黄」，单写舌象或脉象不作条件，舌淡红、苔薄白、脉缓这类正常所见不写）；这样的表现不够两个时，再从本例较突出、主方照顾力度不足的已记录表现里补（如畏寒肢冷明显、腰膝酸软，加一味同向的药增强）；主诉主症及其频次、形态由主方治疗，不作加减条件，不能为凑条数再写主症加强。每个表现写一条，凑够 2 条、最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
+  "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如便溏、口干、咽痛、眠差、咳痰、多汗、小便不利；舌苔、舌质、脉象只能和症状写在同一条里作条件，如「口苦、苔黄」，单写舌象或脉象不作条件，舌淡红、苔薄白、脉缓这类正常所见不写）；这样的表现不够两个时，再从本例较突出、主方照顾力度不足的已记录表现里补（如畏寒肢冷明显、腰膝酸软，加一味同向的药增强）；主诉主症及其频次、形态由主方治疗，单写主症名不算；不足两项时可取已记的程度或特点（剧痒、痛甚拒按、酸软无力、夜间加重、量多），trigger 必须引出该词，再加一味同向药加强。每个表现写一条，凑够 2 条、最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写证候名）；herbName 是不在 herbs 里的一味常用饮片，不加与方中某味同一功效、管同一表现的药；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
   "纳差、食少不是主诉、证候又不涉脾胃食积时，不为它加消食药（焦山楂、神曲、麦芽、鸡内金）；病人高热、意识改变、休克、少尿这类急危重表现不作加减条件。",
   "trigger 必须是患者此刻的一个症状、体征（不写生活习惯或诱因如熬夜、久坐、屏幕时间长，不写缓解或加重因素如吃糖后好转、遇冷加重，不写表情神态，不写主诉主症本身，不写急危重征象，不写病名、病史、检查或就诊经过，不写既往史、个人史里的内容）。",
   "主病直接引起的伴随表现不另加药（因疼痛或瘙痒而眠差、因发热而纳差、外感正邪相争而精神差，主病好了自然好）。药的寒热补泻要与证型一致：外感、痰热、湿热、瘀血这类实证不为次要表现加补益药，虚证不加攻伐药。病历否认的、existing 里已有的不写。病历里找不到这样的表现就少写或输出空数组，不要编。",
@@ -288,7 +288,7 @@ export async function topUpModificationConditions(
   context: { recordText: string; prior: ClinicalReasoningResultV2 | null | undefined; caseState?: CaseState },
   signal?: AbortSignal,
 ): Promise<string> {
-  if (!modificationFitEnabled() || !context.prior) return content;
+  if (!context.prior) return content;
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -298,10 +298,11 @@ export async function topUpModificationConditions(
   const candidate = record(Array.isArray(formula?.candidates) ? formula.candidates[0] : undefined);
   if (!root || !formula || !candidate || !Array.isArray(candidate.herbs)) return content;
   const originalRows = Array.isArray(formula.modifications) ? formula.modifications.map(record).filter((row): row is Json => Boolean(row)) : [];
-  const rows = retainModificationFindings(originalRows, context);
+  const candidateNames = candidate.herbs.map((herb) => text(record(herb)?.name)).filter(Boolean);
+  const rows = context.caseState ? fillTextbookModificationConditions(originalRows, context.prior, context.caseState, candidateNames) : retainModificationFindings(originalRows, context);
   formula.modifications = rows;
   const existing = rows.map((row) => text(row.trigger));
-  if (distinctModificationConditions(rows) >= MIN_DISTINCT_CONDITIONS) return rows.length === originalRows.length ? content
+  if (!modificationFitEnabled() || distinctModificationConditions(rows) >= MIN_DISTINCT_CONDITIONS) return JSON.stringify(rows) === JSON.stringify(originalRows) ? content
     : `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(root, null, 2)}\n${content.slice(end)}`;
   const duplicationHerbs = candidate.herbs.map((herb) => ({ name: text(record(herb)?.name), role: text(record(herb)?.role) }));
   const herbs = duplicationHerbs.map((herb) => herb.name).filter(Boolean);
@@ -343,13 +344,13 @@ export async function topUpModificationConditions(
   const taken = [...herbs, ...rows.map((row) => text(row.herbName))];
   for (const row of added) {
     if (distinctModificationConditions(delivered) >= MIN_DISTINCT_CONDITIONS + 1 || delivered.length >= 4) break;
-    const compiled = topUpModificationRow(row, { prior: context.prior, caseState: context.caseState, candidateHerbNames: taken, existingTriggers: triggers });
+    const compiled = topUpModificationRow(row, { prior: context.prior, caseState: context.caseState, candidateHerbNames: taken, baseHerbNames: herbs, existingTriggers: triggers });
     if (!compiled) continue;
     delivered.push(compiled);
     triggers.push(row.trigger);
     taken.push(row.herbName);
   }
-  if (delivered.length === rows.length && rows.length === originalRows.length && cautionNotes.length === 0) return content;
+  if (JSON.stringify(delivered) === JSON.stringify(originalRows) && cautionNotes.length === 0) return content;
   if (cautionNotes.length) {
     const nonPharma = record(root.nonPharma) || {};
     nonPharma.precautions = [...new Set([...(Array.isArray(nonPharma.precautions) ? nonPharma.precautions : []), ...cautionNotes])];

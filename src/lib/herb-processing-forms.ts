@@ -138,6 +138,17 @@ function formNameFor(base: string, prefix: string): string | undefined {
   return candidates.find((name) => isKnownTcmHerbName(name) && Boolean(getTcmHerbDoseLimit(name)));
 }
 
+/** 教材明确点名的炮制品：按既有炮制表辨认，不把法半夏等当作未指定规格的原药。 */
+export function isGovernedPreparedHerbName(name: string): boolean {
+  if (SOURCE.rules.some((rule) => rule.form === name)) return true;
+  for (const row of PURPOSE_HERBS.values()) {
+    const writtenPrefix = name === `${row.herb}炭` ? "炭" : name.endsWith(row.herb) ? name.slice(0, -row.herb.length) : "";
+    if (!writtenPrefix) continue;
+    if (row.forms.some((form) => form.prefix === processingPrefixOf(writtenPrefix)) && isKnownTcmHerbName(name)) return true;
+  }
+  return false;
+}
+
 /** 用途短语切成比对用的词：两三个字的整词；四个字的拆成前后两半；更长的取前两字和整句。 */
 function purposeUnits(phrase: string): string[] {
   if (phrase.length <= 3) return [phrase];

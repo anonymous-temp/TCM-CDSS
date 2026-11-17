@@ -60,6 +60,12 @@ export interface TextbookSyndromeRow extends TextbookFormulaStageRow {
   modifications: Array<{ condition: string; herbs: string[]; raw: string }>;
 }
 
+// 保留教材条目的去药前提，作为内部元数据，不增加交付字段。
+const TEXTBOOK_MODIFICATION_REMOVALS = new WeakMap<TextbookSyndromeRow["modifications"][number], readonly string[]>();
+export function textbookModificationRemovals(entry: TextbookSyndromeRow["modifications"][number]): readonly string[] {
+  return TEXTBOOK_MODIFICATION_REMOVALS.get(entry) || [];
+}
+
 interface TextbookDisease {
   bookKey: string;
   book: string;
@@ -312,7 +318,7 @@ function buildDiseases(): TextbookDisease[] {
         ? (raw.compositionByFormula as Array<{ formula?: unknown; herbs?: unknown }>).map((item) => ({ formula: fixTextbookOcr(String(item.formula || "")), herbs: strings(item.herbs).map(fixTextbookOcr) })).filter((item) => item.formula && item.herbs.length > 0)
         : undefined,
       modifications: (Array.isArray(raw.modifications) ? raw.modifications : []).flatMap((item) => {
-        const record = item && typeof item === "object" ? item as { condition?: unknown; herbs?: unknown; raw?: unknown } : {};
+        const record = item && typeof item === "object" ? item as { condition?: unknown; herbs?: unknown; raw?: unknown; remove?: unknown } : {};
         const herbs = strings(record.herbs).map(fixTextbookOcr);
         // 「通血络非虫蚁所不能」「化络瘀非天麻三七所不能」是教材讲加药用意的话，不是临床指征：当成加减条件，处方里就出现
         //「若通血络非虫蚁所不能：加全蝎」（2026-10-19 M 集 TCM-SD-433619）。全表只有这两条是「非…不能」的说法（构词式守卫）。
@@ -322,9 +328,10 @@ function buildDiseases(): TextbookDisease[] {
         // 又因教材「有加减」把模型自己的条件式加减挡住。全表 34 条（条件以临床/方中/症状/病情/诸症/上述/上症 开头）。
         const condition = text(record.condition).replace(/^(?:若|如果|如)/u, "").trim();
         if (TEXTBOOK_GENERIC_CONDITION.test(condition) || TEXTBOOK_NON_SYMPTOM_CONDITION.test(condition) || condition.length < 2) return [];
-        return text(record.condition) && herbs.length > 0
-          ? [{ condition: fixTextbookOcr(text(record.condition)), herbs, raw: fixTextbookOcr(text(record.raw)) }]
-          : [];
+        if (!text(record.condition) || herbs.length === 0) return [];
+        const modification = { condition: fixTextbookOcr(text(record.condition)), herbs, raw: fixTextbookOcr(text(record.raw)) };
+        TEXTBOOK_MODIFICATION_REMOVALS.set(modification, strings(record.remove).map(fixTextbookOcr));
+        return [modification];
       }),
     });
     byKey.set(key, entry);
@@ -1218,6 +1225,12 @@ export function textbookRowForFormula(diseaseName: string, formulaNames: readonl
   return best;
 }
 
+/** 无本证加减条目时，用同方教材行；编译、D1 来源和成方核对共用。 */
+export function textbookRowForModifications(diseaseName: string, syndromeName: string, formulaNames: readonly string[] = []): TextbookSyndromeRow | undefined {
+  const matched = textbookRowForSyndrome(diseaseName, syndromeName);
+  return matched?.modifications.length ? matched : textbookRowForFormula(diseaseName, formulaNames, syndromeName);
+}
+
 export function textbookModificationMatch(
   diseaseName: string,
   syndromeName: string,
@@ -1228,7 +1241,7 @@ export function textbookModificationMatch(
   /** 证名查不到教材行时，用这张方在教材里的行（textbookRowForFormula）。 */
   formulaNames: readonly string[] = [],
 ): { book: string; disease: string; syndromeName: string; condition: string; raw: string; herbs: readonly string[]; crossDisease: boolean; evidence?: unknown[] } | undefined {
-  const row = textbookRowForSyndrome(diseaseName, syndromeName) || textbookRowForFormula(diseaseName, formulaNames, syndromeName);
+  const row = textbookRowForModifications(diseaseName, syndromeName, formulaNames);
   if (!row) return undefined;
   const crossDisease = !diseasesNamed(diseaseName).some((disease) => disease.rows.includes(row));
   const wanted = compact(trigger).replace(/^(?:若|如|如果|兼见|兼有|兼|见|伴有?|出现)/, "").replace(/(?:者|时)$/, "");
