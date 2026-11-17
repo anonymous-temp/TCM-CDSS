@@ -15,6 +15,7 @@
     "build:formula-syndrome-tags": "node scripts/build-formula-syndrome-tag-candidates.mjs",
     "build:tcm-formula-core-herbs": "node scripts/build-tcm-formula-core-herbs.mjs",
     "build:clinical-governance-static-tables": "jiti scripts/build-clinical-governance-static-tables.mjs",
+    "build:safety-rules": "node --max-old-space-size=1280 scripts/build-r1066-safety-data.mjs",
     "build:clinical-vocabulary": "node scripts/build-clinical-vocabulary.mjs",
     "build:phi-clinical-lexemes": "node scripts/build-phi-clinical-lexemes.mjs",
     "build:clinical-decision-cards": "node scripts/build-clinical-decision-cards.mjs",
@@ -412,6 +413,7 @@
     "test:r1065-gknow": "node --max-old-space-size=1280 scripts/test-r1065-gknow.mjs",
     "test:r1065-dxtext": "node --max-old-space-size=1280 scripts/test-r1065-dxtext.mjs",
     "build:textbook-disease-names": "node --max-old-space-size=1280 scripts/build-tcm-textbook-disease-names.mjs",
+    "test:r1066-safety": "node --max-old-space-size=1280 scripts/test-r1066-safety.mjs",
     "test:r1065-rxtext": "node --max-old-space-size=1280 scripts/test-r1065-rxtext.mjs"
   },
   "dependencies": {

@@ -58,6 +58,14 @@ export function hasHerbBoundaryTail(text: string): boolean {
   return String(text || "").includes(HERB_BOUNDARY_MARKER);
 }
 
+/** 本例已确认的安全说明放在可重建的逐味尾注之前，避免尾注重写把它一起删掉。 */
+export function appendCaseSafetyNote(text: string, note: string): string {
+  if (!note || text.includes(note)) return text;
+  const at = [HERB_BOUNDARY_MARKER, LEGACY_HERB_BOUNDARY_MARKER].map((marker) => text.indexOf(marker)).filter((index) => index >= 0).sort((a, b) => a - b)[0];
+  const head = (at == null ? text : text.slice(0, at)).trim().replace(/[。；;]+$/u, "");
+  return [head, note, at == null ? "" : text.slice(at)].filter(Boolean).join("；");
+}
+
 /** 单味药的提示；没有毒性也没有中高等级人群规则时返回 undefined。给了 audience 时只列本例可能属于的人群。 */
 /**
  * 慎用级的孕哺提示只列有药典依据的（第四十一轮 r1054 回顾：孕妇方写「砂仁、木香、陈皮属孕期慎用药」，安胎止呕的方子自相矛盾）：

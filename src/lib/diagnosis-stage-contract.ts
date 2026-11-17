@@ -25,7 +25,8 @@ import { boundaryRuleShown } from "./candidate-boundary-text";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { alignQuoteToSource } from "./source-quote-alignment";
 import { allergenHerbMatch, recordedAllergensInText } from "./allergen-profile";
-import { activeBleedingInGroundingText, clauseLocalMentionPolarityAt, recordMentionPolarityAt } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, currentAntithromboticTherapyRecorded, clauseLocalMentionPolarityAt, recordMentionPolarityAt } from "./diagnosis-safety";
+import { antithromboticHerbAvoid } from "./antithrombotic-herb-policy";
 import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
 import { formulaModificationHerbName, normalizeFormulaModificationAction } from "./formula-modification";
 
@@ -4011,7 +4012,7 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
    * 知识库人群名合写了几类（「出血倾向/月经期/抗凝状态」）时各类各自的病历写法。拟加药味的慎用提示「本例有…的记录」只写病历里记着的那一类
    *（第四十六轮复核 C067：月经量多的患者加三七，提示写成「本例有出血倾向/月经期/抗凝状态的记录」，病历并无抗凝）。
    */
-  members?: ReadonlyArray<{ label: string; patient: RegExp }>;
+  members?: ReadonlyArray<{ label: string; patient: RegExp; isPatient?: (context: string) => boolean }>;
   code: string;
 }> = [
   {
@@ -4029,11 +4030,11 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
   // 定性词沿用分句开头口径。与安全门、剂量折算读同一份 pediatric-dose-rule。
   { population: /儿童|婴幼儿/, patient: /儿童|婴儿|幼儿|小儿|未成年/, isPatient: isPediatricGroundingText, code: "pediatric" },
   {
-    population: /出血倾向|月经期|抗凝状态/, patient: /出血倾向|月经期|经期|抗凝|抗血小板|华法林|利伐沙班|阿哌沙班|达比加群|肝素|阿司匹林|氯吡格雷/, code: "bleeding_anticoagulation",
+    population: /出血倾向|月经期|抗凝状态/, patient: /出血倾向|月经期|经期/, isPatient: currentAntithromboticTherapyRecorded, code: "bleeding_anticoagulation",
     members: [
       { label: "出血倾向", patient: /出血倾向/ },
       { label: "月经期", patient: /月经期|经期/ },
-      { label: "抗凝状态", patient: /抗凝|抗血小板|华法林|利伐沙班|阿哌沙班|达比加群|肝素|阿司匹林|氯吡格雷/ },
+      { label: "抗凝状态", patient: /抗凝状态/, isPatient: currentAntithromboticTherapyRecorded },
     ],
   },
   { population: /老年人/, patient: /老年|高龄|(?:年龄|患者年龄)\s*[:：]?\s*(?:6[5-9]|[7-9]\d|1\d{2})\s*岁/, code: "older_adult" },
@@ -4074,7 +4075,7 @@ export function recordedPopulationCautions(herbName: string, rawClinicalContext:
     if ((rule.population.includes("孕") || rule.population.includes("哺乳")) && (!reproductive || !boundaryRuleShown(herbName.trim(), rule))) continue;
     const matcher = M04_SPECIAL_POPULATION_MATCHERS.find((item) => item.population.test(rule.population));
     if (matcher && !matcher.denied?.(clinicalContext) && (contextAffirmsTerm(clinicalContext, matcher.patient) || matcher.isPatient?.(clinicalContext))) {
-      const recorded = (matcher.members || []).filter((member) => contextAffirmsTerm(clinicalContext, member.patient)).map((member) => member.label);
+      const recorded = (matcher.members || []).filter((member) => member.isPatient ? member.isPatient(clinicalContext) : contextAffirmsTerm(clinicalContext, member.patient)).map((member) => member.label);
       populations.add(recorded.length > 0 ? recorded.join("/") : rule.population.trim());
     }
   }
@@ -4084,6 +4085,11 @@ export function recordedPopulationCautions(herbName: string, rawClinicalContext:
 /** 这一味药对本例是否属于开方核对要拦的（人群高风险、药典孕妇禁用档、儿童禁用、过敏原同源、活动性出血时的活血化瘀药）。 */
 export function herbBarredForCase(herb: string, clinicalContext: string): boolean {
   return Boolean(herb.trim() && clinicalContext.trim() && m04GenerationSpecialPopulationIssue([{ name: herb.trim() }], clinicalContext));
+}
+
+/** 可选加味：禁用与本例已记录人群的慎用都不加，编译/补写/缓存投影同源。 */
+export function herbAdditionPopulationConflict(herb: string, clinicalContext: string): boolean {
+  return herbBarredForCase(herb, clinicalContext) || recordedPopulationCautions(herb, clinicalContext).length > 0;
 }
 
 export function m04GenerationSpecialPopulationIssue(
@@ -4138,6 +4144,13 @@ export function m04GenerationSpecialPopulationIssue(
     for (const [herbIndex, herb] of herbs.entries()) {
       const name = typeof herb.name === "string" ? herb.name.trim() : "";
       if (name && getTcmHerbFunctionCategories(name).includes("活血化瘀药")) return `herb_${herbIndex}_special_population_high_risk_bleeding_anticoagulation`;
+    }
+  }
+  // 第四十九轮 D2：没有出血也不用；活动性出血分类仍先走原出口。
+  if (currentAntithromboticTherapyRecorded(clinicalContext)) {
+    for (const [herbIndex, herb] of herbs.entries()) {
+      const name = typeof herb.name === "string" ? herb.name.trim() : "";
+      if (name && antithromboticHerbAvoid(name)) return `herb_${herbIndex}_special_population_high_risk_antithrombotic_therapy`;
     }
   }
   for (const [herbIndex, herb] of herbs.entries()) {

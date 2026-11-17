@@ -200,13 +200,19 @@ await check("3.1 正在用阿司匹林等（与安全门同一份药名）或病
   assert.ok(!itemsOf("胸闷1周。", { symptoms: { presentHistory: "胸闷1周。", 家族史: "父亲有房颤病史。" } }).some((item) => item.kind === "antithrombotic_bleeding"));
 });
 
-await check("3.2 方中有知识库标注抗凝状态慎用的活血药（桃仁、丹参…）时补出血观察一句，点名药与在用的抗栓药；方中没有这类药不补；模型写了「如出现牙龈出血…请及时告知医生」不补（对照）", () => {
+await check("3.2 D2：缓存尚存抗栓冲突药须请医生调整确认前不服；无此药仍提示观察出血，泛泛观察句不能抵扣", () => {
   const item = { kind: "antithrombotic_bleeding", drugs: ["阿司匹林"] };
+  const options = { requiredPrecautions: [item], recordText: "现用药：阿司匹林100mg每日1次。" };
   const herbs = [{ name: "桃仁", role: "君", function: "活血祛瘀", dose: "10g" }, { name: "丹参", role: "臣", function: "活血", dose: "10g" }];
-  const lines = project(rx(["饮食清淡。"], herbs), { requiredPrecautions: [item] }).nonPharma.precautions;
-  assert.match(lines[0], /^方中桃仁、丹参有活血作用，与正在使用的阿司匹林同用可能增加出血风险/);
-  assert.deepEqual(project(rx(["饮食清淡。"]), { requiredPrecautions: [item] }).nonPharma.precautions, ["饮食清淡。"]);
-  assert.deepEqual(project(rx(["服药期间如出现牙龈出血、皮下瘀斑，请及时告知医生。"], herbs), { requiredPrecautions: [item] }).nonPharma.precautions.length, 1);
+  // 第四十九轮D2替代原“活血照用、观察出血”：保留缓存供修复时明确确认前不服。
+  const lines = project(rx(["饮食清淡。"], herbs), options).nonPharma.precautions;
+  assert.match(lines[0], /^方中桃仁、丹参与正在使用的阿司匹林同用可能增加出血风险/);
+  assert.match(lines[0], /本方须先请医生调整，确认前不要服用/);
+  const noHerbs = project(rx(["饮食清淡。"]), options).nonPharma.precautions;
+  assert.ok(noHerbs.some((line) => /您正在使用阿司匹林.*不要自行加用活血药/.test(line)));
+  assert.ok(noHerbs.includes("饮食清淡。"));
+  const oldWatch = project(rx(["服药期间如出现牙龈出血、皮下瘀斑，请及时告知医生。"], herbs), options).nonPharma.precautions;
+  assert.ok(oldWatch.some((line) => /本方须先请医生调整，确认前不要服用/.test(line)));
   const indication = project(rx(["饮食清淡。"], herbs), { requiredPrecautions: [{ kind: "antithrombotic_bleeding", drugs: [], indication: "冠脉支架植入" }] }).nonPharma.precautions[0];
   assert.match(indication, /^您有冠脉支架植入病史，如正在服用抗凝或抗血小板药/);
 });
@@ -360,7 +366,7 @@ await check("11.1 补过之后再投影一次不变；提示词逐项写到新�
   const twice = project(structuredClone(once), { requiredPrecautions: items });
   assert.deepEqual(twice.nonPharma, once.nonPharma);
   const prompt = precautions.requiredPrecautionsPromptSection(items);
-  for (const pattern of [/他克莫司不要自行停用或减量/, /同用可能增加出血/, /定期监测血糖/, /写明戒酒/]) assert.match(prompt, pattern);
+  for (const pattern of [/他克莫司不要自行停用或减量/, /主方与加减不用活血化瘀药/, /定期监测血糖/, /写明戒酒/]) assert.match(prompt, pattern);
 });
 
 console.log(JSON.stringify({ suite: "r1019-round5-precautions", cases, failures: process.exitCode ? "see above" : 0 }));

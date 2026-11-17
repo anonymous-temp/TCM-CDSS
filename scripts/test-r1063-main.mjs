@@ -328,14 +328,16 @@ await check("7.1 加减条件只有舌象或脉象（「本例已见脉弦」「
   assert.ok(top("胸脘满闷"), "补写对照：症状照收");
 });
 
-await check("7.2 补写的加减行与编译同一份提示：76 岁慢性肾病加细辛写肾功能不全、老年人慎用；病历只记月经量多时加三七只写「月经期」，不写「出血倾向/月经期/抗凝状态」", () => {
+await check("7.2 补写慎用加味遇本例人群不加；无风险人群照加；月经与抗凝实际人群分别匹配", () => {
   const ckd = types.normalizeCaseStateInput({ chiefComplaint: "心悸伴头晕1周", patient: { age: 76, sex: "男" }, symptoms: { 现病史: "心悸，头晕，畏寒肢冷，面色苍白。", 既往史: "慢性肾病" }, tongue: "舌淡", pulse: "沉迟" });
   const prior = { ...PRIOR_HEADACHE, overview: { ...PRIOR_HEADACHE.overview, tcmDiseaseName: "心悸", primarySyndrome: "心阳不振证" }, pathogenesis: { chain: [{ nodeId: "P1", patientFact: "心悸，畏寒肢冷", pathogenesis: "心阳不振", therapyDirection: "温补心阳" }] }, therapy: { overallMethod: "温补心阳，安神定悸", overallPrinciple: "虚则补之" } };
   const row = compiler.topUpModificationRow({ trigger: "畏寒肢冷", herbName: "细辛", dose: "3g", reason: "温通心阳", symptomPathogenesis: "阳虚失温" },
     { prior, caseState: ckd, candidateHerbNames: ["桂枝", "炙甘草", "龙骨", "牡蛎"], existingTriggers: [] });
-  assert.ok(row, "这一行应收");
-  assert.match(row.riskNote, /肾功能不全/u, row.riskNote);
-  assert.match(row.riskNote, /老年人/u, row.riskNote);
+  // 第四十九轮：可选加减遇本例慎用人群不加，主方保留的实际人群说明另测。
+  assert.equal(row, undefined, "肾病老人不作细辛可选加味");
+  const healthy = types.normalizeCaseStateInput({ chiefComplaint: "心悸伴头晕1周", patient: { age: 30, sex: "男" }, symptoms: { 现病史: "心悸，头晕，畏寒肢冷，面色苍白。" }, tongue: "舌淡", pulse: "沉迟" });
+  assert.ok(compiler.topUpModificationRow({ trigger: "畏寒肢冷", herbName: "细辛", dose: "3g", reason: "温通心阳", symptomPathogenesis: "阳虚失温" },
+    { prior, caseState: healthy, candidateHerbNames: ["桂枝", "炙甘草", "龙骨", "牡蛎"], existingTriggers: [] }), "没有本例慎用人群记录时同一行可收");
   const menses = contract.recordedPopulationCautions("三七", "患者年龄：35岁\n患者性别：女\n现病史：月经量多，经期延长，血块多");
   assert.deepEqual(menses, ["月经期"], JSON.stringify(menses));
   const warfarin = contract.recordedPopulationCautions("三七", "患者年龄：60岁\n患者性别：男\n用药史：华法林3mg每日1次");

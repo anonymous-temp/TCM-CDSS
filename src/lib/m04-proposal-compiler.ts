@@ -36,10 +36,10 @@ import {
   modificationRowDirectionIssue,
   highImpactHerbDirectionIssue,
   sameHerbIdentity,
-  m04GenerationSpecialPopulationIssue,
   ordinaryHistoricalDoseDeviation,
   ordinaryProcessedBaseHerbName,
   recordedPopulationCautions,
+  herbAdditionPopulationConflict,
 } from "./diagnosis-stage-contract";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { RECORD_GAP_MARKER, affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
@@ -2767,7 +2767,8 @@ function modificationAddBlock(
   // 与本例人群或状态冲突的饮片不作为加味：与方中药味同一个判据（m04GenerationSpecialPopulationIssue）——备孕或妊娠状态未记录时的药典孕妇禁用药、
   // 妊娠/哺乳/儿童/出血或抗凝/肝肾功能不全等人群的高风险药、活动性出血时的活血化瘀药。此前加减只查了备孕这一档：
   // 剂量一致化（第二十三轮 D4）后红旗、妊娠、抗凝病例也给剂量，方中药味经合同与定稿剔除，拟加的药却没有任何拦截。
-  if (add && context.groundingText && m04GenerationSpecialPopulationIssue([{ name: item.herbName }], context.groundingText)) return "special_population_conflict";
+  // 第四十九轮：加减是可选项，慎用标签与本例人群对上时也不加；主方不因慎用标签删药。
+  if (add && herbAdditionPopulationConflict(item.herbName, context.groundingText)) return "special_population_conflict";
   return undefined;
 }
 

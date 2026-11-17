@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "short-medication-negation",
+  "mode": "deterministic",
+  "paritySchema": "sibling-phrasing",
+  "addedAt": "2026-11-17",
+  "trigger": "r1066-safety 的在用药阴性对照：未服华法林、未用华法林等短动词形式不应触发当前抗凝治疗。",
+  "layerAttribution": {
+    "layer": "clinical-polarity.current_medication_events",
+    "mechanism": "未服用/未使用识别为否认，省去可选的用/使后没有匹配；用药史标签允许裸药名，又把被否认的药名当作在用。",
+    "exception": "只在现有在用药事件读法中复用否定前缀并作构词守卫：服用的用、使用的使为可选字。通用症状极性不变，未服某药后出现的症状仍是阳性；不新增临床词表。",
+    "whyDeterministic": "在用药事件读法的形态缺口；门禁兄弟句状态另由 test:open-language-classes 核对，抗凝判据的阳性/阴性与正文形状由 test:r1066-safety S01 直接核对。",
+    "sources": "/var/tmp/r1066/safety/before.json、after.json；250份本地离线回放。"
+  },
+  "parity": {
+    "pairs": [
+      {
+        "subject": "腰背酸痛。用药史：未服华法林。",
+        "sibling": "腰背酸痛。用药史：未服用华法林。",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "腰背酸痛。用药史：未用阿司匹林。",
+        "sibling": "腰背酸痛。用药史：未使用阿司匹林。",
+        "siblingExpect": "clean"
+      }
+    ]
+  },
+  "sets": {
+    "heldOut": {
+      "note": "守卫改定后新增的短动词写法；S01 逐项核对。",
+      "negative": [
+        "暂不服华法林",
+        "没服华法林"
+      ]
+    }
+  },
+  "controls": {
+    "mustStayReady": [
+      "腰背酸痛。用药史：华法林3mg每日1次。",
+      "腰背酸痛。过敏史：阿司匹林诱发喘息。"
+    ]
+  },
+  "measurements": {
+    "deterministic": "S01 + 250份离线清单回放；本类不新增模型调用。"
+  },
+  "contexts": [
+    "outpatient_record",
+    "sparse"
+  ],
+  "clausePolarity": {
+    "notNegative": [
+      "未服华法林后出现黑便"
+    ]
+  }
+}

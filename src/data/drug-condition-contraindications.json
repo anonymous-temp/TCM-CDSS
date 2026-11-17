@@ -1,0 +1,2718 @@
+{
+  "schemaVersion": "drug-condition-contraindications-v1",
+  "extends": "western-drug-condition-cautions.source.json",
+  "note": "第四十九轮：扩充既有药病禁忌，保留旧条目及出处的唯一输入；本文件新增条目经生成器与旧输入合并。只用已有化验与在用药读法。",
+  "rules": [
+    {
+      "id": "metformin_egfr_below_30",
+      "researchEntry": 0,
+      "drugTerms": [
+        "二甲双胍",
+        "格华止"
+      ],
+      "condition": {
+        "egfrBelow": 30
+      },
+      "conditionLabel": "重度肾功能不全（eGFR<30）",
+      "threshold": {
+        "lab": "eGFR",
+        "op": "<",
+        "value": 30,
+        "unit": "mL/min/1.73m2"
+      },
+      "severity": "禁用",
+      "sentence": "您的肾功能（eGFR {egfr}）已低于二甲双胍可以使用的范围（说明书：eGFR低于30禁用），请尽快就医由医生调整降糖方案，不要自行加量或换药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+        "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+        "quote": "Metformin hydrochloride tablets are contraindicated in patients with an estimated glomerular filtration rate (eGFR) below 30 mL/minute/1.73 m2.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+          "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+          "quote": "Metformin hydrochloride tablets are contraindicated in patients with an estimated glomerular filtration rate (eGFR) below 30 mL/minute/1.73 m2.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+          "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+          "quote": "Discontinue metformin hydrochloride tablets if the patient’s eGFR later falls below 30 mL/minute/1.73 m2",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肾",
+            "eGFR",
+            "EGFR"
+          ],
+          [
+            "禁用",
+            "停用",
+            "调整",
+            "不宜"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "nsaid_after_aspirin_asthma",
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬",
+        "安乃近",
+        "阿司匹林"
+      ],
+      "condition": {
+        "recordedDrugAllergy": [
+          "阿司匹林",
+          "匹林",
+          "非甾体"
+        ],
+        "reactionTerms": [
+          "哮喘",
+          "荨麻疹",
+          "喘",
+          "过敏"
+        ]
+      },
+      "sentence": "您用阿司匹林后出现过{reaction}，{drug}与阿司匹林同属非甾体抗炎药，说明书写明这类患者禁用，请停用并尽快告知医生，止痛另由医生安排",
+      "source": {
+        "title": "Diclofenac sodium delayed-release tablets, prescribing information, CONTRAINDICATIONS (DailyMed setid 363764a0-e0a8-3e3f-e063-6294a90ad672)",
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=363764a0-e0a8-3e3f-e063-6294a90ad672",
+        "quote": "History of asthma, urticaria, or other allergic-type reactions after taking aspirin or other NSAIDs."
+      },
+      "severity": "禁用",
+      "origin": "retained-existing-label-rule",
+      "coverage": {
+        "allOf": [
+          [
+            "阿司匹林",
+            "过敏",
+            "哮喘",
+            "喘息",
+            "荨麻疹"
+          ]
+        ],
+        "actionTerms": [
+          "停用",
+          "禁用",
+          "避免",
+          "不要再"
+        ]
+      }
+    },
+    {
+      "id": "nsaid_ckd",
+      "researchEntry": 11,
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬"
+      ],
+      "condition": {
+        "anyOf": [
+          {
+            "egfrBelow": 60,
+            "ckdStageAtLeast": 3,
+            "recordTerms": [
+              "肾功能不全",
+              "肾衰竭",
+              "慢性肾衰",
+              "尿毒症"
+            ]
+          },
+          {
+            "recordTerms": [
+              "慢性肾病",
+              "慢性肾脏病"
+            ]
+          }
+        ]
+      },
+      "conditionLabel": "慢性肾脏病（未到严重程度），尤其长期使用",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "您肾功能已有减退，{drug}这类止痛药可加重肾损害（肾功能减退时应避免或不长期使用），请尽快告知医生由医生决定是否停用、改用其他止痛方法",
+      "source": {
+        "title": "National Kidney Foundation, adapted from KDIGO 2012 CKD guideline: medications and imaging studies risk",
+        "url": "https://www.kidney.org/sites/default/files/02-10-6793_IBE_Meds-ImagingStudiesRiskv10.pdf",
+        "quote": "Analgesics NSAIDS • Avoid when GFR <30 ml/min/1.73 m2 • Prolonged therapy is not recommended when GFR <60 ml/min/1.73 m2"
+      },
+      "sources": [
+        {
+          "title": "National Kidney Foundation, adapted from KDIGO 2012 CKD guideline: medications and imaging studies risk",
+          "url": "https://www.kidney.org/sites/default/files/02-10-6793_IBE_Meds-ImagingStudiesRiskv10.pdf",
+          "quote": "Analgesics NSAIDS • Avoid when GFR <30 ml/min/1.73 m2 • Prolonged therapy is not recommended when GFR <60 ml/min/1.73 m2"
+        },
+        {
+          "url": "https://www.nice.org.uk/guidance/ng203/chapter/Recommendations",
+          "title": "NICE guideline NG203. Chronic kidney disease: assessment and management. Recommendations",
+          "quote": "In adults with CKD the chronic use of NSAIDs may be associated with progression and acute use is associated with a reversible decrease in GFR. Exercise caution when giving NSAIDs to people with CKD over prolonged periods of time.",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d21129f8-4d96-4e36-bc39-a534306dd77e",
+          "title": "Motrin IB (ibuprofen 200 mg) OTC Drug Facts (DailyMed)",
+          "quote": "you have high blood pressure, heart disease, liver cirrhosis, kidney disease, asthma, or had a stroke",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d21129f8-4d96-4e36-bc39-a534306dd77e.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肾"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "systemicOnly": true,
+      "drugSuffixes": [
+        "洛芬",
+        "昔布",
+        "昔康",
+        "芬酸"
+      ]
+    },
+    {
+      "id": "metformin_egfr_30_to_45",
+      "researchEntry": 1,
+      "drugTerms": [
+        "二甲双胍",
+        "格华止"
+      ],
+      "condition": {
+        "allOf": [
+          {
+            "egfrAtLeast": 30
+          },
+          {
+            "egfrBelow": 45
+          }
+        ]
+      },
+      "conditionLabel": "中度肾功能不全（eGFR 30–45）：不推荐新起始；已在服用者需评估是否继续（多减量）",
+      "threshold": {
+        "lab": "eGFR",
+        "op": "between",
+        "value": [
+          30,
+          45
+        ],
+        "unit": "mL/min/1.73m2"
+      },
+      "severity": "慎用",
+      "sentence": "您的肾功能有所下降，{drug}是否继续、用量是否调整需要医生评估，请把最近的肾功能结果告诉开药医生，不要自行加量或停药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+        "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+        "quote": "Initiation of metformin hydrochloride tablets in patients with an eGFR between 30 to 45 mL/minute/1.73 m2 is not recommended.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+          "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+          "quote": "Initiation of metformin hydrochloride tablets in patients with an eGFR between 30 to 45 mL/minute/1.73 m2 is not recommended.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+          "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+          "quote": "In patients taking metformin hydrochloride tablets whose eGFR later falls below 45 mL/min/1.73 m2, assess the benefit risk of continuing therapy.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肾",
+            "eGFR",
+            "EGFR"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "metformin_iodinated_contrast",
+      "researchEntry": 2,
+      "drugTerms": [
+        "二甲双胍",
+        "格华止"
+      ],
+      "condition": {
+        "recordTerms": [
+          "碘造影剂"
+        ]
+      },
+      "conditionLabel": "即将或刚做碘造影剂检查（增强CT、造影），且 eGFR 30–60，或有肝病、酗酒、心衰史，或动脉内注射造影剂",
+      "threshold": {
+        "lab": "eGFR",
+        "op": "between",
+        "value": [
+          30,
+          60
+        ],
+        "unit": "mL/min/1.73m2",
+        "context": "碘造影剂检查当日或检查前"
+      },
+      "severity": "禁用",
+      "sentence": "如果近期要做增强CT或血管造影，请提前告诉医生您在吃二甲双胍，医生可能会让您在检查前后暂停几天；具体何时停、何时恢复请听医生安排。",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+        "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+        "quote": "Discontinue metformin hydrochloride tablets at the time of, or prior to, an iodinated contrast imaging procedure in patients with an eGFR between 30 and 60 mL/min/1.73 m2; in patients with a history of liver disease, alcoholism, or heart failure; or in patients who will be administered intra-arterial iodinated contrast.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+          "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+          "quote": "Discontinue metformin hydrochloride tablets at the time of, or prior to, an iodinated contrast imaging procedure in patients with an eGFR between 30 and 60 mL/min/1.73 m2; in patients with a history of liver disease, alcoholism, or heart failure; or in patients who will be administered intra-arterial iodinated contrast.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+          "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+          "quote": "Re-evaluate eGFR 48 hours after the imaging procedure; restart metformin hydrochloride tablets if renal function is stable.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "enabled": false,
+      "deferredReason": "本条需要造影类型、即将/刚做及48小时时序；没有可复用的可靠读法，不用普通检查关键词冒充当前禁忌。"
+    },
+    {
+      "id": "metformin_acute_hypoxia",
+      "researchEntry": 3,
+      "drugTerms": [
+        "二甲双胍",
+        "格华止"
+      ],
+      "condition": {
+        "currentRecordTerms": [
+          "急性心力衰竭",
+          "急性心衰",
+          "休克",
+          "急性心肌梗死",
+          "脓毒症"
+        ]
+      },
+      "conditionLabel": "急性缺氧状态：急性心力衰竭、休克（循环衰竭）、急性心肌梗死、脓毒症等",
+      "threshold": null,
+      "severity": "禁用",
+      "sentence": "您本次有{condition}，这类急重情况时{drug}应由接诊医生评估并暂停使用；请立即就医，并带上药盒告诉医生最近一次用药时间",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+        "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+        "quote": "Cardiovascular collapse (shock), acute myocardial infarction, sepsis, and other conditions associated with hypoxemia have been associated with lactic acidosis and may cause prerenal azotemia. When such an event occurs, discontinue metformin hydrochloride.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+          "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+          "quote": "Cardiovascular collapse (shock), acute myocardial infarction, sepsis, and other conditions associated with hypoxemia have been associated with lactic acidosis and may cause prerenal azotemia. When such an event occurs, discontinue metformin hydrochloride.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "急性心衰",
+            "急性心力衰竭",
+            "休克",
+            "急性心肌梗死",
+            "脓毒症"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "metformin_excess_alcohol",
+      "researchEntry": 4,
+      "drugTerms": [
+        "二甲双胍",
+        "格华止"
+      ],
+      "condition": {
+        "recordTerms": [
+          "酗酒",
+          "过量饮酒",
+          "大量饮酒"
+        ]
+      },
+      "conditionLabel": "过量饮酒/酗酒",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "服用{drug}期间大量饮酒会增加乳酸性酸中毒风险，请避免过量饮酒，并如实告诉开药医生您的饮酒情况",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+        "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+        "quote": "Alcohol potentiates the effect of metformin on lactate metabolism. Patients should be warned against excessive alcohol intake while receiving metformin hydrochloride.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+          "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+          "quote": "Alcohol potentiates the effect of metformin on lactate metabolism. Patients should be warned against excessive alcohol intake while receiving metformin hydrochloride.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "饮酒",
+            "喝酒",
+            "戒酒"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "metformin_hepatic_impairment",
+      "researchEntry": 5,
+      "drugTerms": [
+        "二甲双胍",
+        "格华止"
+      ],
+      "condition": {
+        "recordTerms": [
+          "肝功能不全",
+          "肝功能损害",
+          "肝功能受损",
+          "肝功能异常",
+          "肝衰竭",
+          "失代偿期肝硬化"
+        ]
+      },
+      "conditionLabel": "肝功能损害",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "您有肝功能问题，说明书建议避免使用{drug}，请把肝功能结果告诉开药医生，由医生尽快评估调整，不要自行加量或换药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+        "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+        "quote": "Hepatic Impairment: Avoid use in patients with hepatic impairment.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0230a3c3-34cf-478b-88c3-4d96e5300018",
+          "title": "Metformin hydrochloride tablets, US prescribing information (DailyMed)",
+          "quote": "Hepatic Impairment: Avoid use in patients with hepatic impairment.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0230a3c3-34cf-478b-88c3-4d96e5300018.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肝功能",
+            "肝病",
+            "肝损伤",
+            "肝衰竭"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "sulfonylurea_older_adult",
+      "researchEntry": 6,
+      "drugTerms": [
+        "格列本脲",
+        "格列美脲",
+        "格列齐特",
+        "格列吡嗪",
+        "格列喹酮"
+      ],
+      "condition": {
+        "ageAtLeast": 65
+      },
+      "conditionLabel": "老年（≥65岁），尤其长效品种（格列本脲、格列美脲）——低血糖风险高且不易识别",
+      "threshold": {
+        "age": ">=",
+        "value": 65,
+        "unit": "岁"
+      },
+      "severity": "慎用",
+      "sentence": "您已满65岁，{drug}这类降糖药更容易引起低血糖，尤其格列本脲、格列美脲可能导致持续性低血糖，请由医生评估是否调整；按时吃饭，心慌、出汗、手抖时立即测血糖并按医嘱处理",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a56f100f-0f42-4188-81ab-04644b824040",
+        "title": "Glyburide tablets USP, US prescribing information (DailyMed, Teva)",
+        "quote": "Elderly, debilitated or malnourished patients, and those with adrenal or pituitary insufficiency, are particularly susceptible to the hypoglycemic action of glucose-lowering drugs.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a56f100f-0f42-4188-81ab-04644b824040.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a56f100f-0f42-4188-81ab-04644b824040",
+          "title": "Glyburide tablets USP, US prescribing information (DailyMed, Teva)",
+          "quote": "Elderly, debilitated or malnourished patients, and those with adrenal or pituitary insufficiency, are particularly susceptible to the hypoglycemic action of glucose-lowering drugs.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a56f100f-0f42-4188-81ab-04644b824040.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a56f100f-0f42-4188-81ab-04644b824040",
+          "title": "Glyburide tablets USP, US prescribing information (DailyMed, Teva)",
+          "quote": "Elderly patients are prone to develop renal insufficiency, which may put them at risk of hypoglycemia.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a56f100f-0f42-4188-81ab-04644b824040.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12478568/",
+          "title": "2023 American Geriatrics Society Beers Criteria Update Expert Panel. American Geriatrics Society 2023 updated AGS Beers Criteria® for potentially inappropriate medication use in older adults. J Am Geriatr Soc 2023",
+          "quote": "long-acting agents (e.g., glyburide, glimepiride) confer a higher risk of prolonged hypoglycemia",
+          "verification": "WebFetch 抓取页面后逐字核对（该页对脚本下载有人机验证）"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "65",
+            "老年",
+            "年龄",
+            "年纪"
+          ],
+          [
+            "低血糖"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "scopeNote": "闭集只含磺脲类，不用格列前缀误伤格列奈/格列汀/格列净。"
+    },
+    {
+      "id": "sulfonylurea_organ_impairment",
+      "researchEntry": 7,
+      "drugTerms": [
+        "格列本脲",
+        "格列美脲",
+        "格列齐特",
+        "格列吡嗪"
+      ],
+      "condition": {
+        "anyOf": [
+          {
+            "recordTerms": [
+              "肾功能不全",
+              "肾功能减退",
+              "肾衰竭",
+              "尿毒症",
+              "肝功能不全",
+              "肝功能损害",
+              "肝功能受损",
+              "肝功能异常",
+              "肝衰竭",
+              "失代偿期肝硬化"
+            ]
+          },
+          {
+            "renalImpairment": true
+          }
+        ]
+      },
+      "conditionLabel": "肾功能不全或肝功能不全",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "您的肝或肾功能有问题，{drug}容易引起低血糖，请把化验结果告诉开药医生并评估是否调整，不要自行加量或停药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a56f100f-0f42-4188-81ab-04644b824040",
+        "title": "Glyburide tablets USP, US prescribing information (DailyMed, Teva)",
+        "quote": "Renal or hepatic insufficiency may cause elevated drug levels of glyburide and the latter may also diminish gluconeogenic capacity, both of which increase the risk of serious hypoglycemic reactions.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a56f100f-0f42-4188-81ab-04644b824040.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a56f100f-0f42-4188-81ab-04644b824040",
+          "title": "Glyburide tablets USP, US prescribing information (DailyMed, Teva)",
+          "quote": "Renal or hepatic insufficiency may cause elevated drug levels of glyburide and the latter may also diminish gluconeogenic capacity, both of which increase the risk of serious hypoglycemic reactions.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a56f100f-0f42-4188-81ab-04644b824040.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a56f100f-0f42-4188-81ab-04644b824040",
+          "title": "Glyburide tablets USP, US prescribing information (DailyMed, Teva)",
+          "quote": "In elderly patients, debilitated or malnourished patients, and patients with impaired renal or hepatic function, the initial and maintenance dosing should be conservative to avoid hypoglycemic reactions",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a56f100f-0f42-4188-81ab-04644b824040.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肾",
+            "肝"
+          ],
+          [
+            "低血糖"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "scopeNote": "原文针对格列本脲；推广到整个磺脲类是类别推断。"
+    },
+    {
+      "id": "nsaid_active_gi",
+      "researchEntry": 8,
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬"
+      ],
+      "condition": {
+        "anyOf": [
+          {
+            "recordTerms": [
+              "活动性胃溃疡",
+              "活动性十二指肠溃疡",
+              "活动性消化性溃疡",
+              "NSAIDs相关消化道出血",
+              "非甾体抗炎药相关消化道出血"
+            ]
+          },
+          {
+            "currentRecordTerms": [
+              "胃出血",
+              "消化道出血",
+              "消化道穿孔",
+              "消化性溃疡出血"
+            ]
+          }
+        ]
+      },
+      "conditionLabel": "活动性消化性溃疡/消化道出血或穿孔；或既往NSAIDs相关消化道出血/穿孔史；或反复发作的消化性溃疡/出血史",
+      "threshold": null,
+      "severity": "禁用",
+      "sentence": "您有{condition}，{drug}这类止痛药不宜使用，请立即告知医生安排替代方案；出现呕血、黑便时立即就医",
+      "source": {
+        "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+        "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+        "quote": "活性消化性潰瘍、出血或穿孔患者；具 NSAIDs 相關腸胃道出血或穿孔病史者；具反覆發作之消化性潰瘍或出血病史者。",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+          "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+          "quote": "活性消化性潰瘍、出血或穿孔患者；具 NSAIDs 相關腸胃道出血或穿孔病史者；具反覆發作之消化性潰瘍或出血病史者。",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=793e4b36-8208-4fa3-9f4f-9e9e72648280",
+          "title": "Ibuprofen tablets (Rx), US prescribing information (DailyMed)",
+          "quote": "Patients with a prior history of peptic ulcer disease and/or gastrointestinal bleeding who use NSAIDs have a greater than 10-fold increased risk for developing a GI bleed compared to patients treated with neither of these risk factors.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/793e4b36-8208-4fa3-9f4f-9e9e72648280.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=793e4b36-8208-4fa3-9f4f-9e9e72648280",
+          "title": "Ibuprofen tablets (Rx), US prescribing information (DailyMed)",
+          "quote": "NSAIDs should be prescribed with extreme caution in those with a prior history of ulcer disease or gastrointestinal bleeding.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/793e4b36-8208-4fa3-9f4f-9e9e72648280.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "消化道",
+            "胃",
+            "溃疡",
+            "呕血",
+            "黑便"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "systemicOnly": true,
+      "supersedes": [
+        "nsaid_gi_history"
+      ],
+      "drugSuffixes": [
+        "洛芬",
+        "昔布",
+        "昔康",
+        "芬酸"
+      ]
+    },
+    {
+      "id": "nsaid_gi_history",
+      "researchEntry": 8,
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬"
+      ],
+      "condition": {
+        "recordTerms": [
+          "胃溃疡",
+          "十二指肠溃疡",
+          "消化性溃疡",
+          "胃出血",
+          "消化道出血"
+        ]
+      },
+      "conditionLabel": "活动性消化性溃疡/消化道出血或穿孔；或既往NSAIDs相关消化道出血/穿孔史；或反复发作的消化性溃疡/出血史",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "您有消化性溃疡或消化道出血病史，{drug}这类止痛药可增加胃肠出血风险，请由医生评估是否调整，避免自行购买服用；出现呕血、黑便时立即就医",
+      "source": {
+        "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+        "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+        "quote": "活性消化性潰瘍、出血或穿孔患者；具 NSAIDs 相關腸胃道出血或穿孔病史者；具反覆發作之消化性潰瘍或出血病史者。",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+          "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+          "quote": "活性消化性潰瘍、出血或穿孔患者；具 NSAIDs 相關腸胃道出血或穿孔病史者；具反覆發作之消化性潰瘍或出血病史者。",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=793e4b36-8208-4fa3-9f4f-9e9e72648280",
+          "title": "Ibuprofen tablets (Rx), US prescribing information (DailyMed)",
+          "quote": "Patients with a prior history of peptic ulcer disease and/or gastrointestinal bleeding who use NSAIDs have a greater than 10-fold increased risk for developing a GI bleed compared to patients treated with neither of these risk factors.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/793e4b36-8208-4fa3-9f4f-9e9e72648280.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=793e4b36-8208-4fa3-9f4f-9e9e72648280",
+          "title": "Ibuprofen tablets (Rx), US prescribing information (DailyMed)",
+          "quote": "NSAIDs should be prescribed with extreme caution in those with a prior history of ulcer disease or gastrointestinal bleeding.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/793e4b36-8208-4fa3-9f4f-9e9e72648280.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "消化道",
+            "胃",
+            "溃疡",
+            "呕血",
+            "黑便"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "systemicOnly": true,
+      "scopeNote": "单纯既往溃疡史采用极度谨慎，不能一律声称说明书禁用；不把抗血小板剂量阿司匹林当镇痛NSAID。",
+      "drugSuffixes": [
+        "洛芬",
+        "昔布",
+        "昔康",
+        "芬酸"
+      ]
+    },
+    {
+      "id": "nsaid_antithrombotic",
+      "researchEntry": 9,
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬"
+      ],
+      "condition": {
+        "currentAntithrombotic": true
+      },
+      "conditionLabel": "正在使用抗凝药（华法林、利伐沙班、达比加群、阿哌沙班等）或抗血小板药（阿司匹林、氯吡格雷等）",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "您正在用抗凝或抗血小板药，{drug}这类止痛药与防血栓药合用会增加出血风险，请先问医生能否使用或调整止痛方案；不要自行停掉防血栓药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=793e4b36-8208-4fa3-9f4f-9e9e72648280",
+        "title": "Ibuprofen tablets (Rx), US prescribing information (DailyMed)",
+        "quote": "The effects of warfarin and NSAIDs on GI bleeding are synergistic, such that the users of both drugs together have a risk of serious GI bleeding higher than users of either drug alone.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/793e4b36-8208-4fa3-9f4f-9e9e72648280.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=793e4b36-8208-4fa3-9f4f-9e9e72648280",
+          "title": "Ibuprofen tablets (Rx), US prescribing information (DailyMed)",
+          "quote": "The effects of warfarin and NSAIDs on GI bleeding are synergistic, such that the users of both drugs together have a risk of serious GI bleeding higher than users of either drug alone.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/793e4b36-8208-4fa3-9f4f-9e9e72648280.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=2d6675e4-5859-4be2-8037-a20ce9f707aa",
+          "title": "CELEBREX (celecoxib) US prescribing information (DailyMed)",
+          "quote": "Celecoxib and anticoagulants such as warfarin have a synergistic effect on bleeding.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/2d6675e4-5859-4be2-8037-a20ce9f707aa.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d21129f8-4d96-4e36-bc39-a534306dd77e",
+          "title": "Motrin IB (ibuprofen 200 mg) OTC Drug Facts (DailyMed)",
+          "quote": "take a blood thinning (anticoagulant) or steroid drug",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d21129f8-4d96-4e36-bc39-a534306dd77e.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=10db92f9-2300-4a80-836b-673e1ae91610",
+          "title": "XARELTO (rivaroxaban) US prescribing information (DailyMed)",
+          "quote": "Coadministration of enoxaparin, warfarin, aspirin, clopidogrel and chronic NSAID use may increase the risk of bleeding",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/10db92f9-2300-4a80-836b-673e1ae91610.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "抗凝",
+            "抗血小板",
+            "防血栓"
+          ],
+          [
+            "出血"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "systemicOnly": true,
+      "drugSuffixes": [
+        "洛芬",
+        "昔布",
+        "昔康",
+        "芬酸"
+      ]
+    },
+    {
+      "id": "nsaid_advanced_renal",
+      "researchEntry": 10,
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬"
+      ],
+      "condition": {
+        "recordTerms": [
+          "严重肾功能不全",
+          "严重肾衰竭",
+          "晚期肾病",
+          "尿毒症"
+        ]
+      },
+      "conditionLabel": "严重肾功能不全/晚期肾病",
+      "threshold": null,
+      "severity": "禁用",
+      "sentence": "您有严重肾功能问题，{drug}这类止痛药可能进一步损伤肾脏，不宜自行服用，请尽快告知医生评估并调整止痛方案",
+      "source": {
+        "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+        "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+        "quote": "嚴重腎衰竭。",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+          "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+          "quote": "嚴重腎衰竭。",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=793e4b36-8208-4fa3-9f4f-9e9e72648280",
+          "title": "Ibuprofen tablets (Rx), US prescribing information (DailyMed)",
+          "quote": "Therefore, treatment with ibuprofen tablets is not recommended in these patients with advanced renal disease.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/793e4b36-8208-4fa3-9f4f-9e9e72648280.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=2d6675e4-5859-4be2-8037-a20ce9f707aa",
+          "title": "CELEBREX (celecoxib) US prescribing information (DailyMed)",
+          "quote": "Avoid the use of CELEBREX in patients with advanced renal disease unless the benefits are expected to outweigh the risk of worsening renal function.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/2d6675e4-5859-4be2-8037-a20ce9f707aa.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肾"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "systemicOnly": true,
+      "supersedes": [
+        "nsaid_ckd"
+      ],
+      "scopeNote": "此条不新增eGFR数值阈值；原有nsaid_ckd的eGFR<60来自另有出处的旧规则。",
+      "drugSuffixes": [
+        "洛芬",
+        "昔布",
+        "昔康",
+        "芬酸"
+      ]
+    },
+    {
+      "id": "nsaid_heart_failure",
+      "researchEntry": 12,
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬"
+      ],
+      "condition": {
+        "recordTerms": [
+          "心力衰竭",
+          "心衰"
+        ]
+      },
+      "conditionLabel": "心力衰竭（尤其重度）",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "您有心力衰竭，{drug}这类止痛药可能使浮肿、气短加重，重度心衰应避免使用，请先请医生评估并调整止痛方案，不要自行服用",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=793e4b36-8208-4fa3-9f4f-9e9e72648280",
+        "title": "Ibuprofen tablets (Rx), US prescribing information (DailyMed)",
+        "quote": "Avoid the use of ibuprofen tablets in patients with severe heart failure unless the benefits are expected to outweigh the risk of worsening heart failure.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/793e4b36-8208-4fa3-9f4f-9e9e72648280.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=793e4b36-8208-4fa3-9f4f-9e9e72648280",
+          "title": "Ibuprofen tablets (Rx), US prescribing information (DailyMed)",
+          "quote": "Avoid the use of ibuprofen tablets in patients with severe heart failure unless the benefits are expected to outweigh the risk of worsening heart failure.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/793e4b36-8208-4fa3-9f4f-9e9e72648280.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+          "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+          "quote": "應避免使用本藥品於嚴重心臟衰竭的病人，除非經評估使用之效益大於心臟衰竭惡化之風險。",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "心力衰竭",
+            "心衰"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "systemicOnly": true,
+      "drugSuffixes": [
+        "洛芬",
+        "昔布",
+        "昔康",
+        "芬酸"
+      ]
+    },
+    {
+      "id": "nsaid_severe_hepatic_or_bleeding",
+      "researchEntry": 13,
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬"
+      ],
+      "condition": {
+        "recordTerms": [
+          "严重肝衰竭",
+          "肝衰竭",
+          "严重出血倾向"
+        ]
+      },
+      "conditionLabel": "严重肝衰竭；严重出血倾向",
+      "threshold": null,
+      "severity": "禁用",
+      "sentence": "您有{condition}，{drug}这类止痛药不宜使用，请先告知医生安排其他止痛方法",
+      "source": {
+        "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+        "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+        "quote": "嚴重出血傾向之患者。",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+          "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+          "quote": "嚴重出血傾向之患者。",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://www.tmuh.org.tw/UploadFile/files/%E8%97%A5%E5%8A%91%E9%83%A8/%E7%94%A8%E8%97%A5%E5%AE%89%E5%85%A8%E8%AD%A6%E8%A8%8A/106-02-5_%E9%99%84%E4%BB%B64.pdf",
+          "title": "含 ibuprofen 成分全身性投予劑型處方藥品中文仿單修訂（臺北醫學大學附設醫院藥劑部 用藥安全警訊 106-02-5 附件4）",
+          "quote": "嚴重肝衰竭。",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肝",
+            "出血"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "systemicOnly": true,
+      "scopeNote": "原文为台湾地区 ibuprofen 处方药仿单；推广到全部NSAIDs为类别推断。",
+      "drugSuffixes": [
+        "洛芬",
+        "昔布",
+        "昔康",
+        "芬酸"
+      ]
+    },
+    {
+      "id": "ras_pregnancy_conception",
+      "researchEntry": 14,
+      "drugTerms": [
+        "卡托普利",
+        "依那普利",
+        "贝那普利",
+        "赖诺普利",
+        "培哚普利",
+        "雷米普利",
+        "福辛普利",
+        "缬沙坦",
+        "氯沙坦",
+        "厄贝沙坦",
+        "替米沙坦",
+        "坎地沙坦",
+        "奥美沙坦",
+        "阿利沙坦"
+      ],
+      "condition": {
+        "pregnancyOrConception": true
+      },
+      "conditionLabel": "妊娠（含计划妊娠）",
+      "threshold": null,
+      "severity": "禁用",
+      "sentence": "如已怀孕、可能怀孕或准备怀孕，{drug}这类降压药不宜继续使用，可能伤害胎儿，请尽快联系开药医生评估并换药，不要自行突然停降压药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=838c2d78-d2d8-4981-9ec9-e50ef9e1a5d8",
+        "title": "ZESTRIL (lisinopril) US prescribing information (DailyMed)",
+        "quote": "When pregnancy is detected, discontinue ZESTRIL as soon as possible",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/838c2d78-d2d8-4981-9ec9-e50ef9e1a5d8.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=838c2d78-d2d8-4981-9ec9-e50ef9e1a5d8",
+          "title": "ZESTRIL (lisinopril) US prescribing information (DailyMed)",
+          "quote": "When pregnancy is detected, discontinue ZESTRIL as soon as possible",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/838c2d78-d2d8-4981-9ec9-e50ef9e1a5d8.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=838c2d78-d2d8-4981-9ec9-e50ef9e1a5d8",
+          "title": "ZESTRIL (lisinopril) US prescribing information (DailyMed)",
+          "quote": "Drugs that act directly on the renin-angiotensin system can cause injury and death to the developing fetus",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/838c2d78-d2d8-4981-9ec9-e50ef9e1a5d8.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=9949448f-c3b9-44ee-94ed-c1aca8c90f39",
+          "title": "COZAAR (losartan potassium) US prescribing information (DailyMed)",
+          "quote": "When pregnancy is detected, discontinue COZAAR as soon as possible.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/9949448f-c3b9-44ee-94ed-c1aca8c90f39.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+          "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+          "quote": "Absolute contraindications Pregnancy and planned pregnancy: ACEIs are contraindicated during pregnancy,",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "怀孕",
+            "妊娠",
+            "备孕",
+            "孕期"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "scopeNote": "普利后缀不会匹配依普利酮；沙库巴曲缬沙坦须按其中ARB成分核对。",
+      "drugSuffixes": [
+        "普利",
+        "沙坦"
+      ]
+    },
+    {
+      "id": "ras_potassium_above_6",
+      "researchEntry": 15,
+      "drugTerms": [
+        "卡托普利",
+        "依那普利",
+        "贝那普利",
+        "赖诺普利",
+        "培哚普利",
+        "雷米普利",
+        "福辛普利",
+        "缬沙坦",
+        "氯沙坦",
+        "厄贝沙坦",
+        "替米沙坦",
+        "坎地沙坦",
+        "奥美沙坦",
+        "阿利沙坦"
+      ],
+      "condition": {
+        "potassiumAbove": 6
+      },
+      "conditionLabel": "高钾血症：血钾>6.0 mmol/L 为绝对禁忌；>5.5 且 ≤6.0 为相对禁忌",
+      "threshold": [
+        {
+          "lab": "血钾",
+          "op": ">",
+          "value": 6,
+          "unit": "mmol/L",
+          "severity": "禁用"
+        },
+        {
+          "lab": "血钾",
+          "op": "between_open_closed",
+          "value": [
+            5.5,
+            6
+          ],
+          "unit": "mmol/L",
+          "severity": "慎用/减量"
+        }
+      ],
+      "severity": "禁用",
+      "sentence": "您的血钾已超过6.0mmol/L，{drug}可能进一步升高血钾，请立即联系医生就医评估是否停用或更换，并复查血钾；不要自行补钾或使用含钾代盐",
+      "source": {
+        "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+        "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+        "quote": "severe hyperkalaemia (serum potassium > 6.0 mmol/L)",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+          "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+          "quote": "severe hyperkalaemia (serum potassium > 6.0 mmol/L)",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+          "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+          "quote": "mild hyperkalaemia (serum potassium > 5.5 and ≤ 6.0 mmol/L)",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+          "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+          "quote": "Potassium concentration ≥ 6.5 mmol/L: ACEIs should be discontinued immediately",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://www.nice.org.uk/guidance/ng203/chapter/Recommendations",
+          "title": "NICE guideline NG203. Chronic kidney disease: assessment and management. Recommendations",
+          "quote": "Do not routinely offer a renin–angiotensin system antagonist to adults with CKD if their pretreatment serum potassium concentration is greater than 5.0 mmol/litre.",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://www.nice.org.uk/guidance/ng203/chapter/Recommendations",
+          "title": "NICE guideline NG203. Chronic kidney disease: assessment and management. Recommendations",
+          "quote": "Stop renin–angiotensin system antagonists in adults if the serum potassium concentration increases to 6.0 mmol/litre or more and other medicines known to promote hyperkalaemia have been discontinued.",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "血钾",
+            "高钾"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "supersedes": [
+        "ras_potassium_5_5_to_6"
+      ],
+      "drugSuffixes": [
+        "普利",
+        "沙坦"
+      ]
+    },
+    {
+      "id": "ras_potassium_5_5_to_6",
+      "researchEntry": 15,
+      "drugTerms": [
+        "卡托普利",
+        "依那普利",
+        "贝那普利",
+        "赖诺普利",
+        "培哚普利",
+        "雷米普利",
+        "福辛普利",
+        "缬沙坦",
+        "氯沙坦",
+        "厄贝沙坦",
+        "替米沙坦",
+        "坎地沙坦",
+        "奥美沙坦",
+        "阿利沙坦"
+      ],
+      "condition": {
+        "allOf": [
+          {
+            "potassiumAbove": 5.5
+          },
+          {
+            "potassiumAtMost": 6
+          }
+        ]
+      },
+      "conditionLabel": "高钾血症：血钾>6.0 mmol/L 为绝对禁忌；>5.5 且 ≤6.0 为相对禁忌",
+      "threshold": [
+        {
+          "lab": "血钾",
+          "op": ">",
+          "value": 6,
+          "unit": "mmol/L",
+          "severity": "禁用"
+        },
+        {
+          "lab": "血钾",
+          "op": "between_open_closed",
+          "value": [
+            5.5,
+            6
+          ],
+          "unit": "mmol/L",
+          "severity": "慎用/减量"
+        }
+      ],
+      "severity": "慎用",
+      "sentence": "您的血钾偏高，{drug}可能让血钾进一步升高，请尽快把化验结果交开药医生评估是否调整并复查血钾；不要自行停药、补钾或使用含钾代盐",
+      "source": {
+        "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+        "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+        "quote": "severe hyperkalaemia (serum potassium > 6.0 mmol/L)",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+          "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+          "quote": "severe hyperkalaemia (serum potassium > 6.0 mmol/L)",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+          "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+          "quote": "mild hyperkalaemia (serum potassium > 5.5 and ≤ 6.0 mmol/L)",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+          "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+          "quote": "Potassium concentration ≥ 6.5 mmol/L: ACEIs should be discontinued immediately",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://www.nice.org.uk/guidance/ng203/chapter/Recommendations",
+          "title": "NICE guideline NG203. Chronic kidney disease: assessment and management. Recommendations",
+          "quote": "Do not routinely offer a renin–angiotensin system antagonist to adults with CKD if their pretreatment serum potassium concentration is greater than 5.0 mmol/litre.",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://www.nice.org.uk/guidance/ng203/chapter/Recommendations",
+          "title": "NICE guideline NG203. Chronic kidney disease: assessment and management. Recommendations",
+          "quote": "Stop renin–angiotensin system antagonists in adults if the serum potassium concentration increases to 6.0 mmol/litre or more and other medicines known to promote hyperkalaemia have been discontinued.",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "血钾",
+            "高钾"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "drugSuffixes": [
+        "普利",
+        "沙坦"
+      ]
+    },
+    {
+      "id": "ras_renal_artery_stenosis",
+      "researchEntry": 16,
+      "drugTerms": [
+        "卡托普利",
+        "依那普利",
+        "贝那普利",
+        "赖诺普利",
+        "培哚普利",
+        "雷米普利",
+        "福辛普利",
+        "缬沙坦",
+        "氯沙坦",
+        "厄贝沙坦",
+        "替米沙坦",
+        "坎地沙坦",
+        "奥美沙坦",
+        "阿利沙坦"
+      ],
+      "condition": {
+        "anyOf": [
+          {
+            "recordTerms": [
+              "双侧肾动脉狭窄"
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "recordTerms": [
+                  "孤立肾",
+                  "单肾"
+                ]
+              },
+              {
+                "recordTerms": [
+                  "严重肾动脉狭窄"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "conditionLabel": "双侧肾动脉狭窄，或孤立肾伴严重肾动脉狭窄",
+      "threshold": null,
+      "severity": "禁用",
+      "sentence": "您有{condition}，{drug}可能导致肾功能急剧下降，请尽快联系开药医生评估是否换药，不要自行突然停药",
+      "source": {
+        "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+        "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+        "quote": "bilateral renal artery stenosis or the presence of a single kidney with severe renal artery stenosis",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://journal.hep.com.cn/cardiac/EN/PDF/10.1097/re9.0000000000000008",
+          "title": "Cai J, Li Y, Han Y, et al (Chinese Society of Cardiology, CMA). Expert consensus on the application of angiotensin-converting enzyme inhibitors in the prevention and treatment of cardiovascular diseases. Cardiac Research 2026;2:1. doi:10.1097/re9.0000000000000008",
+          "quote": "bilateral renal artery stenosis or the presence of a single kidney with severe renal artery stenosis",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=838c2d78-d2d8-4981-9ec9-e50ef9e1a5d8",
+          "title": "ZESTRIL (lisinopril) US prescribing information (DailyMed)",
+          "quote": "Patients whose renal function may depend in part on the activity of the renin-angiotensin system (e.g., patients with renal artery stenosis, chronic kidney disease, severe congestive heart failure, post-myocardial infarction or volume depletion) may be at particular risk of developing acute renal failure on Zestril.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/838c2d78-d2d8-4981-9ec9-e50ef9e1a5d8.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肾动脉狭窄"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "drugSuffixes": [
+        "普利",
+        "沙坦"
+      ]
+    },
+    {
+      "id": "spironolactone_potassium_above_5",
+      "researchEntry": 17,
+      "drugTerms": [
+        "螺内酯"
+      ],
+      "condition": {
+        "potassiumAbove": 5
+      },
+      "conditionLabel": "高钾血症；艾迪生病；与依普利酮合用",
+      "threshold": {
+        "lab": "血钾",
+        "op": ">",
+        "value": 5,
+        "unit": "mmol/L",
+        "context": "心衰起始用药门槛：说明书要求血钾≤5.0 mEq/L 才按常规起始"
+      },
+      "severity": "慎用",
+      "sentence": "您的血钾超过说明书常规起始螺内酯治疗的门槛（5.0mmol/L），{drug}可能进一步升高血钾，请尽快告诉医生评估是否调整并复查；不要自行补钾、加量或使用含钾代盐",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+        "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+        "quote": "ALDACTONE is contraindicated in the patients with: • Hyperkalemia • Addison's disease • Concomitant use of eplerenone",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+          "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+          "quote": "ALDACTONE is contraindicated in the patients with: • Hyperkalemia • Addison's disease • Concomitant use of eplerenone",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+          "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+          "quote": "ALDACTONE can cause hyperkalemia. This risk is increased by impaired renal function or concomitant potassium supplementation, potassium-containing salt substitutes or drugs that increase potassium, such as angiotensin converting enzyme inhibitors and angiotensin receptor blockers",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+          "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+          "quote": "In patients with serum potassium ≤5.0 mEq/L and eGFR >50 mL/min/1.73 m2, initiate treatment at 25 mg once daily.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "血钾",
+            "高钾"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "scopeNote": ">5.0是起始用药门槛，不把已在服药者仅凭这个值直接称为绝对禁忌。"
+    },
+    {
+      "id": "spironolactone_contraindications",
+      "researchEntry": 17,
+      "drugTerms": [
+        "螺内酯"
+      ],
+      "condition": {
+        "anyOf": [
+          {
+            "recordTerms": [
+              "高钾血症",
+              "艾迪生病",
+              "Addison病",
+              "原发性肾上腺皮质功能不全"
+            ]
+          },
+          {
+            "currentMedicationTerms": [
+              "依普利酮"
+            ]
+          }
+        ]
+      },
+      "conditionLabel": "高钾血症；艾迪生病；与依普利酮合用",
+      "threshold": {
+        "lab": "血钾",
+        "op": ">",
+        "value": 5,
+        "unit": "mmol/L",
+        "context": "心衰起始用药门槛：说明书要求血钾≤5.0 mEq/L 才按常规起始"
+      },
+      "severity": "禁用",
+      "sentence": "您目前有{condition}这一禁忌情况，请尽快联系开药医生核对并调整{drug}，不要自行加量或补钾",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+        "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+        "quote": "ALDACTONE is contraindicated in the patients with: • Hyperkalemia • Addison's disease • Concomitant use of eplerenone",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+          "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+          "quote": "ALDACTONE is contraindicated in the patients with: • Hyperkalemia • Addison's disease • Concomitant use of eplerenone",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+          "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+          "quote": "ALDACTONE can cause hyperkalemia. This risk is increased by impaired renal function or concomitant potassium supplementation, potassium-containing salt substitutes or drugs that increase potassium, such as angiotensin converting enzyme inhibitors and angiotensin receptor blockers",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+          "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+          "quote": "In patients with serum potassium ≤5.0 mEq/L and eGFR >50 mL/min/1.73 m2, initiate treatment at 25 mg once daily.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "高钾",
+            "艾迪生",
+            "Addison",
+            "肾上腺",
+            "依普利酮"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "supersedes": [
+        "spironolactone_potassium_above_5"
+      ]
+    },
+    {
+      "id": "spironolactone_renal_30_to_50",
+      "researchEntry": 18,
+      "drugTerms": [
+        "螺内酯"
+      ],
+      "condition": {
+        "allOf": [
+          {
+            "egfrAtLeast": 30
+          },
+          {
+            "egfrAtMost": 50
+          }
+        ]
+      },
+      "conditionLabel": "肾功能不全（eGFR 30–50 需减量起始，如隔日25 mg）",
+      "threshold": {
+        "lab": "eGFR",
+        "op": "between",
+        "value": [
+          30,
+          50
+        ],
+        "unit": "mL/min/1.73m2"
+      },
+      "severity": "慎用",
+      "sentence": "您的肾功能已有下降，{drug}是否需要调整用量应由医生评估，并按医嘱复查肾功能与血钾，不要自行加量或停药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+        "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+        "quote": "In patients with an eGFR between 30 and 50 mL/min/1.73 m2, consider initiating therapy at 25 mg every other day because of the risk of hyperkalemia",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0fed2822-3a03-4b64-9857-c682fcd462bc",
+          "title": "ALDACTONE (spironolactone) US prescribing information (DailyMed)",
+          "quote": "In patients with an eGFR between 30 and 50 mL/min/1.73 m2, consider initiating therapy at 25 mg every other day because of the risk of hyperkalemia",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/0fed2822-3a03-4b64-9857-c682fcd462bc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肾"
+          ],
+          [
+            "血钾"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "digoxin_hypokalemia",
+      "researchEntry": 19,
+      "drugTerms": [
+        "地高辛",
+        "甲地高辛"
+      ],
+      "condition": {
+        "recordTerms": [
+          "低钾血症",
+          "血钾偏低",
+          "低血钾"
+        ]
+      },
+      "conditionLabel": "低钾血症（以及高钙、低镁）——易诱发地高辛中毒",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "您有血钾偏低，使用{drug}更容易出现中毒（恶心、看东西发黄、心慌），请尽快告诉医生纠正电解质并评估调整用药，不要自行停药或加量",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+        "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+        "quote": "Low body weight, advanced age or impaired renal function, hypokalemia, hypercalcemia, or hypomagnesemia may predispose to digoxin toxicity.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+          "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+          "quote": "Low body weight, advanced age or impaired renal function, hypokalemia, hypercalcemia, or hypomagnesemia may predispose to digoxin toxicity.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+          "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+          "quote": "Correct hypokalemia by administering potassium so that serum potassium is maintained between 4.0 and 5.5 mmol/L.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "低钾血症",
+            "血钾偏低",
+            "低血钾"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "digoxin_hypercalcemia",
+      "researchEntry": 19,
+      "drugTerms": [
+        "地高辛",
+        "甲地高辛"
+      ],
+      "condition": {
+        "recordTerms": [
+          "高钙血症",
+          "血钙偏高"
+        ]
+      },
+      "conditionLabel": "低钾血症（以及高钙、低镁）——易诱发地高辛中毒",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "您有血钙偏高，使用{drug}更容易出现中毒（恶心、看东西发黄、心慌），请尽快告诉医生纠正电解质并评估调整用药，不要自行停药或加量",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+        "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+        "quote": "Low body weight, advanced age or impaired renal function, hypokalemia, hypercalcemia, or hypomagnesemia may predispose to digoxin toxicity.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+          "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+          "quote": "Low body weight, advanced age or impaired renal function, hypokalemia, hypercalcemia, or hypomagnesemia may predispose to digoxin toxicity.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+          "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+          "quote": "Correct hypokalemia by administering potassium so that serum potassium is maintained between 4.0 and 5.5 mmol/L.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "高钙血症",
+            "血钙偏高"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "digoxin_hypomagnesemia",
+      "researchEntry": 19,
+      "drugTerms": [
+        "地高辛",
+        "甲地高辛"
+      ],
+      "condition": {
+        "recordTerms": [
+          "低镁血症",
+          "血镁偏低"
+        ]
+      },
+      "conditionLabel": "低钾血症（以及高钙、低镁）——易诱发地高辛中毒",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "您有血镁偏低，使用{drug}更容易出现中毒（恶心、看东西发黄、心慌），请尽快告诉医生纠正电解质并评估调整用药，不要自行停药或加量",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+        "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+        "quote": "Low body weight, advanced age or impaired renal function, hypokalemia, hypercalcemia, or hypomagnesemia may predispose to digoxin toxicity.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+          "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+          "quote": "Low body weight, advanced age or impaired renal function, hypokalemia, hypercalcemia, or hypomagnesemia may predispose to digoxin toxicity.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+          "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+          "quote": "Correct hypokalemia by administering potassium so that serum potassium is maintained between 4.0 and 5.5 mmol/L.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "低镁血症",
+            "血镁偏低"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "digoxin_renal_impairment",
+      "researchEntry": 20,
+      "drugTerms": [
+        "地高辛"
+      ],
+      "condition": {
+        "anyOf": [
+          {
+            "recordTerms": [
+              "肾功能不全",
+              "肾功能减退",
+              "肾衰竭",
+              "尿毒症"
+            ]
+          },
+          {
+            "renalImpairment": true
+          }
+        ]
+      },
+      "conditionLabel": "肾功能不全（按肌酐清除率减量）",
+      "threshold": null,
+      "severity": "慎用",
+      "sentence": "{drug}主要靠肾脏排出，您的肾功能已有下降，需要医生按肾功能评估并调整剂量、必要时查血药浓度，不要自行改变用量",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+        "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+        "quote": "If appropriate care is not taken to reduce the dose of digoxin, such patients are at high risk for toxicity, and toxic effects will last longer in such patients than in patients with normal renal function.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+          "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+          "quote": "If appropriate care is not taken to reduce the dose of digoxin, such patients are at high risk for toxicity, and toxic effects will last longer in such patients than in patients with normal renal function.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d91e3646-4c63-4512-ab22-db39c085c4dc",
+          "title": "LANOXIN (digoxin) tablets US prescribing information (DailyMed)",
+          "quote": "Since the clearance of digoxin correlates with creatinine clearance, patients with renal impairment generally demonstrate prolonged digoxin elimination half-lives and greater exposures to digoxin.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d91e3646-4c63-4512-ab22-db39c085c4dc.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "肾"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      }
+    },
+    {
+      "id": "benzodiazepine_older_adult",
+      "researchEntry": 21,
+      "drugTerms": [
+        "地西泮",
+        "劳拉西泮",
+        "阿普唑仑",
+        "艾司唑仑",
+        "氯硝西泮",
+        "三唑仑",
+        "奥沙西泮"
+      ],
+      "condition": {
+        "ageAtLeast": 65
+      },
+      "conditionLabel": "老年人（≥65岁）：认知受损、谵妄、跌倒、骨折风险",
+      "threshold": {
+        "age": ">=",
+        "value": 65,
+        "unit": "岁"
+      },
+      "severity": "慎用",
+      "sentence": "您已满65岁，{drug}这类镇静安眠药可能增加认知受损、走路不稳和跌倒风险，请由医生评估是否调整；不要自行加量，也不要突然停药，减药须按医嘱逐步进行",
+      "source": {
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12478568/",
+        "title": "2023 American Geriatrics Society Beers Criteria Update Expert Panel. American Geriatrics Society 2023 updated AGS Beers Criteria® for potentially inappropriate medication use in older adults. J Am Geriatr Soc 2023",
+        "quote": "all benzodiazepines increase the risk of cognitive impairment, delirium, falls, fractures",
+        "verification": "WebFetch 抓取页面后逐字核对（该页对脚本下载有人机验证）"
+      },
+      "sources": [
+        {
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12478568/",
+          "title": "2023 American Geriatrics Society Beers Criteria Update Expert Panel. American Geriatrics Society 2023 updated AGS Beers Criteria® for potentially inappropriate medication use in older adults. J Am Geriatr Soc 2023",
+          "quote": "all benzodiazepines increase the risk of cognitive impairment, delirium, falls, fractures",
+          "verification": "WebFetch 抓取页面后逐字核对（该页对脚本下载有人机验证）"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=89057c93-8155-4040-acec-64e877bd2b4c",
+          "title": "ATIVAN (lorazepam) tablets US prescribing information (DailyMed)",
+          "quote": "Elderly or debilitated patients may be more susceptible to the sedative effects of lorazepam.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/89057c93-8155-4040-acec-64e877bd2b4c.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "65",
+            "老年",
+            "年纪",
+            "年龄"
+          ],
+          [
+            "跌倒",
+            "摔倒",
+            "走路不稳",
+            "认知"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "drugSuffixes": [
+        "西泮",
+        "唑仑"
+      ]
+    },
+    {
+      "id": "nonselective_beta_blocker_asthma",
+      "researchEntry": 22,
+      "drugTerms": [
+        "普萘洛尔",
+        "索他洛尔",
+        "纳多洛尔",
+        "噻吗洛尔"
+      ],
+      "condition": {
+        "recordTerms": [
+          "支气管哮喘",
+          "哮喘"
+        ]
+      },
+      "conditionLabel": "支气管哮喘",
+      "threshold": null,
+      "severity": "禁用",
+      "sentence": "您有哮喘，{drug}可能诱发支气管痉挛，属于说明书禁忌或应避免合用的情况，请尽快告诉开药医生评估并调整，不要自行突然停药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=062a1734-00d1-4871-8e7e-450b0ff5864c",
+        "title": "Propranolol hydrochloride tablets US prescribing information (DailyMed)",
+        "quote": "Propranolol is contraindicated in 1) cardiogenic shock; 2) sinus bradycardia and greater than first degree block; 3) bronchial asthma; and 4) in patients with known hypersensitivity to propranolol hydrochloride.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/062a1734-00d1-4871-8e7e-450b0ff5864c.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=062a1734-00d1-4871-8e7e-450b0ff5864c",
+          "title": "Propranolol hydrochloride tablets US prescribing information (DailyMed)",
+          "quote": "Propranolol is contraindicated in 1) cardiogenic shock; 2) sinus bradycardia and greater than first degree block; 3) bronchial asthma; and 4) in patients with known hypersensitivity to propranolol hydrochloride.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/062a1734-00d1-4871-8e7e-450b0ff5864c.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=062a1734-00d1-4871-8e7e-450b0ff5864c",
+          "title": "Propranolol hydrochloride tablets US prescribing information (DailyMed)",
+          "quote": "In general, patients with bronchospastic lung disease should not receive beta blockers.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/062a1734-00d1-4871-8e7e-450b0ff5864c.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "哮喘"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "scopeNote": "仅非选择性药闭集，不用洛尔后缀扩大到美托洛尔、比索洛尔、阿替洛尔。"
+    },
+    {
+      "id": "propranolol_bradycardia_block_shock",
+      "researchEntry": 23,
+      "drugTerms": [
+        "普萘洛尔"
+      ],
+      "condition": {
+        "recordTerms": [
+          "窦性心动过缓",
+          "二度房室传导阻滞",
+          "三度房室传导阻滞",
+          "II度房室传导阻滞",
+          "III度房室传导阻滞",
+          "高度房室传导阻滞",
+          "完全性房室传导阻滞",
+          "心源性休克"
+        ]
+      },
+      "conditionLabel": "窦性心动过缓；一度以上房室传导阻滞；心源性休克",
+      "threshold": null,
+      "severity": "禁用",
+      "sentence": "您有{condition}，{drug}不宜继续使用，请尽快就医告知医生评估并调整，不要自行突然停药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=062a1734-00d1-4871-8e7e-450b0ff5864c",
+        "title": "Propranolol hydrochloride tablets US prescribing information (DailyMed)",
+        "quote": "Propranolol is contraindicated in 1) cardiogenic shock; 2) sinus bradycardia and greater than first degree block; 3) bronchial asthma; and 4) in patients with known hypersensitivity to propranolol hydrochloride.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/062a1734-00d1-4871-8e7e-450b0ff5864c.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=062a1734-00d1-4871-8e7e-450b0ff5864c",
+          "title": "Propranolol hydrochloride tablets US prescribing information (DailyMed)",
+          "quote": "Propranolol is contraindicated in 1) cardiogenic shock; 2) sinus bradycardia and greater than first degree block; 3) bronchial asthma; and 4) in patients with known hypersensitivity to propranolol hydrochloride.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/062a1734-00d1-4871-8e7e-450b0ff5864c.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "high",
+      "coverage": {
+        "allOf": [
+          [
+            "心动过缓",
+            "传导阻滞",
+            "休克"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "scopeNote": "说明书未给心率数值，不新增心率阈值，也不把一度房室阻滞按本条禁用。"
+    },
+    {
+      "id": "statin_acute_liver_failure",
+      "researchEntry": 24,
+      "drugTerms": [
+        "阿托伐他汀",
+        "瑞舒伐他汀",
+        "辛伐他汀",
+        "普伐他汀",
+        "洛伐他汀",
+        "氟伐他汀",
+        "匹伐他汀"
+      ],
+      "condition": {
+        "recordTerms": [
+          "急性肝衰竭",
+          "失代偿期肝硬化",
+          "肝硬化失代偿期"
+        ]
+      },
+      "conditionLabel": "活动性肝病或原因不明的血清转氨酶持续升高；急性肝衰竭或失代偿期肝硬化",
+      "threshold": {
+        "lab": "ALT/AST",
+        "op": ">",
+        "value": 3,
+        "unit": "×ULN",
+        "persistent": true
+      },
+      "severity": "禁用",
+      "sentence": "您有{condition}，{drug}属于应避免使用的药，请尽快把肝功能结果交开药医生评估并调整，不要自行换药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=df7ddf4f-d569-431e-81f1-9129d7043150",
+        "title": "Lovastatin tablets US prescribing information (DailyMed, Lupin)",
+        "quote": "Active liver disease or unexplained transaminase elevations are contraindications to the use of lovastatin.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/df7ddf4f-d569-431e-81f1-9129d7043150.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=df7ddf4f-d569-431e-81f1-9129d7043150",
+          "title": "Lovastatin tablets US prescribing information (DailyMed, Lupin)",
+          "quote": "Active liver disease or unexplained transaminase elevations are contraindications to the use of lovastatin.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/df7ddf4f-d569-431e-81f1-9129d7043150.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=df7ddf4f-d569-431e-81f1-9129d7043150",
+          "title": "Lovastatin tablets US prescribing information (DailyMed, Lupin)",
+          "quote": "Persistent increases (to more than 3 times the upper limit of normal) in serum transaminases occurred in 1.9% of adult patients who received lovastatin for at least one year in early clinical trials",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/df7ddf4f-d569-431e-81f1-9129d7043150.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d0a7247c-5d83-4bc1-840f-c58314d14195",
+          "title": "Fluvastatin capsules US prescribing information (DailyMed, Mylan)",
+          "quote": "Fluvastatin capsules are contraindicated in patients with active liver disease or unexplained, persistent elevations in serum transaminases",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d0a7247c-5d83-4bc1-840f-c58314d14195.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a60cc18b-0631-4cf0-b021-9f52224ece65",
+          "title": "LIPITOR (atorvastatin calcium) US prescribing information (DailyMed)",
+          "quote": "LIPITOR is contraindicated in patients with acute liver failure or decompensated cirrhosis",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a60cc18b-0631-4cf0-b021-9f52224ece65.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a60cc18b-0631-4cf0-b021-9f52224ece65",
+          "title": "LIPITOR (atorvastatin calcium) US prescribing information (DailyMed)",
+          "quote": "If serious hepatic injury with clinical symptoms and/or hyperbilirubinemia or jaundice occurs, promptly discontinue LIPITOR.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a60cc18b-0631-4cf0-b021-9f52224ece65.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "medium",
+      "coverage": {
+        "allOf": [
+          [
+            "肝衰竭",
+            "肝硬化"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "sourceScope": "阿托伐他汀当前说明书；其余药为同类风险提示，不据孤立ALT/AST升高自动宣布全部他汀禁用。",
+      "drugSuffixes": [
+        "他汀"
+      ]
+    },
+    {
+      "id": "lovastatin_fluvastatin_active_liver",
+      "researchEntry": 24,
+      "drugTerms": [
+        "洛伐他汀",
+        "氟伐他汀"
+      ],
+      "condition": {
+        "recordTerms": [
+          "活动性肝病",
+          "原因不明的持续性转氨酶升高",
+          "原因不明的持续转氨酶升高"
+        ]
+      },
+      "conditionLabel": "活动性肝病或原因不明的血清转氨酶持续升高；急性肝衰竭或失代偿期肝硬化",
+      "threshold": {
+        "lab": "ALT/AST",
+        "op": ">",
+        "value": 3,
+        "unit": "×ULN",
+        "persistent": true
+      },
+      "severity": "禁用",
+      "sentence": "您有活动性肝病或原因不明的持续性转氨酶升高，{drug}说明书将此列为禁忌，请把化验结果交开药医生评估并调整，不要自行加量或换药",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=df7ddf4f-d569-431e-81f1-9129d7043150",
+        "title": "Lovastatin tablets US prescribing information (DailyMed, Lupin)",
+        "quote": "Active liver disease or unexplained transaminase elevations are contraindications to the use of lovastatin.",
+        "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/df7ddf4f-d569-431e-81f1-9129d7043150.xml",
+        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+      },
+      "sources": [
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=df7ddf4f-d569-431e-81f1-9129d7043150",
+          "title": "Lovastatin tablets US prescribing information (DailyMed, Lupin)",
+          "quote": "Active liver disease or unexplained transaminase elevations are contraindications to the use of lovastatin.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/df7ddf4f-d569-431e-81f1-9129d7043150.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=df7ddf4f-d569-431e-81f1-9129d7043150",
+          "title": "Lovastatin tablets US prescribing information (DailyMed, Lupin)",
+          "quote": "Persistent increases (to more than 3 times the upper limit of normal) in serum transaminases occurred in 1.9% of adult patients who received lovastatin for at least one year in early clinical trials",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/df7ddf4f-d569-431e-81f1-9129d7043150.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=d0a7247c-5d83-4bc1-840f-c58314d14195",
+          "title": "Fluvastatin capsules US prescribing information (DailyMed, Mylan)",
+          "quote": "Fluvastatin capsules are contraindicated in patients with active liver disease or unexplained, persistent elevations in serum transaminases",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/d0a7247c-5d83-4bc1-840f-c58314d14195.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a60cc18b-0631-4cf0-b021-9f52224ece65",
+          "title": "LIPITOR (atorvastatin calcium) US prescribing information (DailyMed)",
+          "quote": "LIPITOR is contraindicated in patients with acute liver failure or decompensated cirrhosis",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a60cc18b-0631-4cf0-b021-9f52224ece65.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        },
+        {
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=a60cc18b-0631-4cf0-b021-9f52224ece65",
+          "title": "LIPITOR (atorvastatin calcium) US prescribing information (DailyMed)",
+          "quote": "If serious hepatic injury with clinical symptoms and/or hyperbilirubinemia or jaundice occurs, promptly discontinue LIPITOR.",
+          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/a60cc18b-0631-4cf0-b021-9f52224ece65.xml",
+          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+        }
+      ],
+      "confidence": "medium",
+      "coverage": {
+        "allOf": [
+          [
+            "肝病",
+            "转氨酶"
+          ]
+        ],
+        "actionTerms": [
+          "调整",
+          "停用",
+          "禁用",
+          "避免",
+          "不宜",
+          "不要自行",
+          "不要自己",
+          "先问医生",
+          "医生评估",
+          "医生核对",
+          "联系医生",
+          "告知医生",
+          "告诉医生",
+          "医生决定",
+          "复查"
+        ]
+      },
+      "scopeNote": "仅按可核对的两个药说明书处理；缺少共享ULN/持续次数读法，不新写ALT/AST正则。"
+    }
+  ],
+  "medicationListLabels": [
+    "现用药",
+    "目前用药",
+    "长期用药",
+    "现服药物",
+    "目前服用药物"
+  ],
+  "research": {
+    "file": "R1-drug-condition.json",
+    "sha256": "90549550582b77663ddace061f6e980cd61c9903ffd9d07ff0f9adaa24b5ae08",
+    "scopeNote": "以美国FDA说明书（DailyMed）、台湾地区ibuprofen仿单修订、NICE NG203、中华医学会心血管病学分会ACEI共识、AGS Beers 2023 为来源。说明书原文多针对单一代表药，推广到同类药名（drugNamePattern）是类别推断，已在 note 中标注。",
+    "deferred": [
+      {
+        "researchEntry": 2,
+        "reason": "造影时序缺可靠共享读法，条目保留但不启用"
+      },
+      {
+        "researchEntry": 24,
+        "reason": "孤立ALT/AST>3×ULN及持续次数不自动下禁用结论；只启用已明确记载的病名/病史部分"
+      }
+    ]
+  },
+  "topicalAdministrationVerbs": [
+    "外用",
+    "外涂",
+    "外搽",
+    "外敷",
+    "局部涂抹"
+  ],
+  "sourceHashes": {
+    "drug-condition-contraindications.source.json": "1a4bdc10177cf3aa1a69c17406f83e7f7f5382daa6adb57d494623206d543300",
+    "western-drug-condition-cautions.source.json": "b5d0f5c91668ef69521aea6f0bf7a1f26b6391dac64c31810dcb93aa81faf226"
+  }
+}
