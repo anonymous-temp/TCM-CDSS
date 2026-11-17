@@ -9,7 +9,8 @@ import { redFlagActiveFor } from "./clinical-red-flag-context";
 import { alignQuoteToSource } from "./source-quote-alignment";
 import rxConstraints from "../data/rx-case-constraints.source.json";
 import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
-import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowForModifications, textbookModificationRemovals, textbookRowProvenance, textbookRowCitable } from "./tcm-textbook-syndromes";
+import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowForModifications, textbookModificationRemovals, textbookRowProvenance, textbookRowCitable, textbookFormulaRowsForDisease } from "./tcm-textbook-syndromes";
+import { GOVERNED_NEUTRAL_SYNDROME_NAMES } from "./clinical-terminology";
 import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, mindSymptomsProminentInRecord, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
 
 import { z } from "zod";
@@ -1335,14 +1336,23 @@ function recordedMainSymptomCharacteristic(trigger: string, context: Modificatio
 }
 
 /** 本证行无加减条目时，同样视作没有可用条目，按同一方剂检索教材行。 */
-function textbookFillRow(overview: NonNullable<ModificationTriggerContext["prior"]>["overview"]) {
-  return textbookRowForModifications(String(overview?.tcmDiseaseName || ""), String(overview?.primarySyndrome || ""), overview?.recommendedFormulaNames || []);
+function textbookFillRow(overview: NonNullable<ModificationTriggerContext["prior"]>["overview"], recordText = "") {
+  const disease = String(overview?.tcmDiseaseName || "");
+  const syndrome = String(overview?.primarySyndrome || "");
+  const own = textbookRowForModifications(disease, syndrome, overview?.recommendedFormulaNames || []);
+  if (own?.modifications.length || !recordText || !GOVERNED_NEUTRAL_SYNDROME_NAMES.includes(syndrome)) return own;
+  // 中性证名（胃气不和证、气机失调证…）没有对应教材行：取本病各证型行里与本例已记表现相关条件最多的那一行，按借来的行处理
+  //（只补与已记表现相关的条件，第四十九轮 r49d 甲方复测 rt-273344、rt-923584 加减为空）。
+  const rows = textbookFormulaRowsForDisease(disease).filter((row) => textbookRowCitable(row) && row.modifications.length > 0);
+  const related = (row: (typeof rows)[number]) => row.modifications.filter((entry) => textbookFillConditionRelated(String(entry.condition || ""), recordText)).length;
+  const best = rows.map((row) => ({ row, count: related(row) })).filter((item) => item.count > 0).sort((a, b) => b.count - a.count)[0];
+  return best ? { ...best.row, neutralFillFallback: true as const } : own;
 }
 
 /** D1 出处与条件均逐字对教材行，不能凭一枚 kb_entry 标签放过模型备用行。 */
 function textbookFillSource(trigger: string, herbName: string, context: ModificationTriggerContext) {
   const overview = context.prior?.overview;
-  const row = textbookFillRow(overview);
+  const row = textbookFillRow(overview, context.recordText || "");
   if (!row || !textbookRowCitable(row)) return undefined;
   const clean = (value: string) => value.replace(TRIGGER_LEAD, "").replace(/^(?:若|如|见)/u, "").replace(/(?:者|时)$/u, "").trim();
   const entry = row.modifications.find((item) => clean(item.condition) === clean(trigger) && item.herbs.some((name) => sameHerbIdentity(name, herbName)));
@@ -2990,11 +3000,11 @@ export function fillTextbookModificationConditions(rows: Record<string, unknown>
     kept.push(...group);
   }
   if (distinctModificationConditions(kept) >= 2) return kept;
-  const textbook = textbookFillRow(diagnosis.overview);
+  const textbook = textbookFillRow(diagnosis.overview, recordText);
   if (!textbook || !textbookRowCitable(textbook)) return kept;
   // 借别的病的同名证型行（本病行没有加减条目时）只补与本例已记表现相关的条件（r49d 甲方病历5 虚劳·肺脾两虚证借了肺胀行，
   // 补出与本例无关的「若见痰多色黄稠加桑白皮」；腰痛·肾阴虚证借虚劳行的「腰酸、遗精甚」对已记腰部酸痛是相关的）。
-  const borrowedRow = !textbookFillRowOfDisease(textbook, String(diagnosis.overview?.tcmDiseaseName || ""));
+  const borrowedRow = "neutralFillFallback" in textbook || !textbookFillRowOfDisease(textbook, String(diagnosis.overview?.tcmDiseaseName || ""));
   const ageYears = authoritativePatientAgeYears(caseState);
   const fillDose = (limit: { min?: number; max?: number }) => ageYears !== undefined && ageYears >= 18 && limit.max && limit.min
     ? `${Math.max(limit.min, Math.round((limit.min + limit.max) / 2))}g` : `${limit.min}g`;

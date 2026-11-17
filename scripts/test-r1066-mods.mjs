@@ -186,3 +186,12 @@ await check('24','儿童加减剂量按年龄分数折算、不以成人下限�
  if(arow)assert.equal(arow.doseOrHandling,'15g');
  assert.ok(row||arow,'两行至少一行能编出，否则用例没测到');
 });
+await check('25','中性证名没有对应教材行时，从本病证型行里取与已记表现相关的条件补（rt-273344 腹痛·胃肠气滞证）',()=>{
+ const st=types.normalizeCaseStateInput({patient:{age:40,sex:'男'},chiefComplaint:'腹痛2天',symptoms:{现病史:'腹痛2天，伴恶心、呕吐，无发热。'}});
+ const p={...prior,overview:{tcmDiseaseName:'腹痛',primarySyndrome:'胃肠气滞证',recommendedFormulaNames:[]},therapy:{overallMethod:'理气和胃'},pathogenesis:{chain:[{nodeId:'P1',patientFact:'腹痛2天',pathogenesis:'气机郁滞，不通则痛',therapyDirection:'理气止痛'}]}};
+ const out=c.fillTextbookModificationConditions([],p,st,['柴胡','枳壳','白芍','甘草'],{recordText:safe.clinicalGroundingText(st)});
+ assert.ok(out.length>=1,'应至少补一条与恶心呕吐相关的条件');
+ assert.ok(out.every(r=>/恶心|呕吐/.test(String(r.trigger))),JSON.stringify(out.map(r=>r.trigger)));
+ const st2=types.normalizeCaseStateInput({patient:{age:40,sex:'男'},chiefComplaint:'腹痛2天',symptoms:{现病史:'腹痛2天。'}});
+ assert.equal(c.fillTextbookModificationConditions([],p,st2,['柴胡','枳壳','白芍','甘草'],{recordText:safe.clinicalGroundingText(st2)}).length,0,'无相关表现不补');
+});
