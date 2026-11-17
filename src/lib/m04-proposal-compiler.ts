@@ -1343,7 +1343,9 @@ function textbookFillRow(overview: NonNullable<ModificationTriggerContext["prior
   if (own?.modifications.length || !recordText || !GOVERNED_NEUTRAL_SYNDROME_NAMES.includes(syndrome)) return own;
   // 中性证名（胃气不和证、气机失调证…）没有对应教材行：取本病各证型行里与本例已记表现相关条件最多的那一行，按借来的行处理
   //（只补与已记表现相关的条件，第四十九轮 r49d 甲方复测 rt-273344、rt-923584 加减为空）。
-  const rows = textbookFormulaRowsForDisease(disease).filter((row) => textbookRowCitable(row) && row.modifications.length > 0);
+  // 证名本身带寒或热、与病历已记寒热相反的行不取（发热的病例不取「寒邪内阻证」行的温药条目）。
+  const rows = textbookFormulaRowsForDisease(disease).filter((row) => textbookRowCitable(row) && row.modifications.length > 0
+    && !textbookFillConditionOpposesRecordedColdHeat(`${row.syndromeName}；${String(row.manifestations || "")}`, recordText));
   const related = (row: (typeof rows)[number]) => row.modifications.filter((entry) => textbookFillConditionRelated(String(entry.condition || ""), recordText)).length;
   const best = rows.map((row) => ({ row, count: related(row) })).filter((item) => item.count > 0).sort((a, b) => b.count - a.count)[0];
   return best ? { ...best.row, neutralFillFallback: true as const } : own;
