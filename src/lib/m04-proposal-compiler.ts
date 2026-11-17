@@ -11,6 +11,7 @@ import rxConstraints from "../data/rx-case-constraints.source.json";
 import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowForModifications, textbookModificationRemovals, textbookRowProvenance, textbookRowCitable, textbookFormulaRowsForDisease } from "./tcm-textbook-syndromes";
 import { GOVERNED_NEUTRAL_SYNDROME_NAMES } from "./clinical-terminology";
+import { powderRouteDoseLimit } from "./herb-powder-route-dose";
 import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, mindSymptomsProminentInRecord, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
 
 import { z } from "zod";
@@ -3174,13 +3175,23 @@ export function compileM04Proposal(
     // 成人常用量下限，仍按原批注提示医生核对。毒性、医师定量与来源冲突的药味一律不在此列。
     const ceilingDeviation = ordinaryHistoricalDoseDeviation(herb, proposal.candidate.decoction.method || "", pediatric);
     const cappedDose = ceilingDeviation?.direction === "above_reference" ? `${ceilingDeviation.max}g` : undefined;
-    const dose = cappedDose || herb.dose;
+    // 冲服/吞服的一次用量（三七 1–3g、川贝母 1–2g）比煎服区间小：写成冲服而剂量超过一次上限时按上限给，并写明（第四十九轮 p100c C070「三七6g（冲服）」）。
+    const powder = powderRouteDoseLimit(herb.name, String(herb.decoctionRequirement || ""));
+    const writtenGrams = Number.parseFloat(String(cappedDose || herb.dose || ""));
+    const powderCapped = powder && Number.isFinite(writtenGrams) && writtenGrams > powder.max ? `${powder.max}g` : undefined;
+    const dose = powderCapped || cappedDose || herb.dose;
     const verification = compileHerbVerification(herb.name, dose, proposal.candidate.decoction.method || "", herb.isToxic === true, pediatric);
     if (ceilingDeviation && cappedDose) {
       verification.verificationReasons = [
         ceilingDeviation.pediatric
           ? `候选剂量原为 ${ceilingDeviation.dose}，高于儿童折算上限（《中国药典》2020年版一部成人 ${ceilingDeviation.adultMin}–${ceilingDeviation.adultMax}g × ${ceilingDeviation.pediatric.fractionText}），已按上限 ${cappedDose} 给出；病情急重需超过时，请医生按体重个体化确定并注明理由。`
           : `候选剂量原为 ${ceilingDeviation.dose}，高于《中国药典》2020年版一部规定的 ${ceilingDeviation.min}–${ceilingDeviation.max}g，已按上限 ${cappedDose} 给出；如需超常规用量，请医生注明理由并签名确认。`,
+        ...verification.verificationReasons,
+      ].slice(0, 8);
+    }
+    if (powder && powderCapped) {
+      verification.verificationReasons = [
+        `候选剂量原为 ${cappedDose || herb.dose}（${String(herb.decoctionRequirement || "冲服")}），高于《中药学》${powder.usage}，已按一次上限 ${powderCapped} 给出；如改为煎服，可按煎服用量由医生调整。`,
         ...verification.verificationReasons,
       ].slice(0, 8);
     }

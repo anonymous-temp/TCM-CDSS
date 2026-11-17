@@ -260,4 +260,20 @@ await check('S41','人群慎用提示只读患者本人的病史：家族史不�
  assert.deepEqual(contract.recordedPopulationCautions('附子','患者性别：女\n近半年神疲乏力，畏寒肢冷。\n否认高血压、糖尿病、甲状腺疾病史\n母亲肥胖、高血压'),[]);
  assert.deepEqual(contract.recordedPopulationCautions('附子','患者性别：男\n高血压病史10年，规律服药。'),['心血管病']);
 });
+await check('S42','冲服/吞服写法的一次用量按教材上限封顶并写明（p100c C070「三七6g（冲服）」→3g）；煎服写法照煎服区间',async()=>{
+ const powder=await jiti.import('../src/lib/herb-powder-route-dose.ts');
+ assert.deepEqual(powder.powderRouteDoseLimit('三七','冲服')?.max,3);
+ assert.equal(powder.powderRouteDoseLimit('三七','同煎'),undefined);
+ const prior={schemaVersion:'tcm-cdss-reasoning-v2',stage:'diagnose',overview:{primarySyndrome:'血瘀证',recommendedFormulaNames:[],formulaSelectionMode:'self_devised'},
+  pathogenesis:{chain:[{nodeId:'P1',patientFact:'刺痛',pathogenesis:'瘀血阻络',therapyDirection:'化瘀止痛'}]},therapy:{overallMethod:'化瘀止血',overallPrinciple:'实则泻之'}};
+ const proposal=(decoctionRequirement)=>({candidate:{name:'本例辨证组方',applicable:'瘀血刺痛。',notApplicable:'出血加重时重新评估。',
+  herbs:[{name:'三七',dose:'6g',role:'君',targetKind:'pathogenesis_node',targetRef:'P1',structureRole:null,function:'化瘀止血',processing:null,isToxic:false,decoctionRequirement},
+   {name:'蒲黄',dose:'9g',role:'臣',targetKind:'pathogenesis_node',targetRef:'P1',structureRole:null,function:'化瘀止血',processing:null,isToxic:false,decoctionRequirement:'包煎'},
+   {name:'甘草',dose:'6g',role:'使',targetKind:'formula_structure',targetRef:'FORMULA_STRUCTURE',structureRole:'harmonize',function:'调和诸药',processing:null,isToxic:false,decoctionRequirement:null}],
+  formulaAnalysis:'三七为君化瘀止血，蒲黄为臣，甘草为使。',decoction:{doseCount:'7剂',dosesPerDay:1,administrationTimesPerDay:2,method:'每日一剂，水煎分两次温服，三七研末冲服',followUpNode:'服完7剂复诊'}},
+  patentAndWestern:[],modifications:[],nonPharma:{diet:'清淡饮食。',lifestyle:'规律作息。',emotion:'舒畅情志。',tcmTreatments:[],precautions:[]}});
+ const herb=(req)=>compiler.compileM04Proposal(proposal(req),prior).formula.candidates[0].herbs.find(h=>h.name==='三七');
+ const capped=herb('冲服');assert.equal(capped.dose,'3g',JSON.stringify(capped));assert.ok((capped.verificationReasons||[]).some(r=>/研末吞服/.test(r)),JSON.stringify(capped.verificationReasons));
+ assert.equal(herb(null).dose,'6g');
+});
 console.log(JSON.stringify({checks,failed}));process.exitCode=failed?1:0;
