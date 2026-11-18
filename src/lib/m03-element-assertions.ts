@@ -18,7 +18,7 @@ export const elementClosurePolicy = (): ElementClosurePolicy => {
 };
 export function elementClosureCacheIdentity(): string {
   const policy = elementClosurePolicy();
-  return ["r1067", policy.mode, [...policy.disabled].sort().join(","), process.env.CDSS_M03_ELEMENT_SUPPORT || "",
+  return ["r1067-closure2", policy.mode, [...policy.disabled].sort().join(","), process.env.CDSS_M03_ELEMENT_SUPPORT || "",
     process.env.CDSS_M03_SECONDARY_CRITERIA || ""].join("/");
 }
 export const closureRule = (policy: ElementClosurePolicy, id: ClosureRule) => !policy.disabled.has(id);
@@ -223,7 +223,7 @@ export function elementAssertionsInText(value: string, source: AssertionSource =
       }
       if (source !== "pending" && (!scoped || nonCurrent)) continue;
       if (source === "prose" && !modernProse && !deficiency.rationaleClauseFilter.assertionMarkers.some(marker => phrase.includes(marker))) continue;
-      if (source === "location" && (startsContext(phrase, lexicon.locationLeads) || !closureRule(policy, "d5"))) continue;
+      if (source === "location" && !closureRule(policy, "d5")) continue;
       const parsed = source === "pending" ? phrase.replace(pendingLead, "") : phrase;
       const shift = offset + phrase.indexOf(parsed);
       for (const hit of clauseAssertions(parsed, source, policy)) out.push({
@@ -234,12 +234,16 @@ export function elementAssertionsInText(value: string, source: AssertionSource =
   return out;
 }
 
-export function deliveryNamePairs(name: string, policy: ElementClosurePolicy = fullPolicy): ElementPair[] {
+function directDeliveryNamePairs(name: string, policy: ElementClosurePolicy): ElementPair[] {
   const standard = resolveNationalStandardTcmSyndromeTerm(name)?.standardTerm;
   const exact = namePairs[name] || (standard && namePairs[standard]);
   const located = closureRule(policy, "d5");
-  const direct = exact ? exact.map(([type, organ]) => ({ type, organ: (located && organ) || undefined }))
+  return exact ? exact.map(([type, organ]) => ({ type, organ: (located && organ) || undefined }))
     : unique([name, standard || name]).flatMap(value => clauseAssertions(core(value), "name", policy));
+}
+
+export function deliveryNamePairs(name: string, policy: ElementClosurePolicy = fullPolicy): ElementPair[] {
+  const direct = directDeliveryNamePairs(name, policy);
   const result: ElementPair[] = [];
   for (const { type, organ } of direct) {
     result.push({ type, organ });
@@ -275,7 +279,10 @@ export function rowElementPairs(row: TextbookSyndromeRow | undefined, policy: El
   const methods = elementAssertionsInText(row.therapy, "method", policy);
   // The row's own named organ can scope a generic treatment. Never infer a second organ from another row.
   const sites = unique(deliveryNamePairs(row.syndromeName, policy).flatMap(hit => hit.organ ? [hit.organ] : []));
-  return [...analysis, ...methods].flatMap(({ type, organ }) => organ || sites.length !== 1
+  const manifestations = elementAssertionsInText(row.manifestations, "mechanism", policy);
+  const patterns = lexicon.rowManifestationCriteria.filter(rule => rule.tongue.some(term => row.tongue.includes(term))
+    && rule.pulse.some(term => row.pulse.includes(term))).flatMap(rule => rule.types.map(type => ({ type, organ: undefined })));
+  return [...analysis, ...methods, ...manifestations, ...patterns].flatMap(({ type, organ }) => organ || sites.length !== 1
     ? [{ type, organ }] : [{ type }, { type, organ: sites[0] }]);
 }
 
@@ -365,12 +372,13 @@ function withoutAssertionClauses(value: string, hits: readonly ElementAssertion[
   return source === "method" ? next.replace(/[。！？!?]+$/u, "") : next;
 }
 
-export function pruneM03ElementAssertions(root: ClosureJson, policy: ElementClosurePolicy, permits: (hit: ElementAssertion) => boolean, recordText: string): void {
+export function pruneM03ElementAssertions(root: ClosureJson, policy: ElementClosurePolicy, permits: (hit: ElementAssertion) => boolean, recordText: string): string | undefined {
   const path = closureObject(root.pathogenesis);
   const therapy = closureObject(root.therapy);
   const overview = closureObject(root.overview);
   const nature = closureObject(path?.natureDifferentiation);
   const location = closureObject(path?.locationDifferentiation);
+  const hadNature = nature && [nature.items, nature.rootDeficiency, nature.branchExcess].some(value => closureStrings(value).length);
   const removedPending = new Set<number>();
   const changedPaths = new Set<string>();
   const overallBefore = read(overview?.overallPathogenesis);
@@ -411,6 +419,20 @@ export function pruneM03ElementAssertions(root: ClosureJson, policy: ElementClos
   for (const [parent, keys] of [[nature, ["items", "rootDeficiency", "branchExcess"]], [location, ["items"]]] as const) {
     if (parent) for (const key of keys) if (Array.isArray(parent[key])) parent[key] = closureStrings(parent[key]);
   }
+  if (nature && hadNature && !closureStrings(nature.items).length && (
+    [...changedPaths].some(path => path.startsWith("/pathogenesis/natureDifferentiation/items/"))
+    || ![nature.rootDeficiency, nature.branchExcess].some(value => closureStrings(value).length)
+  )) {
+    const names = m03ElementContext(root);
+    const pairs = [names.primarySyndrome, ...names.secondarySyndromes].flatMap(name => directDeliveryNamePairs(name, policy));
+    const labels = pairs.flatMap(({ type }) => {
+      const label = familyByType.get(type)?.label;
+      if (!label) return [];
+      const parsed = elementAssertionsInText(label, "nature", policy);
+      return parsed.some(hit => hit.type === type) && parsed.every(permits) ? [label] : [];
+    });
+    nature.items = unique(labels);
+  }
   if (nature && [...changedPaths].some(path => path.startsWith("/pathogenesis/natureDifferentiation/"))) classifyNatureColumns(nature);
   const rows = (parent: ClosureJson | undefined, key: string, keep: (row: ClosureJson, index: number) => boolean) => {
     if (parent && Array.isArray(parent[key])) parent[key] = parent[key].filter((value, index) => {
@@ -420,11 +442,10 @@ export function pruneM03ElementAssertions(root: ClosureJson, policy: ElementClos
   };
   rows(path, "uncertainties", (_row, index) => !removedPending.has(index));
   const changedRow = (prefix: string, index: number) => [...changedPaths].some(path => path.startsWith(`${prefix}/${index}/`));
+  const originalIds = new Map<unknown, string>();
+  if (Array.isArray(path?.chain)) path.chain.forEach((node, index) =>
+    originalIds.set(node, read(closureObject(node)?.nodeId) || `P${index + 1}`));
   rows(path, "chain", (row, index) => !changedRow("/pathogenesis/chain", index) || Boolean(row.pathogenesis && row.therapyDirection));
-  if (Array.isArray(path?.chain)) path.chain.forEach((value, index) => {
-    const row = closureObject(value);
-    if (row?.nodeId) row.nodeId = `P${index + 1}`;
-  });
   rows(path, "symptomClusters", (row, index) => !changedRow("/pathogenesis/symptomClusters", index) || Boolean(row.mechanism));
   rows(location, "details", (row, index) => !changedRow("/pathogenesis/locationDifferentiation/details", index) || Boolean(row.location && row.basis));
   rows(therapy, "subTherapies", (row, index) => !changedRow("/therapy/subTherapies", index) || Boolean(row.therapy && row.targetPathogenesis));
@@ -437,6 +458,28 @@ export function pruneM03ElementAssertions(root: ClosureJson, policy: ElementClos
     const groundedSentences = [before, read(overview?.tcmDiagnosticRationale)].flatMap(value => value.split(/(?<=。)/u));
     parent[key] = groundedSentences.find(sentence => sentence.includes(context.primarySyndrome) && quotes.some(quote => sentence.includes(quote))
       && /。$/u.test(sentence.trim()) && elementAssertionsInText(sentence, "mechanism", policy).every(permits)) || "";
+  }
+  // Renumber a surviving reference with its original node. Referring to a
+  // removed node must never silently retarget therapy to the next node.
+  const chain = Array.isArray(path?.chain) ? path.chain : [];
+  const ids = new Map<string, string>();
+  chain.forEach((value, index) => {
+    const node = closureObject(value);
+    if (!node) return;
+    const id = `P${index + 1}`;
+    ids.set(originalIds.get(node)!, id);
+    if (node.nodeId) node.nodeId = id;
+  });
+  for (const target of Array.isArray(therapy?.subTherapies) ? therapy.subTherapies : []) {
+    const row = closureObject(target);
+    if (!row) continue;
+    for (const key of ["targetRef", "targetPathogenesis"]) {
+      const original = read(row[key]);
+      const refs = original.match(/\bP\d{1,2}\b/gu);
+      if (!refs) continue;
+      if (refs.some(ref => !ids.has(ref))) return "missing_chain_reference";
+      row[key] = original.replace(/\bP\d{1,2}\b/gu, ref => ids.get(ref)!);
+    }
   }
 }
 
