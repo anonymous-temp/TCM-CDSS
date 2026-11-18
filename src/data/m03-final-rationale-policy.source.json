@@ -1,6 +1,6 @@
 {
-  "schemaVersion": "m03-final-rationale-policy-v2",
-  "sourceRef": "第五十轮 P2 验收约定、P2b 第二版验收约定与 A2 辨病辨证定稿设计",
+  "schemaVersion": "m03-final-rationale-policy-v3",
+  "sourceRef": "第五十轮 P2、P2b、P2c 验收约定与 A2 辨病辨证定稿设计",
   "basis": "仅用于作者输出的受控格式、声明与章节语境验收。沿用诊断安全层的临床极性和时相读法。",
   "historyHeading": "^(?:既往史|个人史|家族史|婚育史|月经史|生育史|手术史|外伤史|输血史|过敏史|用药史)\\s*[:：]",
   "tonguePath": "/(?:tongue|tcmTongue|舌象|舌质|舌苔)$",
@@ -20,7 +20,7 @@
   "namedSyndromeLead": "(?:辨为|辨作|辨属|归于|属于|主证(?:是|为)|兼证(?:是|为)|兼有|兼夹|兼见)\\s*([^，,。；;、\\s]{2,16})",
   "secondaryRole": "兼证(?:为|是)|兼有|兼夹|兼见|作兼证",
   "tongueTermAffix": "^(?:舌质|舌苔|舌|苔)|[舌苔]$",
-  "lineageAttributionTail": "(?:学派|思路|视角|眼目|派|辨|看|重|[，,])",
+  "lineageAttributionTail": "(?:学派|思路|视角|眼目|派|辨|看|重|卫气营血|[，,])",
   "inspectionLabel": "^(?:正常)?(?:舌象|舌质|舌苔|脉象|面色|切诊)\\s*[:：]\\s*",
   "unsettledElement": "(?:侧重|主次|归属)(?:尚)?待(?:定|查|明确|核实)$",
   "preservedQuestions": "急诊|红旗|转诊|排除|既往|检查|病因|加重|持续",
@@ -34,6 +34,186 @@
   "recurrenceAssertion": "反复发作",
   "normalInspection": "^(?:舌象|脉象)?(?:正常|无异常)$",
   "primaryRole": "主证(?:为|是)|(?:为|作)主证",
-  "tongueMissing": "舌(?:象|质)?(?:脉|和脉|及脉|、脉)?(?:象)?(?:均)?(?:未记录|未测|未查|不详|尚缺)",
-  "pulseMissing": "(?<!心)脉(?:象)?(?:均)?(?:未记录|未测|未查|不详|尚缺)"
+  "tongueMissing": "舌(?:象|质)?(?:脉|和脉|及脉|、脉)?(?:象)?(?:均)?(?:未(?:能)?记录|未测|未查|不详|尚缺)",
+  "pulseMissing": "(?<!心)脉(?:象)?(?:均)?(?:未(?:能)?记录|未测|未查|不详|尚缺)",
+  "internalRationaleWording": "定稿|证素|不(?:作|能)?归入|不强行|超出[^。；;]{0,24}范围",
+  "legacyUnexplainedWording": "难以概括|难以解释|难归|难以归|难定|不能归|不作归|无法归|不强行|不作[^。；;]{0,8}依据|超出[^。；;]{0,24}范围|不[属在为是][^。；;]{0,12}解释|非[^。；;]{0,16}(?:解释|所能)|证素|如实存疑|暂难归属",
+  "lineageAliases": {
+    "classical-formula": [
+      "经方",
+      "六经"
+    ],
+    "warm-disease": [
+      "温病"
+    ],
+    "nourish-yin-danxi": [
+      "丹溪",
+      "滋阴/丹溪"
+    ],
+    "warm-tonify": [
+      "温补"
+    ],
+    "support-yang": [
+      "扶阳"
+    ]
+  },
+  "lineageDoesNotApply": "不(?:适用|适配|吻合|取|宜|作|以|用)|未(?:取|用|见)|无[^。；;]{0,24}(?:之据|证据)|方证不合|难以按",
+  "explicitDiseaseDefinition": "(?:属|是|为|指)(?:[^否无未不本患者。；;]{2,40})(?:性(?:皮肤)?病|类病|疾病)(?=$|[，。；;])",
+  "bareNegation": "(?:^|[、])(?:而)?(?:无|没有|未见|否认)|而(?:无|未见|没有)",
+  "negativeLineageTreatment": "(?:故)?不(?:取|宜|用|以)|未(?:取|用)|避免",
+  "elementAllowances": {
+    "diseasePathogens": {
+      "饮": [
+        "fluid",
+        "water"
+      ],
+      "水": [
+        "water"
+      ],
+      "湿": [
+        "damp"
+      ],
+      "痰": [
+        "phlegm"
+      ],
+      "热": [
+        "heat"
+      ],
+      "火": [
+        "heat"
+      ],
+      "风": [
+        "wind"
+      ],
+      "寒": [
+        "cold"
+      ],
+      "燥": [
+        "dryness"
+      ],
+      "瘀": [
+        "stasis"
+      ],
+      "毒": [
+        "toxin"
+      ]
+    },
+    "directConsequences": [
+      {
+        "nameMarkers": [
+          "热",
+          "火",
+          "燥"
+        ],
+        "types": [
+          "fluid-loss",
+          "阴虚"
+        ],
+        "forms": [
+          "灼津",
+          "伤津",
+          "耗津",
+          "津伤",
+          "伤耗津液",
+          "耗伤津液",
+          "耗津液"
+        ]
+      },
+      {
+        "nameMarkers": [
+          "肺气虚",
+          "气虚",
+          "卫表",
+          "肺脾两虚"
+        ],
+        "types": [
+          "insecurity",
+          "exterior-deficiency"
+        ],
+        "forms": [
+          "卫外不固",
+          "表卫不固",
+          "肺卫不固",
+          "卫气不固"
+        ]
+      }
+    ],
+    "exterior": {
+      "nameMarkers": [
+        "表",
+        "卫"
+      ],
+      "pathogens": [
+        "风寒",
+        "风热"
+      ],
+      "sites": [
+        "肺",
+        "卫",
+        "鼻窍",
+        "咽"
+      ],
+      "types": [
+        "wind",
+        "cold",
+        "heat",
+        "exterior"
+      ]
+    },
+    "rowSupportedConsequences": [
+      {
+        "nameMarkers": [
+          "胃阴"
+        ],
+        "inspectionMarkers": [
+          "少津",
+          "津少"
+        ],
+        "types": [
+          "fluid-loss"
+        ],
+        "forms": [
+          "津液亏耗",
+          "津亏",
+          "阴津不足",
+          "津液不足"
+        ]
+      },
+      {
+        "nameMarkers": [
+          "肠胃湿热"
+        ],
+        "manifestationMarkers": [
+          "便秘"
+        ],
+        "recordMarkers": [
+          "便秘",
+          "大便干结",
+          "排便困难"
+        ],
+        "types": [
+          "bowel-excess"
+        ],
+        "forms": [
+          "腑气不通",
+          "腑气不畅"
+        ]
+      }
+    ]
+  },
+  "inspectionUnavailable": "^(?:舌象|脉象)(?:难配合|无法配合|未能测得|无法测得)$",
+  "affirmedFindingEquivalents": {
+    "气短": [
+      "气不够用",
+      "气不够使"
+    ],
+    "尿频": [
+      "小便次数增多",
+      "排尿次数增多"
+    ]
+  },
+  "frequentNocturnalUrination": "夜尿(?:每晚)?[2-9二两三四五六七八九](?:[至到~～-][2-9二两三四五六七八九])?次",
+  "legacyDirectionBoilerplate": "(?<=与)定稿(?=[^。；;]{2,30}(?:方向相合|相合|一致))",
+  "legacyUnexplainedFindingEnd": "(?:[，,](?=超出|未含|不能归|不强行)|(?<=[\\p{Script=Han}])(?:属|为)(?=[\\p{Script=Han}]))",
+  "findingAssertionLead": "(?:本例|患者|患儿)(?:自觉|自诉|伴有|见|有)|(?:出现|自诉|伴见|查体见|可见|且见|另见|已见|并见)(?![^，。；;]{0,4}(?:与否|有无|是否))"
 }

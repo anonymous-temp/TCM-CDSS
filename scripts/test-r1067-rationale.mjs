@@ -127,7 +127,6 @@ function outline(snapshot) {
   if (lineage) {
     const line = `扶阳学派看${tagged(second)}，辨其与所定证的相应处。`;
     s.l = line;
-    s.y += line;
   }
   return s;
 }
@@ -270,7 +269,7 @@ await check("03", "逐处辨本人、当前、未问及和否认，禁止拼接"
   for (const [quote, term] of [["否认腹痛", "腹痛"], ["恶心", "恶心"], ["既往曾出现头痛", "头痛"], ["母亲本人咳嗽", "咳嗽"], ["是否便血不详", "便血"], ["今日自觉腹痛便血", "腹痛"]]) {
     assert.equal(bind(quote, term), undefined, quote);
   }
-  assert.equal(bind("腹痛", "腹痛"), undefined);
+  assert.ok(bind("腹痛", "腹痛"), "同处有肯否时只绑定唯一的肯定现症");
   assert.equal(bind("头晕", "头晕"), undefined);
 });
 await check("04", "教材仅论通则，裸部位、数值或伴随主症退修", () => {
@@ -281,7 +280,10 @@ await check("04", "教材仅论通则，裸部位、数值或伴随主症退修"
   assertRejected({ ...reply, x: "本例已见咳嗽，" + reply.x }, ctx, "text_unquoted_finding");
   assertRejected({ ...reply, x: "持续18周，" + reply.x }, ctx, "text_unquoted_finding");
   assertRejected({ ...reply, x: "{{q1}}，属不寐。" }, ctx, "disease_reasoning");
-  assertRejected({ ...reply, x: reply.x.replace("归于不寐", "心血亏虚而属不寐") }, ctx, "disease_element");
+  assert.ok(validateRationalePair({ ...reply, x: reply.x.replace("归于不寐", "心血亏虚而属不寐") }, ctx).ok);
+  assertRejected({ ...reply, x: reply.x.replace("归于不寐", "心血虚证而属不寐") }, ctx, "disease_element");
+  assertRejected({ ...reply, x: reply.x + "本例无皮损。" }, ctx, "text_unquoted_finding");
+  assertRejected({ ...reply, x: reply.x + "可见皮损但病程尚缺。" }, ctx, "text_unquoted_finding");
   assertRejected({ ...reply, x: reply.x.replace("不寐", "睡眠病") }, ctx, "disease_name");
   assertRejected({ ...reply, x: reply.x.replace("{{q1}}", "{{q2}}") }, ctx, "disease_chief");
   const subtype = context(input(), root({ tcmDiseaseName: "不寐（分型）" }));
@@ -303,6 +305,7 @@ await check("05", "舌质苔和复合脉逐项，单字脉可用，脉搏指纹�
   const normal = context(input({ tongue: "舌淡红苔薄白", pulse: "平脉" }));
   const neutral = outline(normal.input);
   assertRejected(neutral, normal, "inspection_normal");
+  assert.equal(validateRationalePair(neutral, normal, { revision: true }).softAccepted, true);
   for (const axis of ["t", "p"]) {
     neutral.y = neutral.y.replace(neutral[axis][2], "不具区分力");
     neutral[axis] = ["n", neutral[axis][1], "不具区分力"];
@@ -317,7 +320,7 @@ await check("06", "证素与器官收敛，外证名和主兼倒置退修", () =
     const changed = structuredClone(reply);
     changed.y = changed.y.replace(changed.g[0][1], mechanism);
     const result = validateRationalePair(changed, ctx);
-    assert.ok(!result.ok && result.reasons.some((item) => item.code === "foreign_element" && item.phrase === mechanism));
+    assert.ok(!result.ok && result.reasons.some((item) => item.code === "foreign_element" && mechanism.includes(item.phrase)));
   }
   assertRejected({ ...reply, y: reply.y + "另属气血两虚证。" }, ctx, "foreign_syndrome");
   assertRejected({ ...reply, y: reply.y + "另辨为气血两虚。" }, ctx, "foreign_syndrome");
@@ -327,7 +330,14 @@ await check("07", "提纲证据与成文相扣，拒无引文查体和只列正�
   const ctx = context();
   const reply = outline(ctx.input);
   assert.ok(validateRationalePair({ ...reply, y: reply.y.replace(reply.g[0][1], "心神少养，难安于夜") }, ctx).ok);
-  assertRejected({ ...reply, y: reply.y.replace("伴{{q2}}，", "") }, ctx, "group_reference");
+  assert.ok(validateRationalePair({ ...reply, y: reply.y.replace("伴{{q2}}，", "") }, ctx).ok);
+  const missingGroup = structuredClone(reply);
+  missingGroup.g.push([["q99"], "心血亏虚", "心血虚证"]);
+  assertRejected(missingGroup, ctx, "group_reference");
+  const restated = structuredClone(reply);
+  restated.g[0][1] = "心悸，心神失养";
+  assertRejected(restated, ctx, "group_repeated_finding");
+  assert.equal(validateRationalePair(restated, ctx, { revision: true }).softAccepted, true);
   assertRejected({ ...reply, y: "{{q1}}、{{q2}}，属心血虚证。" + reply.y.split("。").slice(1).join("。") }, ctx, "group_reasoning");
   assertRejected({ ...reply, y: reply.y.replace("{{q2}}", "{{q2}}".repeat(6)) }, ctx, "group_reasoning");
   const wrongFirst = structuredClone(reply);
@@ -360,7 +370,7 @@ await check("09", "流派仅末句且方向一致，标签、工程字、残尾�
   assert.ok(validateRationalePair(lens, selected).ok, JSON.stringify(validateRationalePair(lens, selected)));
   assertRejected(lens, ctx, "lineage_unsolicited");
   const wrong = structuredClone(lens);
-  wrong.y = wrong.y.replace("辨其与所定证的相应处", "选用四逆汤");
+  wrong.l = wrong.l.replace("辨其与所定证的相应处", "选用四逆汤");
   assertRejected(wrong, selected, "lineage_formula");
 });
 await check("10", "bounded 写明缺项，证据空缺与有限结果只留底稿", async () => {
@@ -517,9 +527,9 @@ await check("14", "新版与实见变体归一，带标签和同处重复引文�
   variant.q.q12 = ["r999", "无关的弃用摘录"];
   variant.g = [[1, ["q1", "q11"], "不要求逐字复现的病机", "心血虚证", ["S99"]]];
   variant.d = [["q11", "D99", "不在成文的说明"]];
-  variant.l = ["support-yang", ["q11"], "与实际末句不同的视角草稿"];
+  variant.l = ["support-yang", ["q11"], reply.l];
   variant.b = [["四诊", "无需逐字写入", "支持有限"]];
-  variant.u = [["q11", "可暂不讨论"]];
+  variant.u = [];
   variant.extra = "忽略多余键";
   const normalized = parseRationaleOutline(variant);
   assert.ok(normalized.outline);
@@ -527,7 +537,7 @@ await check("14", "新版与实见变体归一，带标签和同处重复引文�
   assert.equal(normalized.outline.p, null);
   assert.deepEqual(normalized.outline.d, ["q11"]);
   assert.deepEqual(normalized.outline.g, [[["q1", "q11"], "不要求逐字复现的病机", "心血虚证"]]);
-  assert.deepEqual(normalized.outline.u, [[["q11"], "可暂不讨论"]]);
+  assert.deepEqual(normalized.outline.u, []);
   assert.equal(normalized.outline.l, variant.l[2]);
   assert.deepEqual(normalized.outline.b, ["无需逐字写入"]);
   assert.deepEqual(validateRationalePair(variant, ctx), modern);
@@ -545,6 +555,7 @@ await check("15", "主兼顺序、两处不同兼证引文和有界披露各自�
   overlap.q.q11 = overlap.q.q2;
   overlap.g[1][0] = ["q2", "q11"];
   assertRejected(overlap, ctx, "secondary_support");
+  assert.equal(validateRationalePair(overlap, ctx, { revision: true }).softAccepted, true);
   assertRejected({ ...reply, g: reply.g.slice(0, 1) }, ctx, "secondary_support");
   assertRejected({ ...reply, y: "兼气虚证。" + reply.y }, ctx, "syndrome_name");
   const compactConclusion = { ...reply, y: reply.y.replace("合参属心血虚证", "主证为心血虚证兼气虚证") };
@@ -555,10 +566,11 @@ await check("15", "主兼顺序、两处不同兼证引文和有界披露各自�
 
   const selected = context(input({ tcmLineagePreference: "support-yang" }));
   const lens = outline(selected.input);
-  assertRejected({ ...lens, y: lens.y + "以上所见与主证相合。" }, selected, "lineage_last");
-  assertRejected({ ...lens, y: lens.y.replace("扶阳", "温病") }, selected, "lineage_subject");
-  assert.ok(validateRationalePair({ ...lens, y: lens.y.replace("扶阳学派看", "按扶阳思路，参看") }, selected).ok);
-  assertRejected({ ...lens, y: lens.y.replace("辨其与所定证的相应处", "治当清热解毒") }, selected, "lineage_method");
+  assertRejected({ ...lens, l: null }, selected, "lineage_last");
+  assertRejected({ ...lens, y: lens.y + lens.l }, selected, "lineage_embedded");
+  assertRejected({ ...lens, l: lens.l.replace("扶阳", "温病") }, selected, "lineage_subject");
+  assert.ok(validateRationalePair({ ...lens, l: lens.l.replace("扶阳学派看", "按扶阳思路，参看") }, selected).ok);
+  assertRejected({ ...lens, l: lens.l.replace("辨其与所定证的相应处", "治当清热解毒") }, selected, "lineage_method");
 
   const ordinary = context();
   const valid = outline(ordinary.input);
@@ -566,7 +578,8 @@ await check("15", "主兼顺序、两处不同兼证引文和有界披露各自�
   assertRejected({ ...valid, x: valid.x + "起病急。" }, ordinary, "text_record_boundary");
   assertRejected({ ...valid, y: valid.y + "另有重度乏力。" }, ordinary, "text_unquoted_finding");
   assertRejected({ ...valid, y: valid.y + "病历没有心悸。" }, ordinary, "text_record_boundary");
-  assertRejected({ ...valid, y: valid.y.replace("{{q5}}示", "{{q5}}，脉细弱，示") }, ordinary, "m04_carryover_drift");
+  assertRejected({ ...valid, y: valid.y + "本证之所见（）。" }, ordinary, "m04_carryover_drift");
+  assert.ok(validateRationalePair({ ...valid, y: valid.y.replace("{{q5}}示", "{{q5}}，脉细弱，示") }, ordinary).ok);
 });
 
 await check("16", "本次起病与病程吻合，单列以前发作或否认仍不能引用", () => {
@@ -580,6 +593,11 @@ await check("16", "本次起病与病程吻合，单列以前发作或否认仍�
   assert.equal(quote(anotherEpisode, "伴嗳气"), undefined);
   const unrelated = context(input({ chiefComplaint: "咳嗽2个月", symptoms }), root({ tcmDiseaseName: "咳嗽" }));
   assert.equal(quote(unrelated, "伴嗳气"), undefined);
+  const hairLoss = (chiefComplaint) => context(input({ chiefComplaint, symptoms: { presentHistory: "十天前梳头发现耳后有小片脱发区，不痒不痛。" } }),
+    root({ tcmDiseaseName: "油风" }));
+  assert.ok(quote(hairLoss("耳后片状脱发十天"), "耳后有小片脱发区"));
+  assert.equal(quote(hairLoss("耳后片状脱发十天"), "不痒不痛"), undefined);
+  assert.equal(quote(hairLoss("耳后片状脱发三天"), "耳后有小片脱发区"), undefined);
   assert.ok(recordedRationaleSitePain(current, "腹部疼痛"));
   assert.equal(recordedRationaleSitePain(current, "腰部疼痛"), false);
   const deniedPain = context(input({ symptoms: { presentHistory: "否认胃脘隐痛。" } }));
@@ -593,6 +611,103 @@ await check("16", "本次起病与病程吻合，单列以前发作或否认仍�
   assert.equal(quote(reporter, "母亲本人咳嗽"), undefined);
   const witness = context(input({ symptoms: { presentHistory: "今早突然眼前发黑，没来得及站稳就跌倒，老伴说喊她不应，片刻后自行醒来。" } }));
   assert.ok(quote(witness, "喊她不应，片刻后自行醒来"));
+});
+
+await check("17", "首稿软拒退修，末稿软采纳并计码，硬拒仍回底稿", async () => {
+  const state = input(), ctx = context(state);
+  const propose = async (hardOnRetry) => {
+    const events = [];
+    let calls = 0;
+    const author = createFinalRationaleAuthor({ state, scope: "test", mode: "on", signal: new AbortController().signal,
+      deadline: () => Date.now() + 20_000, observe: (event) => events.push(event),
+      transport: async (messages) => {
+        const request = JSON.parse(messages[1].content);
+        const draft = outline(request);
+        draft.y += "所见由肝阴亏虚所致。";
+        if (++calls === 2) {
+          assert.ok(request.revise.some((reason) => reason.code === "foreign_element"));
+          if (hardOnRetry) draft.y += "定稿证素不归入。";
+        }
+        return draft;
+      } });
+    const proposal = await author.propose(ctx.root);
+    author.finish(proposal ? "new" : "old", Boolean(proposal));
+    assert.equal(calls, 2);
+    return { proposal, event: events[0] };
+  };
+  const soft = await propose(false);
+  assert.ok(soft.proposal);
+  assert.equal(soft.event.softAccepted, true);
+  assert.ok(soft.event.softReasons.some((entry) => entry.code === "foreign_element" && !("phrase" in entry)));
+  const hard = await propose(true);
+  assert.equal(hard.proposal, undefined);
+  assert.equal(hard.event.softAccepted, false);
+});
+await check("18", "服务端拼 u 和 l，保留已定结论，严格验流派独立段和引文", () => {
+  const state = input({ tcmLineagePreference: "support-yang", symptoms: { presentHistory: "时有心悸。睡中易醒。偶有耳鸣。伴鼻塞。" } });
+  const ctx = context(state);
+  const draft = outline(ctx.input);
+  draft.q.q11 = [qid(ctx, "偶有耳鸣"), "偶有耳鸣"];
+  draft.q.q12 = [qid(ctx, "伴鼻塞"), "伴鼻塞"];
+  draft.u = [[["q11", "q12"], "暂无解释"]];
+  const accepted = validateRationalePair(draft, ctx);
+  assert.ok(accepted.ok, JSON.stringify(accepted));
+  assert.match(accepted.pair.tcmDiagnosticRationale, /另有偶有耳鸣、伴鼻塞，本证难以概括，是否另有兼夹尚待核实。扶阳学派/u);
+  assertRejected({ ...draft, y: draft.y + "{{q11}}，定稿证素不归入。" }, ctx, "text_internal");
+  assertRejected({ ...draft, y: draft.y + "{{q11}}，也是临床另有所见。" }, ctx, "text_internal");
+  assertRejected({ ...draft, y: draft.y.replace("{{q5}}", "{{r3}}") }, ctx, "quote_line_number");
+  assertRejected({ ...draft, l: "扶阳学派看本例时有心悸，仍应合参诸证。" }, ctx, "lineage_unquoted_finding");
+  assertRejected({ ...draft, l: "扶阳学派看{{q99}}，仍应合参诸证。" }, ctx, "quote_reference");
+  assertRejected({ ...draft, l: draft.l + "此处仍需结合所见。" }, ctx, "lineage_last");
+  assertRejected({ ...draft, l: "扶阳学派看{{q2}}，心血虚证尚待核实。" }, ctx, "syndrome_retracted");
+  assertRejected({ ...draft, l: "扶阳学派看{{q2}}，仍与定稿治法相合。" }, ctx, "text_internal");
+  const incompatible = { ...ctx, input: { ...ctx.input, lineage: { ...ctx.input.lineage, adaptation: { applicable: "not-applicable" } } } };
+  assertRejected(draft, incompatible, "lineage_applicability");
+  const negative = { ...draft, l: "扶阳学派看{{q2}}，证据与此派眼目不合，故不宜用扶阳法。" };
+  assert.ok(validateRationalePair(negative, incompatible).ok);
+  const legacy = { ...draft, y: draft.y + "{{q11}}、{{q12}}难以归入定稿证素。" + draft.l };
+  assert.deepEqual(validateRationalePair(legacy, ctx, { legacyLayout: true }), accepted);
+  const rowId = draft.q.q11[0];
+  const lineAside = `{{${rowId}}}，偶有耳鸣、伴鼻塞属证素范围外的表现。`;
+  const rowLayout = { ...draft, y: draft.y + lineAside + draft.l, u: [[rowId, "偶有耳鸣、伴鼻塞属证素范围外的表现"]] };
+  assert.deepEqual(validateRationalePair(rowLayout, ctx, { legacyLayout: true }), accepted);
+  assertRejected(rowLayout, ctx, "quote_line_number");
+  const misquoted = { ...rowLayout, u: [[rowId, "偶有耳鸣、伴腹痛属证素范围外的表现"]] };
+  assert.equal(validateRationalePair(misquoted, ctx, { legacyLayout: true }).ok, false);
+});
+await check("19", "长引文截到唯一表现，重复摘同一处只交付一次", () => {
+  const state = input({ symptoms: { presentHistory: "时有心悸，平时每天午饭后散步半个小时并在家中照顾家人，晚饭过后常与家人一起在公园走很久，睡中易醒。" } });
+  const ctx = context(state);
+  const long = "时有心悸，平时每天午饭后散步半个小时并在家中照顾家人，晚饭过后常与家人一起在公园走很久，睡中易醒";
+  const line = qid(ctx, long);
+  assert.equal(bindRationaleQuote(ctx, [line, long, "心悸"]).text, "时有心悸");
+  assert.equal(bindRationaleQuote(ctx, [line, long, "腹痛"]), undefined);
+  assert.equal(bindRationaleQuote(ctx, [line, long.replace("午饭", "早饭"), "心悸"]), undefined);
+  const draft = outline(ctx.input);
+  draft.q.q11 = draft.q.q5;
+  const accepted = validateRationalePair({ ...draft, y: draft.y.replace("{{q5}}示", "{{q5}}，{{q11}}，脉细弱，示") }, ctx);
+  assert.ok(accepted.ok, JSON.stringify(accepted));
+  assert.equal(accepted.pair.tcmDiagnosticRationale.split("脉细弱").length, 2);
+});
+
+await check("20", "教材典型舌苔可作支持，确认相邻摘录只记软拒", () => {
+  const wind = context(input({ tongue: "苔薄白", pulse: "脉浮紧" }),
+    root({ tcmDiseaseName: "感冒", primarySyndrome: "风寒束表证" }));
+  const typed = validateRationalePair(outline(wind.input), wind);
+  assert.ok(!typed.reasons?.some(({ code, field }) => code === "inspection_normal" && field === "t"), JSON.stringify(typed));
+
+  const state = input({ tongue: "", symptoms: { presentHistory: "时有心悸。睡中易醒。苔薄白，头晕。" } });
+  const ctx = context(state);
+  const row = ctx.lines.find(({ text }) => text.includes("苔薄白，头晕"));
+  ctx.input.important.push({ line: row.id, term: "头晕", at: row.text.indexOf("头晕") });
+  const draft = outline(ctx.input);
+  const [id] = draft.t[1];
+  draft.q[id] = [row.id, "苔薄白，头晕"];
+  draft.y = draft.y.replace(draft.t[2], "平和而不具区分力");
+  draft.t = ["n", [id], "平和"];
+  assertRejected(draft, ctx, "inspection_adjacent_excerpt");
+  const revised = validateRationalePair(draft, ctx, { revision: true });
+  assert.ok(revised.ok && revised.softAccepted, JSON.stringify(revised));
 });
 
 console.log(JSON.stringify({ checks, failures }));

@@ -14,9 +14,9 @@ const { buildFinalRationaleContext, finalRationaleMessages } = await jiti.import
 const { validateRationalePair } = await jiti.import("../../src/lib/m03-final-rationale-validation.server");
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
-const [savedPath, replyPath] = process.argv.slice(2);
-if (!savedPath || !replyPath || process.argv.length !== 4) {
-  console.error("用法：node scripts/audit/final-rationale-offline.mjs <保存输出.json> <模型回复.json|--prompt-only>");
+const [savedPath, replyPath, ...flags] = process.argv.slice(2);
+if (!savedPath || !replyPath || flags.some((flag) => !["--revision", "--legacy-layout"].includes(flag))) {
+  console.error("用法：node scripts/audit/final-rationale-offline.mjs <保存输出.json> <模型回复.json|--prompt-only> [--revision] [--legacy-layout]");
   process.exitCode = 2;
 } else {
   try {
@@ -31,7 +31,7 @@ if (!savedPath || !replyPath || process.argv.length !== 4) {
     const root = normalizeReasoningV2(saved.diagnose.structured);
     const context = root && buildFinalRationaleContext(root, state, "offline");
     const result = !context ? { ok: false, reasons: [{ code: "ineligible_snapshot", field: "$" }] } :
-      replyPath === "--prompt-only" ? finalRationaleMessages(context) : validateRationalePair(readJson(replyPath), context);
+      replyPath === "--prompt-only" ? finalRationaleMessages(context) : validateRationalePair(readJson(replyPath), context, { revision: flags.includes("--revision"), legacyLayout: flags.includes("--legacy-layout") });
     console.log(JSON.stringify(result, null, 2));
     if (result.ok === false) process.exitCode = 1;
   } catch (error) {

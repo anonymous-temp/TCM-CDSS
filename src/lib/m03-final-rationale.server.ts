@@ -33,13 +33,13 @@ type RationaleEvent = {
   bounded?: boolean; lineage?: boolean; secondaries?: number;
   eligible: boolean; launched: boolean; requests: number; physicalCalls: number; validReplies: number;
   verified: boolean; signed: boolean; adopted: boolean; delivery: Delivery; prefetch: "none" | "hit" | "stale" | "cancelled";
-  retried: boolean; reasons: Pick<RationaleRejection, "code" | "field">[]; skip?: SkipReason;
+  retried: boolean; softAccepted: boolean; softReasons: Pick<RationaleRejection, "code" | "field">[]; reasons: Pick<RationaleRejection, "code" | "field">[]; skip?: SkipReason;
   promptTokens: number; completionTokens: number; modelMs: number; validationMs: number; waitMs: number;
 };
 
 const emptyEvent = (mode: FinalRationaleMode): RationaleEvent => ({
   mode, version: FINAL_RATIONALE_VERSION, eligible: false, launched: false, requests: 0, physicalCalls: 0, validReplies: 0, verified: false, signed: false,
-  adopted: false, delivery: "none", prefetch: "none", retried: false, reasons: [], promptTokens: 0, completionTokens: 0,
+  adopted: false, delivery: "none", prefetch: "none", retried: false, softAccepted: false, softReasons: [], reasons: [], promptTokens: 0, completionTokens: 0,
   modelMs: 0, validationMs: 0, waitMs: 0,
 });
 const log = (event: RationaleEvent) => console.info("[tcm-cdss:telemetry] m03_final_rationale", event);
@@ -167,9 +167,9 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
       let raw = await waitFor(request);
       if (options.signal.aborted || finished || request.controller.signal.aborted) return undefined;
       if (raw === undefined) { reason("no_reply"); return undefined; }
-      const validate = () => {
+      const validate = (revision = false) => {
         const started = Date.now();
-        try { return validateRationalePair(raw, context); }
+        try { return validateRationalePair(raw, context, { revision }); }
         finally { event.validationMs += Date.now() - started; }
       };
       let result = validate();
@@ -182,11 +182,15 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
         raw = await waitFor(retry);
         if (options.signal.aborted || finished || retry.controller.signal.aborted) return undefined;
         if (raw === undefined) { reason("no_reply"); return undefined; }
-        result = validate();
+        result = validate(true);
         if (!result.ok) {
           for (const { code, field } of result.reasons) event.reasons.push({ code, field });
           return undefined;
         }
+      }
+      if (result.softAccepted) {
+        event.softAccepted = true;
+        event.softReasons = (result.reasons || []).map(({ code, field }) => ({ code, field }));
       }
       event.verified = true;
       return { pair: result.pair, context, adopt: mode === "on" };
@@ -207,7 +211,7 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
     event.adopted = delivery === "new" && signed;
     event.skip = skip ?? (mode === "off" ? "off" : options.signal.aborted ? "cancelled" : undefined);
     // A stale/aborted reply can settle after final delivery. Logging a copy freezes the counters.
-    (options.observe || log)({ ...event, reasons: [...event.reasons] });
+    (options.observe || log)({ ...event, reasons: [...event.reasons], softReasons: [...event.softReasons] });
   };
 
   const rejectTransaction = () => {

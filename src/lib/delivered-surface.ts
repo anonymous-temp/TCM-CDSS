@@ -1000,7 +1000,7 @@ function withoutAdjacentRepeatedClauses(value: string): string {
 // 「推之未诉固定」「按之未诉疼痛」：查体动作后面接「未诉」读不通——推之、按之是医生查体所见，不是患者自诉；病历没有这项查体时这一项本就没有依据
 //（第四十六轮复核 C069，模型照提示「病历没记录的写未诉」写出、服务端改写也曾写出）。这一项（顿号之间）去掉。构词守卫。
 const EXAM_ACTION_NOT_REPORTED = /(?:^|[、，,])(?:[^、，,。；;]{0,8})(?:推|按|触|压|叩|扪)之未诉[^、，,。；;]{1,8}(?=[、，,。；;]|$)/gu;
-export function readabilityCleaned(input: string): string {
+export function readabilityCleaned(input: string, inheritedTcmRationale = false): string {
   return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.readability" }, input, () => {
   // 「考虑X待查可能」「符合X待查」（病名带待查后依据里照写，第四十六轮终审 C083、C037、C038）：读不通，写「考虑X可能」。
   const repeated = withoutAdjacentRepeatedClauses(input)
@@ -1014,7 +1014,8 @@ export function readabilityCleaned(input: string): string {
   return value
     .replace(/未诉(?:未诉)+/gu, "未诉")
     // 删掉一项后「与、连及项背的外感头痛」（第四十九轮甲方病历3）：连词后的顿号去掉。
-    .replace(/(与|和|及|或)、/gu, "$1")
+    // M04 继承的成文里，「失和、不畅」「不和、气滞」应保留逐字的病机分隔。
+    .replace(inheritedTcmRationale ? /(与|(?<![失不])和|及|或)、/gu : /(与|和|及|或)、/gu, "$1")
     .replace(/[（(]\s*[）)]/gu, "")
     .replace(/(^|[。；;，,])[^。；;，,]*?(?:参照本方|本方(?:与|合)本方)[^。；;，,]*(?:[，,][^。；;，,]*?之意)?[，,]?/gu, "$1")
     .replace(/教材行/gu, "教材证型")
@@ -1054,16 +1055,17 @@ export function withoutTrailingFragment(text: string): string {
   return (tail.match(/[\u4e00-\u9fff]/gu) || []).length < 8 ? text.slice(0, at + 1) : text;
 }
 
-function rewordDeep(value: unknown, key = ""): unknown {
+function rewordDeep(value: unknown, key = "", inheritedTcmRationale = false): unknown {
   if (VERBATIM_KEYS.has(key)) return value;
   if (typeof value === "string") {
-    const cleaned = readabilityCleaned(clinicalWordingForSyntheticPhrases(value));
-    return PROSE_FRAGMENT_KEYS.has(key) ? withoutTrailingFragment(cleaned) : cleaned;
+    const rationale = PROSE_FRAGMENT_KEYS.has(key);
+    const cleaned = readabilityCleaned(clinicalWordingForSyntheticPhrases(value), inheritedTcmRationale && rationale);
+    return rationale ? withoutTrailingFragment(cleaned) : cleaned;
   }
-  if (Array.isArray(value)) return value.map((item) => rewordDeep(item, key));
+  if (Array.isArray(value)) return value.map((item) => rewordDeep(item, key, inheritedTcmRationale));
   const object = record(value);
   if (!object) return value;
-  for (const [childKey, child] of Object.entries(object)) object[childKey] = rewordDeep(child, childKey);
+  for (const [childKey, child] of Object.entries(object)) object[childKey] = rewordDeep(child, childKey, inheritedTcmRationale);
   return object;
 }
 
@@ -4209,7 +4211,7 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
       }
     }
   }
-  rewordDeep(projected);
+  rewordDeep(projected, "", projected.stage === "prescribe");
   if (projected.stage === "prescribe") rxTextCareInvariants(projected, options);
   // 定义是逐字引文，放在文字投影之后，避免通用措辞规则改写教材原文。
   if (projected.stage === "diagnose" || projected.stage === "prescribe") {

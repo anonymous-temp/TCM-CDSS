@@ -9,11 +9,12 @@ import { followupConversationView } from "./followup-conversation";
 import { getLineageCard, resolveLineageCode } from "./tcm-lineages";
 import { isTextbookDiseaseName, splitTextbookDiseaseSubtype, textbookDiseaseDiagnosisPoints, textbookRowForSyndrome, tongueOptionsMutuallyExclusive, pulseOptionsMutuallyExclusive, withoutFingerVeinClause } from "./tcm-textbook-syndromes";
 import { diagnosticsCriteriaFor, elementCompositeCriteriaEntry, compoundCriteriaEntries } from "./m03-secondary-syndrome-consistency.server";
-import { entailedElements, syndromeElementLedger } from "./m03-syndrome-element-closure.server";
+import { allowedRationaleElements, finalRationaleElementContext } from "./m03-final-rationale-elements.server";
 import { withoutNormalFindingSegments } from "./diagnosis-visible-summary";
 import { inspectionLexiconNormal, TCM_INSPECTION_AXES } from "./tcm-inspection-lexicon";
 import exam from "../data/physical-exam-claim-lexicon.source.json";
 import symptomAxis from "../data/tcm-symptom-axis-map.source.json";
+import chiefConcepts from "../data/tcm-differential-chief-concepts.source.json";
 import rules from "../data/m03-final-rationale-policy.source.json";
 import deliveryFactsPolicy from "../data/delivery-facts-policy.source.json";
 import { courseSpans } from "./western-record-course";
@@ -31,6 +32,7 @@ const inspectionPaths = {
 };
 const inspectionPrefix = { tongue: new RegExp(rules.tonguePrefix, "u"), pulse: /^(?:脉象|切诊)\s*[:：]\s*/u };
 const inspectionWords = { tongue: /^(?:舌(?!下含服)|苔)/u, pulse: new RegExp(rules.pulseFindingPrefix, "u") };
+export const inspectionUnavailable = new RegExp(rules.inspectionUnavailable, "u");
 const inspectionLabel = new RegExp(rules.inspectionLabel, "u");
 const stripInspectionLabel = (value: string) => value.replace(inspectionLabel, "");
 const familyObject = new RegExp(rules.familyObject, "gu");
@@ -41,21 +43,6 @@ export const GOVERNED_FINDINGS = unique([
   ...exam.groups.flatMap((entry) => entry.terms),
   ...TCM_INSPECTION_AXES.flatMap((axis) => [...axis.groups.flatMap((group) => group.terms), ...axis.normal.split(/[，、]/u)]),
 ]).filter((term) => term.length >= 2).sort((a, b) => b.length - a.length);
-
-/** All callers of the closure package are kept behind this adapter. The synthetic chain reads
- * every supplied clause, including the lineage sentence, without inheriting therapy permissions. */
-export const rationaleElements = {
-  allowed(names: readonly string[]) {
-    return entailedElements(names);
-  },
-  asserted(value: string) {
-    return syndromeElementLedger({ pathogenesis: { chain: value.split(/[，,。；;！？]/u).map((pathogenesis) => ({ pathogenesis })) } });
-  },
-  fits(unit: { type: string; organs: string[] }, names: readonly string[]) {
-    const hit = entailedElements(names).get(unit.type);
-    return hit === "any" || Boolean(hit && unit.organs.every((organ) => hit.has(organ)));
-  },
-};
 
 function recordLines(state: CaseState): Line[] {
   const sources = buildTrustedRecordIndex(state).sources;
@@ -69,6 +56,8 @@ function recordLines(state: CaseState): Line[] {
     ...chiefComplaintFindings(state),
     ...chiefText.split(/[，,。；;、]|伴/u).map(chiefComplaintPhrase).filter((term) => term.length >= 2),
     ...GOVERNED_FINDINGS.filter((term) => chiefText.includes(term)),
+    ...chiefConcepts.concepts.filter(({ forms }) => forms.some((form) => chiefText.includes(form) && recordedFindingReading(chiefText, form) === "affirmed"))
+      .flatMap(({ forms }) => forms),
   ]);
   for (const source of sources) {
     if (source.sourcePath === "/tongueImageDesc") continue;
@@ -205,7 +194,7 @@ export function inspectionFindings(lines: readonly Line[], field: Inspection): F
     for (const match of line.text.matchAll(/[^，,。；;、！？]+/gu)) {
       const raw = match[0].trim();
       const term = stripInspectionLabel(raw).replace(inspectionPrefix[field], "").trim();
-      if ((!explicit && !inspectionWords[field].test(term)) || isUnrecordedInspectionFieldValue(term, field) || !/\p{Script=Han}/u.test(term)) continue;
+      if ((!explicit && !inspectionWords[field].test(term)) || inspectionUnavailable.test(raw) || isUnrecordedInspectionFieldValue(term, field) || !/\p{Script=Han}/u.test(term)) continue;
       if (field === "pulse" && (new RegExp(rules.barePulseCount, "u").test(term) || withoutFingerVeinClause(term) !== term)) continue;
       const start = match.index + match[0].indexOf(term);
       const coating = field === "tongue" ? term.indexOf("苔", 1) : -1;
@@ -319,7 +308,7 @@ export function buildFinalRationaleContext(root: ClinicalReasoningResultV2, stat
     ground: unique([...overview.primarySyndromeBasis, ...pathogenesis.chain.map((node) => node.patientFact)])
       .map(ground).filter((finding): finding is Finding => Boolean(finding)),
     pending: pathogenesis.uncertainties,
-    allowed: names.map((name) => Object.fromEntries([...rationaleElements.allowed([name])].map(([key, value]) => [key, value === "any" ? value : [...value]]))),
+    allowed: names.map(allowedRationaleElements),
     method: therapy?.overallMethod, direction: overview.recommendedFormulaDirection, formulas: overview.recommendedFormulaNames,
     lineage: card ? { code, label: card.label, lens: card.dxEmphasis, adaptation: lineageAdaptation } : null,
     diseaseReference: source ? { book: source.book, definition: source.definition, points } : null,
@@ -332,7 +321,8 @@ export function buildFinalRationaleContext(root: ClinicalReasoningResultV2, stat
     safetyManagement: root.management, completeness: root.completeness,
     theory: { method: therapy, lineageAdaptation, location, nature, primaryBasis: overview.primarySyndromeBasis },
   });
-  return { key, input, lines, facts, recordText, state, root };
+  const elements = finalRationaleElementContext(root, { ageYears: age, chiefComplaint: state.chiefComplaint });
+  return { key, input, lines, facts, recordText, state, root, elements };
 }
 
 export type FinalRationaleContext = NonNullable<ReturnType<typeof buildFinalRationaleContext>>;
@@ -355,14 +345,38 @@ export type BoundQuote = Finding & { text: string; end: number };
 
 export function bindRationaleQuote(context: FinalRationaleContext, quote: readonly [string, string, (string | null)?, (string | null)?]): BoundQuote | undefined {
   const [id, raw, anchor, scope] = quote;
+  const line = context.lines.find((entry) => entry.id === id);
+  if (!line || !raw || (scope && scope !== "current")) return undefined;
+  const spans = offsets(line.text, raw);
+  if (!spans.length) return undefined;
+  let excerpts = [{ text: raw, offset: 0 }];
+  if (stripInspectionLabel(raw).length > 40) {
+    // The original must be verbatim. Shorten only to the clause bearing the identified finding.
+    const findings = [...context.input.chief, ...context.input.tongue, ...context.input.pulse, ...context.input.important]
+      .filter((finding) => finding.line === id);
+    excerpts = [...raw.matchAll(/[^，,。；;！？]+/gu)].flatMap((match) => {
+      const text = match[0].trim();
+      const matchesFinding = anchor ? text.includes(anchor) : findings.some(({ term }) => text.includes(term));
+      return matchesFinding ? [{ text, offset: match.index + match[0].indexOf(text) }] : [];
+    });
+    if (new Set(excerpts.map(({ text }) => text)).size !== 1) return undefined;
+  }
+  const bound = spans.flatMap((start) => excerpts.flatMap(({ text, offset }) => {
+    if (stripInspectionLabel(text).length > 40) return [];
+    const result = bindAt(context, line, [id, text, anchor, scope], start + offset);
+    return result ? [result] : [];
+  }));
+  return bound.length === 1 ? bound[0] : undefined;
+}
+
+function bindAt(context: FinalRationaleContext, line: Line,
+  [id, raw, anchor, scope]: readonly [string, string, (string | null)?, (string | null)?], rawStart: number): BoundQuote | undefined {
   const text = stripInspectionLabel(raw);
   const term = (anchor && stripInspectionLabel(anchor)) || text;
-  const line = context.lines.find((entry) => entry.id === id);
-  if (!line || !text || (scope && scope !== "current") || text !== text.trim() || !text.includes(term) || /[\r\n<>]/u.test(text) || /^[、，,。；;]|[。；;]$/u.test(text)) return undefined;
-  const spans = offsets(line.text, raw);
+  if (!text || (scope && scope !== "current") || text !== text.trim() || !text.includes(term) || /[\r\n<>]/u.test(text) || /^[、，,。；;]|[。；;]$/u.test(text)) return undefined;
   const terms = offsets(text, term);
-  if (spans.length !== 1 || terms.length !== 1) return undefined;
-  const start = spans[0] + raw.length - text.length, at = start + terms[0];
+  if (terms.length !== 1) return undefined;
+  const start = rawStart + raw.length - text.length, at = start + terms[0];
   const readingStart = line.contextOffset + start;
   const readingText = line.reading.slice(readingStart, readingStart + text.length);
   const readingTerm = readingText.slice(terms[0], terms[0] + term.length);
