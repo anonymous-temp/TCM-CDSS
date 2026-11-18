@@ -3709,8 +3709,41 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 - **Rationale step.** Blind old/new judge on 43 saved outputs: old pass 8 / minor 23 / fail 12, new pass 25 / minor 16 / fail 2; preferred new 32, old 11. In the pipeline: adopted 64% (n5), 69% of eligible records on the final code (n8: 179 adopted, 80 kept the old text, 42 not eligible). Reasons for keeping the old text: disease paragraph names an element (22), sanitizer rewrote the new text (19), element outside the name (18), chief symptom missing (11).
 - **Latency: the rationale step costs M03 about 3–3.5 s on eligible records, and nothing else in this round costs time.** Local attribution with real model calls on six standard cases, run one after another: production code before this round 15.2 s median; this round's code with the rationale off 15.3 s (closure observe and the disease layer add nothing); everything on 18.2–19.1 s. The prefetch starts at the 「prepared」 checkpoint, after which nothing else runs, so the call's 3.2–3.5 s is almost all waited for (production: prefetch hit 30, stale 11; wait 2.4–4.7 s).
 - **Disease layer on the customer's records:** rt-258816 and e05-14 → 膝痹·肝肾亏损证; e05-03 / rt-082816 → 心脾两虚证; e05-10 / rt-509632 → 脾虚湿困证; no limited page in any observe arm.
-- **Neither P0 line is reached pooled.** 中医诊断 85.4 → 88.4 and 诊断依据 88.4 → 89.4 under this judge; the gains are on the customer's own-style records and in the share of clean passes.
+- **On arm n5 neither P0 line was reached pooled** (中医诊断 85.4 → 88.4, 诊断依据 88.4 → 89.4); the final arm is below.
 - **P0 audit on the final code (n8, 301):** 300 dosed (the other is the child of unknown age); dose over ChP, over 2×, 十八反十九畏 incl. 加减, pregnancy-prohibited, child-toxic, organ, anticoagulant blood movers all 0; no limited page; fewer than two TCM disease differentials 4.
+
+**Final acceptance arm (n8 = the deployed code, all 301, same judge).**
+| Item (line) | Base | n8 |
+|---|---|---|
+| 红旗 (P0 ≥95) | 97.7 | 97.3 |
+| 中医诊断 (P0 ≥95) | 85.4 | 87.0 (23 fixed, 18 broken) |
+| 诊断依据 (P0 ≥90) | 88.4 (clean pass 118) | 92.4 (clean pass 150; 27 fixed, 15 broken) |
+| 西医诊断 (P0 ≥90) | 96.0 | 93.4 |
+| 剂量 / 十八反十九畏 (P0 100) | 99.7 / 100 | 100 / 100 |
+| 特殊人群 (P0 100) | 98.3 | 98.6 |
+| 随症加减 (P0 ≥90) | 84.6 | 82.7 (23 fixed, 29 broken) |
+| 治则治法 / 鉴别 / 病机 | 93.7 / 90.4 / 46.5 | 95.3 / 92.0 / 54.5 |
+| 选方 / 配伍 / 出处方义 | 97.3 / 92.0 / 81.7 | 98.0 / 92.7 / 83.1 |
+| 外治 / 中成药 / 调护 / 随访 | 93.6 / 90.5 / 98.7 / 98.3 | 91.8 / 88.6 / 97.3 / 98.3 |
+
+- **On the customer's own-style records** (standard 10, retest 20, 11.05 17, 10.29 34; 81 outputs): 中医诊断 73 → 77 (95.1%), 诊断依据 72 → 76 (93.8%). On the customer's 100-case set: 中医诊断 79 → 81, 诊断依据 85 → 87, 随症加减 71 → 67 of 99.
+- **Two arms, one conclusion.** n5 and n8 share every Western-half output (memo replay) and still scored 西医 95.3 and 93.4, so differences of about two points between arms are the judge. 诊断依据 improved in both (89.4, 92.4) and reaches its line on the final arm; 中医诊断 (88.4, 87.0) and 随症加减 (81.7, 82.7) do not reach theirs.
+- **Unchanged failures the judge names on P0 100% items:** pregnancy prescriptions with caution-tier herbs (C064 牛膝 at 20 weeks, C097 行气药 at 12 weeks), 三七/蒲黄 kept under warfarin with INR 3.5 (C070), a population line that mentions pregnancy for an 82-year-old man (C046); red-flag over-calls from the upper-GI alarm policy (h09, h11) and from 「皮肤弹性差」 read against 「弹性可」 (c31, c34), and hyperkalaemia 5.7 with eGFR 17 not flagged (n40).
+- **One judging incident.** Eight verdict files were written empty when a disk filled for a moment (`ENOSPC`); the tally script crashed on them, they were deleted and judged again. Check for empty files before tallying.
+
+**In production (f0d5112d, tag `20261118-f0d5112-prebuilt`, deployed 2026-11-18 08:43 UTC; same release directory and `20260927-dsrepair` override).** 231ad62e went out first at 07:15 UTC; f0d5112d differs from it only in one code comment and this file, and was deployed so that production's source digest equals main's.
+- **Gate.** Lint, typecheck, all 343 deterministic suites and the fresh-artifact suites were green on 303a4306 (the last behaviour change) and again on f0d5112d, run with the non-stopping runner `/var/tmp/r1067/gate.sh`.
+- **Verification.** `verify:deployed-image` passed for both deploys (commit, digest, strictReady, qwen and deepseek live). `regress:prod-smoke` had 0 failures both times (M03 P95 21.9 s and 26.4 s, M04 P95 19.1 s and 15.4 s; the probes and the judge were running at the same time, so read the single-stream numbers below).
+- **Probes on 231ad62e (forced regeneration).**
+  - Customer 10 on hospital-b: every stage 200, all dosed, no red flag, disease and syndrome equal the standard answers (病历10 阳盛血热证, as before).
+  - 16 targets on hospital-a/b, all 200 and dosed, no 429:
+    - e05-03 / rt-082816 → 心悸·心脾两虚证 (归脾汤); e05-10 / rt-509632 → 带下过多·脾虚湿困证 (完带汤);
+    - e05-14 / rt-258816 / C043 → 膝痹·肝肾亏损证; h07 / C012 → 胆胀; n40 → 水肿（阴水）; C037 → 淋证（血淋）·膀胱湿热证; n12 → 淋证（劳淋）·脾肾两虚证;
+    - the seven cases that enforce mode had sent to the limited page (h04, h07, C012, C036, C043, C048, n40) are complete.
+  - Rationale telemetry in the container: 21 eligible, 16 adopted; `m03_element_closure_unsettled` 0.
+- **Single-stream latency on production** (six standard cases, forced, nothing else running): M03 median 19.9 s, M04 median 15.2 s. The local attribution above puts about 3–3.5 s of the M03 time on the rationale step; the same six cases on the pre-round code took 15.2 s locally that hour.
+- **Rollback.** Image `tcm-cdss:20261117-2967ecd-prebuilt` with `docker-compose.yml.pre-231ad62` in the release directory. Without a rebuild, in the override: `CDSS_M03_FINAL_RATIONALE=off` (rationale step, removes the 3 s), `CDSS_M03_DISEASE_REFINEMENT=false`, `CDSS_M03_SUBTYPE_SYNDROME_NAMES=false`, `CDSS_M03_DISEASE_NEUTRAL_POLICY=false`, `CDSS_M03_ELEMENT_CLOSURE_V2=off`. Container logs before each replacement: `~/telemetry-archive/container-pre-{231ad62,f0d5112}-*.log.gz` on the host. Host disk 20 GB free.
+- **Local build.** Both prebuilds went through in about two minutes with the 3 GB zram swap left from the worker phase. The second waited ten minutes at the default 5.5 GB threshold (other sessions' workers) and ran at `PB_MEM=5000`; free memory fell to 0.85 GB with 0.5 GB of swap left.
 
 **Left as is.**
 - **Rationale latency.** To hide the 3 s the call has to start from the TCM half's first settled names and be accepted on revalidation instead of hash equality; that is a design change with its own live measurement.
