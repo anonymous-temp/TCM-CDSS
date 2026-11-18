@@ -1988,17 +1988,34 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
   }
 }
 
-type CompositeSyndromeRule = { primary: string[]; addLocation?: string; requiresNature?: string[]; addNature?: string[]; natureSigns?: string[]; composite: string };
+type CompositeSyndromeRule = { primary: string[]; addLocation?: string; requiresNature?: string[]; addNature?: string[]; natureSigns?: string[]; components: string[]; composite: string };
 const COMPOSITE_SYNDROME_RULES = (compositeSyndromeSource as { rules: CompositeSyndromeRule[] }).rules;
+
+/** Apply the previously grounded rule to the current draft without copying the old analysis. */
+export function applyGovernedCompositeName(overview: Json, primary: string, secondaries: readonly string[], composite: string): void {
+  overview.primarySyndrome = composite;
+  if (secondaries.length) overview.secondarySyndromes = [];
+  for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"] as const) {
+    if (typeof overview[key] !== "string") continue;
+    let prose = String(overview[key]);
+    const list = secondaries.join("、");
+    if (list) prose = prose.split(`，兼${list}`).join("").split(`兼${list}`).join("");
+    for (const name of secondaries) prose = prose.split(`，兼${name}`).join("").split(`兼${name}`).join("").split(name).join(composite);
+    overview[key] = prose.split(primary).join(composite);
+  }
+  if (Array.isArray(overview.tcmDifferentials)) {
+    overview.tcmDifferentials = overview.tcmDifferentials.filter((row) => String(record(row)?.syndrome || "").trim() !== composite);
+  }
+}
 
 /**
  * 证名跟着辨证依据走（tcm-syndrome-composite-names.source.json 的说明）：模型自己的病位分析里另一脏腑那一条依据有两项以上病历原文
  *（「脾：食欲不振、食后腹胀」），或病性里列了湿且病历肯定记载两项以上湿象，教材单脏证名换成国标合称；依据与鉴别里的旧证名同步换。
  * 兼证正好就是合称里的另一脏腑或另一因素（「心血不足证」兼「脾气虚证」→ 心脾两虚证；「脾虚证」兼「湿阻证」→ 脾虚湿困证）时合成合称、
  * 去掉这条兼证：兼证已过辨证要点核对，不再要求病位依据条数（第四十轮，11.05 病历3 复测一次得心脾两虚证、一次得「心血不足证＋脾气虚证」）。
- * 别的兼证（两条以上，或与合称无关）不动。返回改名；没改返回 undefined。
+ * 多条兼证须全部属同一合称，且另一脏或病性有成组证据。返回改名；没改返回 undefined。
  */
-export function compositeSyndromeRename(reasoning: Json, recordText: string): { from: string; to: string } | undefined {
+export function compositeSyndromeRename(reasoning: Json, recordText: string, requireGrouped = false): { from: string; to: string } | undefined {
   const overview = record(reasoning.overview);
   const pathogenesis = record(reasoning.pathogenesis);
   const primary = typeof overview?.primarySyndrome === "string" ? overview.primarySyndrome.trim() : "";
@@ -2006,40 +2023,26 @@ export function compositeSyndromeRename(reasoning: Json, recordText: string): { 
   const secondaries = Array.isArray(overview.secondarySyndromes)
     ? overview.secondarySyndromes.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim())
     : [];
-  if (secondaries.length > 1) return undefined;
-  const secondary = secondaries[0];
   const nature = record(pathogenesis.natureDifferentiation);
   const natures = [nature?.items, nature?.rootDeficiency, nature?.branchExcess].flatMap((list) => Array.isArray(list) ? list.filter((item): item is string => typeof item === "string") : []).join("、");
   const details = records(record(pathogenesis.locationDifferentiation)?.details);
-  const groundedFindings = (basis: unknown) => String(basis || "").split(/[、，,；;。]/u).map((item) => item.trim()).filter((item) => item.length >= 2 && recordText.includes(item));
+  const groundedFindings = (basis: unknown) => String(basis || "").split(/[、，,；;。]/u).map((item) => item.trim()).filter((item) => item.length >= 2 && recordText.includes(item) && recordedFindingReading(recordText, item) === "affirmed");
   for (const rule of COMPOSITE_SYNDROME_RULES) {
     if (!rule.primary.includes(primary)) continue;
-    if (secondary) {
-      const secondaryIsTheOtherPart = (rule.addLocation !== undefined && secondary.includes(rule.addLocation) && /虚|不足|亏/u.test(secondary)) ||
-        (rule.addNature !== undefined && rule.addNature.some((item) => secondary.includes(item)));
-      if (!secondaryIsTheOtherPart) continue;
-      const secondaryNatures = `${natures}、${secondary}`;
-      if (rule.requiresNature && !rule.requiresNature.every((item) => secondaryNatures.includes(item))) continue;
-      if (!resolveNationalStandardTcmSyndromeTerm(rule.composite)) continue;
-      overview.primarySyndrome = rule.composite;
-      overview.secondarySyndromes = [];
-      for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"] as const) {
-        if (typeof overview[key] === "string") {
-          overview[key] = (overview[key] as string).split(`，兼${secondary}`).join("").split(`兼${secondary}`).join("")
-            .split(primary).join(rule.composite).split(secondary).join(rule.composite);
-        }
-      }
-      if (Array.isArray(overview.tcmDifferentials)) {
-        overview.tcmDifferentials = overview.tcmDifferentials.filter((row) => String(record(row)?.syndrome || "").trim() !== rule.composite);
-      }
-      return { from: `${primary}兼${secondary}`, to: rule.composite };
-    }
-    if (rule.requiresNature && !rule.requiresNature.every((item) => natures.includes(item))) continue;
-    if (rule.addLocation) {
+    // A previously verified secondary can supply the other component. Further
+    // secondaries may be absorbed only if each denotes a governed component.
+    const canonical = (name: string) => resolveNationalStandardTcmSyndromeTerm(name)?.standardTerm || name;
+    const components = secondaries.length ? new Set(rule.components.map(canonical)) : undefined;
+    if (secondaries.some(name => !components?.has(canonical(name)))) continue;
+    const namedOther = !requireGrouped && secondaries.length === 1 && secondaries.some(name => rule.addLocation
+      ? canonical(name).includes(rule.addLocation) : rule.addNature?.some(item => name.includes(item)));
+    const evidenceNatures = [natures, ...secondaries].join("、");
+    if (rule.requiresNature && !rule.requiresNature.every(item => evidenceNatures.includes(item))) continue;
+    if (rule.addLocation && !namedOther) {
       const own = details.filter((detail) => typeof detail.location === "string" && detail.location.includes(rule.addLocation!) && !rule.primary.some((name) => name.startsWith(String(detail.location))));
       if (!own.some((detail) => new Set(groundedFindings(detail.basis)).size >= 2)) continue;
     }
-    if (rule.addNature) {
+    if (rule.addNature && !namedOther) {
       if (!rule.addNature.some((item) => natures.includes(item))) continue;
       const signs = (rule.natureSigns || []).filter((sign) => recordText.includes(sign) && ["affirmed", "conflicting"].includes(recordedFindingReading(recordText, sign)));
       // 湿的表现与病性栏补齐用同一张表（tcm-analysis-element-closure 的 recordSigns，《中医诊断学》湿淫证证候表现）：本规则原列的
@@ -2048,14 +2051,8 @@ export function compositeSyndromeRename(reasoning: Json, recordText: string): { 
       if (new Set(signs).size < 2 && closureSigns < MIN_RECORD_SIGNS) continue;
     }
     if (!resolveNationalStandardTcmSyndromeTerm(rule.composite)) continue;
-    overview.primarySyndrome = rule.composite;
-    for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"] as const) {
-      if (typeof overview[key] === "string") overview[key] = (overview[key] as string).split(primary).join(rule.composite);
-    }
-    if (Array.isArray(overview.tcmDifferentials)) {
-      overview.tcmDifferentials = overview.tcmDifferentials.filter((row) => String(record(row)?.syndrome || "").trim() !== rule.composite);
-    }
-    return { from: primary, to: rule.composite };
+    applyGovernedCompositeName(overview, primary, secondaries, rule.composite);
+    return { from: [primary, ...secondaries].join("兼"), to: rule.composite };
   }
   return undefined;
 }

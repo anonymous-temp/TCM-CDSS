@@ -2902,7 +2902,7 @@ async function callPrimaryTextModelStream(
       const checkM03ElementsBeforeSign = (reasoning: ClinicalReasoningResultV2): boolean => {
         if (!elementClosure || elementClosure.policy.mode === "off" || reasoning.stage !== "diagnose") return true;
         const unsupported = elementClosure.audit(reasoning as unknown as Record<string, unknown>);
-        return !enforceElementClosure || unsupported.length === 0;
+        return !enforceElementClosure || unsupported.length === 0 || enforceElementClosure.guarded();
       };
       const signFinalDelivery = (content: string): string => {
         const reasoning = structuredReasoningFromContent(content);
@@ -2928,7 +2928,7 @@ async function callPrimaryTextModelStream(
         accept: content => {
           const reasoning = structuredReasoningFromContent(content);
           if (!reasoning || reasoningV2SchemaIssueCode(reasoning)) return false;
-          if (enforceElementClosure && reasoning.stage === "diagnose"
+          if (enforceElementClosure && !enforceElementClosure.guarded() && reasoning.stage === "diagnose"
             && enforceElementClosure.inspect(reasoning as unknown as Record<string, unknown>).length) return false;
           // The pre-display contract already accepted this EXACT deterministic projection.
           // Display labels (e.g. the self-devised formula label) are not generator identities.
@@ -3461,7 +3461,7 @@ async function callPrimaryTextModelStream(
           }
           if (enforceElementClosure) {
             const reasoning = m03ReasoningFromStructuredContent(content);
-            if (reasoning && enforceElementClosure.inspect(reasoning as unknown as Record<string, unknown>).length) {
+            if (reasoning && !checkM03ElementsBeforeSign(reasoning)) {
               markStageGenerationNonReusable();
               content = `${STREAM_REPLACE_MARKER}${opts.truncateFallback || ""}`;
             }
@@ -5430,7 +5430,7 @@ async function callPrimaryTextModelStream(
             : undefined;
           if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && !transformedM03) {
             const restored = restoreValidatedM03Chain(transformed.content, authoritativeContent, enforceElementClosure
-              ? (root) => !enforceElementClosure.inspect(root).some(hit => hit.field?.startsWith("/pathogenesis/chain/")) : undefined);
+              ? (root) => enforceElementClosure.guarded() || !enforceElementClosure.inspect(root).some(hit => hit.field?.startsWith("/pathogenesis/chain/")) : undefined);
             const restoredReasoning = validatedStructuredReasoning(
               restored,
               "diagnose",

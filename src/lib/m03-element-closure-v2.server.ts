@@ -1,10 +1,14 @@
 import "server-only";
 
+import compositeNames from "../data/tcm-syndrome-composite-names.source.json";
 import promotion from "../data/tcm-syndrome-element-promotion.source.json";
 import deficiency from "../data/tcm-deficiency-element-lexicon.source.json";
 import { affirmedClinicalSourceClauses, clinicalEventTemporalScopeAt } from "./clinical-polarity";
 import { governedFourCharacterMethodTerms, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
-import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
+import { clinicalGroundingText, clauseLocalMentionPolarityAt } from "./diagnosis-safety";
+import { applyGovernedCompositeName, compositeSyndromeRename } from "./delivered-surface";
+import { withMethodImpliedNatureElements } from "./analysis-element-closure";
+import { closureGuardReason } from "./m03-element-closure-guard.server";
 import { isCriticalSyndromeName } from "./m03-critical-syndrome";
 import {
   checkM03ElementClosure, closureObject, closureRule, closureStrings, collectM03ElementAssertions,
@@ -197,7 +201,24 @@ export function evaluateClosureCriteria(entry: CriteriaEntry, matches: CriteriaM
   return { ...ordinary, strict: false, evidenceDomains: domains.size, sharedQuotes };
 }
 
-type EvidenceSnapshot = { context: FinalM03ElementContext; matches: Map<string, CriteriaMatches>; requested: Set<string> };
+function groundedComposite(root: ClosureJson, recordText: string, policy: ElementClosurePolicy) {
+  const primary = m03ElementContext(root).primarySyndrome;
+  if (!compositeNames.rules.some(rule => rule.primary.includes(primary))) return;
+  const lookahead = structuredClone(root);
+  withMethodImpliedNatureElements(lookahead, recordText);
+  // The nature column may already have lost a component while the complete
+  // analysis still locates and asserts it. Only the temporary naming view uses it.
+  const nature = closureObject(closureObject(lookahead.pathogenesis)?.natureDifferentiation);
+  if (nature) {
+    const asserted = collectM03ElementAssertions(root, policy, true).filter(hit =>
+      ["prose", "mechanism", "location"].includes(hit.source) && hit.field !== "/overview/tcmDiseaseRationale");
+    nature.items = dedupe([...closureStrings(nature.items), ...asserted.flatMap(hit => family.get(hit.type)?.label || [])]);
+  }
+  const rename = compositeSyndromeRename(lookahead, recordText, true);
+  return rename?.to;
+}
+
+type EvidenceSnapshot = { composite?: string; context: FinalM03ElementContext; matches: Map<string, CriteriaMatches>; requested: Set<string> };
 type AssertionGroup = { key: string; hits: ElementAssertion[]; lookup: ClosureLookup };
 function assertionGroups(root: ClosureJson, policy: ElementClosurePolicy): AssertionGroup[] {
   const grouped = new Map<string, AssertionGroup>();
@@ -230,7 +251,8 @@ function closureCoverage(context: FinalM03ElementContext, policy: ElementClosure
 }
 
 function proposedEntries(root: ClosureJson, policy: ElementClosurePolicy): CriteriaEntry[] {
-  const { named, rowAllows } = closureCoverage(m03ElementContext(root), policy);
+  const context = m03ElementContext(root);
+  const { named, rowAllows } = closureCoverage(context, policy);
   const entries = new Map<string, CriteriaEntry>();
   const add = (names: readonly string[]) => {
     for (const name of names) {
@@ -239,7 +261,9 @@ function proposedEntries(root: ClosureJson, policy: ElementClosurePolicy): Crite
     }
   };
   for (const group of assertionGroups(root, policy)) {
-    if (group.hits.every(hit => named(hit) || rowAllows(hit)) || group.hits.every(hit => hit.source === "method" || hit.source === "pending")) continue;
+    const pair = group.hits[0];
+    if (named(pair) || (rowAllows(pair) && !hasCompositeCandidate(context.primarySyndrome, pair, policy))
+      || group.hits.every(hit => hit.source === "method" || hit.source === "pending")) continue;
     add(group.lookup.entries);
     const hit = group.hits[0];
     if (hit.organ && hit.type === "阳虚" && closureRule(policy, "d6")) add([deficiency.types.阳虚.genericEntry]);
@@ -256,6 +280,7 @@ Promise<{ content: string; evidence?: EvidenceSnapshot; legacyDecision?: Awaited
   const candidate = m03ElementContext(root);
   const row = selectedElementRow(candidate);
   candidate.textbookRow = row && { id: row.id };
+  const composite = closureRule(policy, "d7") ? groundedComposite(root, context.recordText, policy) : undefined;
   const closureEntries = proposedEntries(root, policy);
   const existingCriteria = new Map<string, CriteriaEntry>();
   await decideElementSupport(content, context, signal, async name => {
@@ -271,7 +296,7 @@ Promise<{ content: string; evidence?: EvidenceSnapshot; legacyDecision?: Awaited
   const matches = available ? await batch.run() : new Map<string, CriteriaMatches>();
   const legacyDecision = policy.mode === "observe" && available
     ? await decideElementSupport(content, context, signal, batch.verify) : undefined;
-  return { content: next, evidence: { context: candidate, matches, requested: new Set(available ? closureEntries.map(entry => entry.name) : []) }, legacyDecision };
+  return { content: next, evidence: { context: candidate, composite, matches, requested: new Set(available ? closureEntries.map(entry => entry.name) : []) }, legacyDecision };
 }
 
 function matchesCandidate(evidence: EvidenceSnapshot | undefined, current: FinalM03ElementContext): evidence is EvidenceSnapshot {
@@ -284,7 +309,7 @@ function matchesCandidate(evidence: EvidenceSnapshot | undefined, current: Final
 type Disposition = "named" | "row_permitted" | `promoted:${string}` | "withdrawn" | "withdrawn_task_failed";
 type ClosureLedgerRow = { pair: ElementPair; fields: string[]; disposition: Disposition; rowId?: string };
 export type M03ClosureResult = {
-  root: ClosureJson; ledger: ClosureLedgerRow[]; fits: (hit: ElementAssertion) => boolean; taskFailed: number; possible: string[];
+  guard?: string; root: ClosureJson; ledger: ClosureLedgerRow[]; fits: (hit: ElementAssertion) => boolean; taskFailed: number; possible: string[];
 };
 type Plan = { name: string; hits: ElementAssertion[] };
 
@@ -315,6 +340,11 @@ function suggestComposite(primary: string, hit: ElementAssertion, policy: Elemen
     (rule.element === hit.type || rule.element === "location" && rule.organ === hit.organ && rule.requires === hit.type));
   const candidate = exactProposedName(row?.composite);
   return candidate && canCarry(primary, candidate, policy) && deliveryPairCovered(hit, deliveryNamePairs(candidate, policy)) ? candidate : undefined;
+}
+
+function hasCompositeCandidate(primary: string, hit: ElementAssertion, policy: ElementClosurePolicy) {
+  return closureRule(policy, "d7") && (Boolean(suggestComposite(primary, hit, policy))
+    || elementClosureLexicon.qualifiedComposites.some(rule => rule.from === primary && rule.pairs.some(pair => pairKey(pair) === pairKey(hit))));
 }
 
 function absorbDuplicateSecondary(root: ClosureJson, evidence: EvidenceSnapshot | undefined, recordText: string, policy: ElementClosurePolicy) {
@@ -351,11 +381,18 @@ export function solveM03ElementClosure(input: ClosureJson, context: ClosureConte
   snapshot?: EvidenceSnapshot, allowNames = true, evaluate = evaluateClosureCriteria, priorRow?: FinalM03ElementContext): M03ClosureResult {
   const root = structuredClone(input);
   const overview = closureObject(root.overview);
-  const initial = boundRowContext(root, priorRow || snapshot?.context);
+  const original = boundRowContext(root, priorRow || snapshot?.context);
   if (!overview || !hasM03ElementScope(root)) {
     return { root, ledger: [], fits: () => true, taskFailed: 0, possible: [] };
   }
-  const evidence = matchesCandidate(snapshot, initial) ? snapshot : undefined;
+  const evidence = matchesCandidate(snapshot, original) ? snapshot : undefined;
+  if (allowNames && closureRule(policy, "d7") && !namesOf(original).some(criticalName)) {
+    const collected = evidence?.context.primarySyndrome === original.primarySyndrome &&
+      original.secondarySyndromes.every(name => evidence.context.secondarySyndromes.includes(name)) ? evidence.composite : undefined;
+    const composite = groundedComposite(root, context.recordText, policy) || collected;
+    if (composite) applyGovernedCompositeName(overview, original.primarySyndrome, original.secondarySyndromes, composite);
+  }
+  const initial = boundRowContext(root, original);
   const groups = assertionGroups(root, policy);
   const scope = closureCoverage(initial, policy);
   const d6 = closureRule(policy, "d6");
@@ -365,6 +402,12 @@ export function solveM03ElementClosure(input: ClosureJson, context: ClosureConte
   const primaryTerms = primaryManifestationTerms(scope.row);
   const failed = new Set<string>();
   const promoted = new Map<string, string>();
+  if (initial.primarySyndrome !== original.primarySyndrome) {
+    const prior = closureCoverage(original, policy);
+    for (const group of groups) if (!prior.named(group.hits[0]) && scope.named(group.hits[0])) {
+      promoted.set(group.key, initial.primarySyndrome);
+    }
+  }
   const possible = new Set<string>();
   const plans: Plan[] = [];
   const signatures = new Set<string>();
@@ -393,7 +436,7 @@ export function solveM03ElementClosure(input: ClosureJson, context: ClosureConte
   };
 
   for (const { hits, lookup } of groups) {
-    if (scope.named(hits[0]) || scope.rowAllows(hits[0]) || hits.every(hit => hit.source === "method" || hit.source === "pending")) continue;
+    if (scope.named(hits[0]) || (scope.rowAllows(hits[0]) && !hasCompositeCandidate(initial.primarySyndrome, hits[0], policy)) || hits.every(hit => hit.source === "method" || hit.source === "pending")) continue;
     for (const hit of hits.filter(hit => hit.compound)) {
       const parts = collectCompoundParts(groups, hit);
       if (parts.length > 1) consider(parts, closureCriteriaLookup(hit, hit.compound));
@@ -433,9 +476,11 @@ export function solveM03ElementClosure(input: ClosureJson, context: ClosureConte
     for (const plan of plans) {
       const final = boundRowContext(root, initial);
       const coverage = closureCoverage(final, policy);
-      const fresh = plan.hits.filter(hit => !coverage.named(hit) && !coverage.rowAllows(hit));
+      const fresh = plan.hits.filter(hit => !coverage.named(hit) && (!coverage.rowAllows(hit)
+        || Boolean(suggestComposite(final.primarySyndrome, hit, policy))));
       if (!fresh.length || fresh.some(hit => family.get(hit.type)?.critical)) continue;
       const composite = fresh.length === 1 ? suggestComposite(final.primarySyndrome, fresh[0], policy) : undefined;
+      if (!composite && fresh.every(hit => coverage.rowAllows(hit))) continue;
       const candidate = composite || plan.name;
       const own = deliveryNamePairs(candidate, policy);
       if (!fresh.every(hit => deliveryPairCovered(hit, own))) continue;
@@ -480,7 +525,10 @@ export function solveM03ElementClosure(input: ClosureJson, context: ClosureConte
   const oldUnits = syndromeElementLedger(root).filter(unit => unit.type !== "location" && unit.sources.includes("rationale") &&
     !unit.organs.some(organ => fits({ type: unit.type, organ } as ElementAssertion)) && !fits({ type: unit.type, organ: unit.organs[0] } as ElementAssertion));
   if (allowNames) withdrawM03RationaleFallback(root, oldUnits);
-  pruneM03ElementAssertions(root, policy, fits, context.recordText);
+  const guard = pruneM03ElementAssertions(root, policy, fits, context.recordText)
+    || closureGuardReason(input, root, context.caseState ? clinicalGroundingText(context.caseState) : context.recordText)
+    || (checkM03ElementClosure(root, policy, fits).length ? "remaining_assertions" : undefined);
+  if (guard) return { root: input, guard, ledger: [], fits: () => true, taskFailed: 0, possible: [] };
   return { root, ledger, fits, taskFailed: ledger.filter(row => row.disposition === "withdrawn_task_failed").length, possible: [...possible] };
 }
 
@@ -493,12 +541,48 @@ export function createM03ElementClosure(context: ClosureContext, policy = elemen
   let establishedRow: FinalM03ElementContext | undefined;
   let identity = "";
   let lastAudit = "";
+  let guard: string | undefined;
+  // One candidate spans the alignment and delivery passes. Keep the pre-edit
+  // values only for fields actually changed by closure. A fresh named candidate
+  // starts a new transaction, including a repair of the same syndrome.
+  const originals = new Map<string, { section: string; field: string; value: unknown }>();
+  let transactionName = "";
   const history = new Map<string, ClosureLedgerRow>();
   const deliver = (root: ClosureJson, allowNames: boolean) => {
+    if (guard) return { root, guard, ledger: [], fits: () => true, taskFailed: 0, possible: [] };
     const current = boundRowContext(root, establishedRow);
     const contextKey = JSON.stringify([current.disease, selectedElementRow(current)?.id || current.primarySyndrome]);
     if (identity !== contextKey) { identity = contextKey; history.clear(); }
     const decision = solveM03ElementClosure(root, context, policy, evidence, allowNames, evaluateClosureCriteria, current);
+    const name = JSON.stringify([current.disease, current.primarySyndrome]);
+    if (allowNames || transactionName !== name) originals.clear();
+    transactionName = JSON.stringify([current.disease, m03ElementContext(decision.root).primarySyndrome]);
+    if (decision.guard && originals.size) {
+      const restored = structuredClone(root);
+      for (const { section, field, value } of originals.values()) {
+        const parent = closureObject(restored[section]);
+        if (parent) parent[field] = structuredClone(value);
+      }
+      // Run the normal contract again; never undo a subsequent safety repair.
+      const record = context.caseState ? clinicalGroundingText(context.caseState) : context.recordText;
+      if (!closureGuardReason(root, restored, record)) decision.root = restored;
+    }
+    if (!decision.guard) for (const section of ["overview", "pathogenesis", "therapy"]) {
+      const before = closureObject(root[section]);
+      const after = closureObject(decision.root[section]);
+      if (!before || !after) continue;
+      for (const field of Object.keys(after)) {
+        const key = `${section}/${field}`;
+        if (!originals.has(key) && JSON.stringify(before[field]) !== JSON.stringify(after[field])) {
+          originals.set(key, { section, field, value: structuredClone(before[field]) });
+        }
+      }
+    }
+    if (decision.guard) {
+      guard = decision.guard;
+      history.clear();
+      console.info("[tcm-cdss:telemetry] m03_syndrome_element_closure", { phase: "closure_guard", reason: guard, mode: policy.mode });
+    }
     establishedRow = boundRowContext(decision.root, current);
     for (const row of decision.ledger) {
       const key = JSON.stringify([row.pair, row.fields]);
@@ -514,17 +598,20 @@ export function createM03ElementClosure(context: ClosureContext, policy = elemen
     return checkM03ElementClosure(root, policy, hit => current.named(hit) || current.rowAllows(hit));
   };
   const runtime = {
+    guarded: () => Boolean(guard),
     policy: { ...policy, mode: elementSupportEnabled() ? policy.mode : "off" as const },
     permits: (root: ClosureJson, hit: ElementAssertion) => {
+      if (guard) return true;
       const current = closureCoverage(boundRowContext(root, establishedRow), policy);
       return current.named(hit) || current.rowAllows(hit);
     },
-    collect: async (content: string, signal: AbortSignal) => {
-      const next = await collectM03ClosureEvidence(content, context, policy, signal);
+    collect: async (content: string, signal: AbortSignal, io?: Parameters<typeof collectM03ClosureEvidence>[4]) => {
+      const next = await collectM03ClosureEvidence(content, context, policy, signal, io);
       evidence = next.evidence;
       return next;
     },
     mergeContribution: (original: string, replacement: string, rationale: boolean) => {
+      if (guard) return replacement;
       if (original === replacement) return original;
       const next = readJson(replacement);
       if (!next) return original;
@@ -538,6 +625,7 @@ export function createM03ElementClosure(context: ClosureContext, policy = elemen
         old.field === hit.field && pairKey(old) === pairKey(hit) && old.phrase === hit.phrase)) ? original : replacement;
     },
     allowsWriter: (root: ClosureJson, value: string, source: "nature" | "method" | "element" | "pending") => {
+      if (guard) return true;
       const scope = closureCoverage(boundRowContext(root, establishedRow), policy);
       const allowed = (hit: ElementPair) => scope.named(hit) || scope.rowAllows(hit);
       return source === "element" ? allowed({ type: value }) : elementAssertionsInText(value, source, policy).every(allowed);
@@ -558,6 +646,7 @@ export function createM03ElementClosure(context: ClosureContext, policy = elemen
           element: pairKey(row.pair), disposition: row.disposition, fields: row.fields, ...(row.rowId ? { row: row.rowId } : {}),
         })),
         withdrawnTaskFailed: units.filter(row => row.disposition === "withdrawn_task_failed").length,
+        ...(guard ? { closure_guard: guard } : {}),
         finalUnsupported: findings.length, finalPaths: dedupe(findings.flatMap(hit => hit.field || [])),
         ...(shadow ? { shadowUnsupported: projected.length } : {}),
       });

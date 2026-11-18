@@ -2,6 +2,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createJiti } from "jiti";
+// Never read provider settings or contact an endpoint. F07 replaces fetch before generation.
+Object.assign(process.env, { AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_API_KEY: "synthetic-only",
+  BAILIAN_QWEN_MODEL: "qwen3.7-plus", PRIMARY_DIAGNOSE_MODEL: "qwen3.8-flash", CONTROLLED_TERMINOLOGY_NORMALIZATION: "false",
+  REASONING_CONTRACT_SIGNING_KEY: "synthetic-closure-signing-material-for-tests" });
+globalThis.fetch = async () => { throw new Error("远程请求不属于离线测试"); };
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 const a = await jiti.import("../src/lib/m03-element-assertions.ts");
 const v = await jiti.import("../src/lib/m03-element-closure-v2.server.ts");
@@ -84,8 +89,10 @@ await check("L03", "D3 肾气不固和心脾两虚按方向分解", () => {
   assert.deepEqual(keys(a.deliveryNamePairs("心脾两虚证")), ["deficiency/心", "deficiency/脾", "气虚/脾", "血虚/心"]);
   const precise = a.findUnsupportedM03ElementAssertions({ disease: "", primarySyndrome: "肾气不固证", secondarySyndromes: [] }, "肾阳不振，肾气不足。");
   assert.deepEqual(keys(precise), ["阳虚/肾"]);
-  const root = append(make("早泄", "肾气不固证", "肾气不固", "补益肾气"), "肾阳虚");
-  assert.equal(out(root, context(), undefined, policy("d3")).ledger.find(row => row.pair.type === "阳虚").disposition, "named");
+  const root = append(make("早泄", "肾气不固证", "肾气不固，封藏失职", "调理下元"), "肾阳虚");
+  const result = out(root, context(), undefined, policy("d3"));
+  assert.equal(result.guard, undefined, JSON.stringify(result.root.therapy));
+  assert.equal(result.ledger.find(row => row.pair.type === "阳虚").disposition, "named");
 });
 await check("L04", "D3 虚寒虚热只在同一脏腑解释，未定位不能覆盖指定脏", () => {
   const context = { disease: "", primarySyndrome: "肾阳虚证", secondarySyndromes: ["阴虚证"] };
@@ -352,12 +359,11 @@ await check("L25", "对齐不能把原病性数组用作新稿许可", () => {
   assert.equal(alignment.acceptedAlignmentRewrite(root, rewrite, context().recordText, rejection, runtime), undefined);
   assert.equal(rejection.reason, "nature_outside_conclusion");
 });
-await check("L26", "空病机禁止从撤回节点造回完整链", () => {
+await check("L26", "闭合会撤空整链时，保留进入闭合时的整稿并标记护栏", () => {
   const root = make("不寐", "心血虚证", "脾阳不运", "温阳健脾");
-  const solved = out(root).root;
-  assert.deepEqual(solved.pathogenesis.chain, []);
-  assert.equal(solved.overview.overallPathogenesis, "");
-  assert.equal(solved.therapy.overallMethod, "");
+  const solved = out(root);
+  assert.equal(solved.guard, "pathogenesis/chain");
+  assert.deepEqual(solved.root, root);
 });
 await check("L27", "缓存指纹随闭合版本和单项开关而变，终验位置在签名前", () => {
   const before = process.env.CDSS_M03_ELEMENT_CLOSURE_V2;
@@ -446,14 +452,177 @@ await check("L32", "病位病性回填产生的待核项和未定证草稿都经
   assert.deepEqual(runtime.inspect(root), []);
 });
 
+await check("F01", "同教材行的舌、脉同时符合才许可阴虚、虚火，限本脏", () => {
+  const row = a.selectedElementRow({ disease: "耳鸣耳聋", primarySyndrome: "肾精亏损证", secondarySyndromes: [] });
+  assert.ok(a.deliveryPairCovered({ type: "阴虚", organ: "肾" }, a.rowElementPairs(row)));
+  assert.ok(a.deliveryPairCovered({ type: "deficient-heat" }, a.rowElementPairs(row)));
+  for (const altered of [{ ...row, pulse: "脉缓" }, { ...row, tongue: "舌淡" }]) {
+    assert.ok(!a.deliveryPairCovered({ type: "阴虚" }, a.rowElementPairs(altered)));
+  }
+  assert.ok(!a.deliveryPairCovered({ type: "阴虚", organ: "肝" }, a.rowElementPairs(row)));
+});
+await check("F02", "撤空病性时按证名分解回填，保留已定轴及本虚分栏", () => {
+  const root = make("耳鸣耳聋", "肾精亏损证", "肾精不足", "补肾填精");
+  Object.assign(root.pathogenesis.natureDifferentiation, { resolution: "resolved", items: ["痰浊"] });
+  const result = out(root);
+  assert.equal(result.guard, undefined);
+  assert.ok(result.root.pathogenesis.natureDifferentiation.items.includes("精亏"));
+  assert.ok(result.root.pathogenesis.natureDifferentiation.rootDeficiency.includes("精亏"));
+  assert.deepEqual(a.checkM03ElementClosure(result.root), []);
+});
+await check("F03", "行级许可前按成组湿象合称，单一湿象保留教材单证", () => {
+  const root = make("带下过多", "脾虚证", "脾虚湿困", "健脾除湿");
+  root.pathogenesis.natureDifferentiation.items = ["气虚", "湿"];
+  assert.deepEqual(names(out(root, context("四肢困重，大便溏，舌苔白腻。")).root), ["带下过多", "脾虚湿困证"]);
+  assert.deepEqual(names(out(root, context("舌苔白腻。")).root), names(root));
+});
+await check("F04", "同合称的多个成分一并吸收；独立兼证、缺少另一脏成组依据不合", async () => {
+  const root = make("心悸", "心血不足证", "心血不足，脾气虚弱", "补血养心，益气安神");
+  root.overview.secondarySyndromes = ["心气虚证", "脾气虚证"];
+  root.pathogenesis.locationDifferentiation.details.push({location: "脾", basis: "餐后腹满、食少"});
+  root.pathogenesis.natureDifferentiation.items = ["血虚", "气虚"];
+  const ctx = context("病史：近月易惊醒，餐后腹满、食少。");
+  assert.deepEqual(names(out(root, ctx).root), ["心悸", "心脾两虚证"]);
+  assert.deepEqual(names(out(root, context("餐后腹满。")).root), names(root));
+  const original = structuredClone(root);
+  root.overview.secondarySyndromes.push("肝郁证");
+  assert.deepEqual(names(out(root, ctx).root), names(root));
+  const collected = await v.collectM03ClosureEvidence(JSON.stringify(original), ctx, policy(), undefined, {
+    reconcile: async value => value, request: async () => new Map(),
+  });
+  original.overview.secondarySyndromes = [];
+  original.pathogenesis.locationDifferentiation.details.pop();
+  assert.deepEqual(names(out(original, ctx, collected.evidence).root), ["心悸", "心脾两虚证"]);
+});
+await check("F05", "保住主证依据的鉴别点和链节点引用；纯定位与定位后的病性分开", () => {
+  const root = append(make(), "脾阳不运", "温阳健脾");
+  root.overview.primarySyndromeBasis.push("自汗");
+  root.pathogenesis.chain[1].patientFact = "自汗";
+  assert.equal(out(root).guard, "chain_key_discriminator_missing");
+  root.overview.primarySyndromeBasis.pop();
+  root.therapy.subTherapies[0].targetPathogenesis = "对应P2病机";
+  assert.equal(out(root).guard, "missing_chain_reference");
+  const keep = structuredClone(root.pathogenesis.chain[0]);
+  delete keep.nodeId;
+  root.pathogenesis.chain.push(keep);
+  root.therapy.subTherapies[0].targetPathogenesis = "对应P3病机";
+  assert.equal(out(root).root.therapy.subTherapies[0].targetPathogenesis, "对应P2病机");
+  assert.deepEqual(keys(find("病位在胃热消谷", "location")), ["heat/胃"]);
+  assert.deepEqual(find("病位在胃", "location"), []);
+});
+await check("F06", "撤空病位、总体病机或治法时，整例回到观察且末检仍可见名外断言", () => {
+  for (const change of [
+    root => { root.pathogenesis.locationDifferentiation.items = ["胃热"]; },
+    root => { root.overview.primarySyndromeBasis = ["腕痛"]; root.overview.overallPathogenesis = "脾阳不运。"; },
+    root => { root.therapy.overallMethod = "温阳健脾"; },
+  ]) {
+    const root = make();
+    change(root);
+    const runtime = v.createM03ElementClosure(context(), policy());
+    const settled = runtime.settle(root, true);
+    assert.ok(settled.guard, String(change));
+    assert.ok(runtime.guarded());
+    assert.deepEqual(settled.root, root);
+    assert.deepEqual(runtime.settle(root, false).root, root);
+    assert.ok(runtime.audit(root).length);
+  }
+});
+await check("F07", "实际 M03 定稿、交付与签名在撤空护栏下只生成一次", async () => {
+  const ctx = context("心悸健忘、纳差便溏；舌淡，脉细弱；入睡困难、多梦易醒3个月");
+  const root = make("不寐", "心脾两虚证", "脾气亏虚，心血失养", "健脾益气，养血安神");
+  const ev = { evidenceLevel: "model_inference", source: "本例四诊资料", confidence: "中" };
+  Object.assign(root.overview, {
+    primarySyndromeBasis: ["心悸健忘", "纳差便溏"], tcmDiseaseRationale: "入睡困难，多梦易醒，病程三个月，符合不寐。",
+    tcmDiagnosticRationale: "心悸健忘与纳差便溏并见，结合舌淡脉细弱，支持心脾两虚、心神失养。",
+    tcmDiseaseDifferentials: [{diseaseName: "多寐病", reason: "均有睡眠异常", distinguishingPoints: "入睡困难而非日间嗜睡", nextCheck: null}],
+    recommendedFormulaDirection: "归脾汤加减", recommendedFormulaNames: ["归脾汤"], formulaSelectionMode: "single", evidence: ev,
+  });
+  delete root.overview.primarySyndromeResolution;
+  root.westernDiagnosis = { primary: {name: "失眠症状", status: "考虑", confidence: "中", supportingFacts: ["入睡困难、多梦易醒3个月"],
+    clinicalRationale: "入睡困难、多梦易醒3个月支持失眠症状，日间功能受损尚待评估。", limitations: ["未完成睡眠量表"], suggestedChecks: [], evidence: ev}, differentials: [] };
+  Object.assign(root.pathogenesis, {
+    locationDifferentiation: {items: ["心", "脾"], evidence: ev}, natureDifferentiation: {items: ["气虚", "血虚"], evidence: ev},
+    chain: [{nodeId: "P1", patientFact: "心悸健忘、纳差便溏", syndromeEvidence: "舌淡，脉细弱",
+      pathogenesis: "胃热消谷", therapyDirection: "健脾益气，养血安神", evidence: ev}], symptomClusters: [],
+  });
+  root.therapy.overallPrinciple = "虚则补之，标本兼顾";
+  root.management = { followupSafetyNet: "若入睡困难持续两周不缓解或明显加重，及时复诊评估。" };
+  const original = globalThis.fetch;
+  const abort = new AbortController();
+  let requests = 0;
+  const runtime = v.createM03ElementClosure(ctx, policy());
+  try {
+    globalThis.fetch = async () => {
+      requests++;
+      const event = {choices: [{delta: {content: JSON.stringify(root)}, finish_reason: "stop"}]};
+      return new Response(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`, {headers: {"content-type": "text/event-stream"}});
+    };
+    const { callDiagnosisStream } = await jiti.import("../src/lib/diagnosis-api.ts");
+    const response = await callDiagnosisStream("合成辨证病例", "deepseek", undefined, "markdown", {
+      structuredStage: "diagnose", requestSignal: abort.signal, structuredClinicalContext: ctx.recordText,
+      structuredAllowedM03FormulaNames: ["归脾汤"], structuredOrchestrationStartedAt: Date.now(), m03ElementClosure: runtime,
+      truncateFallback: "SYNTHETIC_LIMITED", diagnoseSignatureContext: { contractVersion: "tcm-cdss-m03-signature-v5",
+        caseId: "synthetic-closure", encounterId: "synthetic-closure", clinicalInputHash: `sha256:${"a".repeat(64)}` },
+    });
+    const frames = (await response.text()).trim().split("\n").map(line => JSON.parse(line));
+    const content = frames.findLast(frame => frame.content?.startsWith("<<<CDSS_STREAM_FINAL>>>"))?.content || "";
+    assert.equal(requests, 1);
+    assert.ok(runtime.guarded());
+    assert.match(content, /"contractSignature":\s*"hmac-sha256:/);
+    assert.match(content, /胃热消谷/);
+    assert.doesNotMatch(content, /SYNTHETIC_LIMITED/);
+  } finally { abort.abort(); globalThis.fetch = original; }
+});
+
+await check("F08", "危候伴胸痛、舌暗，判据未取得独立成组支持时保留危候、撤血瘀断言", () => {
+  const root = append(make("真心痛", "心阳欲脱证", "心阳欲脱", "回阳固脱"), "血瘀阻络", "活血化瘀");
+  root.pathogenesis.natureDifferentiation.items = ["阳脱", "血瘀"];
+  const ctx = context("胸部压迫不适，冷汗淋漓，痛向肩部放射。\n舌象：舌质暗紫。");
+  const result = out(root, ctx, evidence(root, new Map(), ["血瘀证"]));
+  assert.deepEqual(names(result.root), ["真心痛", "心阳欲脱证"]);
+  assert.equal(result.ledger.find(row => row.pair.type === "stasis").disposition, "withdrawn_task_failed");
+  assert.deepEqual(result.root.pathogenesis.natureDifferentiation.items, ["阳脱"]);
+});
+
+await check("F09", "交付投影后才触发护栏也回滚同稿早先撤回，保留后写的独立字段", () => {
+  const root = make();
+  root.pathogenesis.natureDifferentiation.items = ["血虚", "津亏"];
+  const runtime = v.createM03ElementClosure(context(), policy());
+  const first = runtime.settle(root, true);
+  assert.equal(first.guard, undefined);
+  assert.deepEqual(first.root.pathogenesis.natureDifferentiation.items, ["血虚"]);
+  const late = structuredClone(first.root);
+  late.therapy.overallMethod = "温补肾阳";
+  late.management = { followupSafetyNet: "两日后复诊" };
+  const final = runtime.settle(late, false);
+  assert.ok(final.guard);
+  assert.deepEqual(final.root.pathogenesis.natureDifferentiation.items, ["血虚", "津亏"]);
+  assert.deepEqual(final.root.management, late.management);
+});
+
+await check("F10", "本行已许可的证素若有严格独立成组判据，仍先进入可承载的国标合称", async () => {
+  const root = append(make("产后身痛", "血虚证", "血虚失养", "补血益气"), "气虚失养", "益气扶正");
+  const ctx = context("本次稍动气促，少气懒言。舌质淡嫩。");
+  const matches = entries({ 气虚证: [["少气懒言", "少气懒言"], ["舌质淡嫩", "舌质淡嫩"]] });
+  const requested = [];
+  const snapshot = await v.collectM03ClosureEvidence(JSON.stringify(root), ctx, policy(), undefined, {
+    reconcile: async (value, ctx, signal, verify) => { await verify("血虚证", { ...ctx, primaryTerms: [] }, signal); return value; },
+    request: async groups => { requested.push(...groups.map(row => row.name)); return matches; },
+  });
+  assert.ok(requested.includes("气虚证"));
+  const strict = entry => verdict(entry, "pass", {evidenceDomains: 2, quotes: ["少气懒言", "舌质淡嫩"]});
+  assert.equal(out(root, ctx, snapshot.evidence, policy(), strict).root.overview.primarySyndrome, "气血两虚证");
+  assert.equal(out(root, ctx).root.overview.primarySyndrome, "血虚证");
+});
+
 const standardShapes = [
   ["感冒", "风寒束表证", "风寒束表，肺失宣降", "疏风散寒", "恶寒鼻塞，流清涕", "舌苔白", "脉浮紧"],
-  ["心悸", "心虚胆怯证", "脾运不健", "镇惊定志", "心悸易惊，食少", "舌淡红", "脉细"],
+  ["心悸", "心虚胆怯证", "心神不宁，脾运不健", "镇惊定志", "心悸易惊，食少", "舌淡红", "脉细"],
   ["头痛", "血虚头痛", "血虚失养，脾运不健", "滋阴养血", "头晕头痛，食少，便溏", "舌淡", "脉细"],
   ["胃痛", "肝气犯胃证", "肝气横逆，胃失和降，脾失健运", "疏肝和胃", "胃脘胀痛，嗳气后减", "苔薄", "脉弦"],
-  ["虚劳", "肺脾两虚证", "肺气不固，气陷", "补益肺脾", "劳后气短，食少", "舌淡", "脉弱"],
+  ["虚劳", "肺脾两虚证", "谷气不充，肺气不固，气陷", "补益肺脾，培土生金", "劳后气短，食少", "舌淡", "脉弱"],
   ["腰痛", "肾阴虚证", "肾阴亏虚，肾虚热", "滋补肾阴", "腰部酸痛，午后烘热", "舌红", "脉细"],
-  ["牙痛", "胃火上炎证", "胃热伤津，热扰心神", "清胃泻火", "牙龈肿痛，时感口渴", "舌红", "脉数"],
+  ["牙痛", "胃火上炎证", "胃火上炎，龈络受灼，胃热伤津，热扰心神", "清胃泻火", "牙龈肿痛，时感口渴", "舌红", "脉数"],
   ["蛇串疮", "肝经郁热证", "热毒蕴结，湿邪伤津", "清热解毒", "皮肤疱疹，灼痛", "舌红", "脉弦"],
   ["瘾疹", "风热犯表证", "风热表邪，热灼津伤", "疏风清热", "风团瘙痒，口干", "舌红", "脉浮"],
   ["月经先期", "阳盛血热证", "热扰冲任，热甚伤津，血瘀", "清热凉血调经", "经期提前，经色深红", "舌红", "脉数"],
@@ -464,6 +633,7 @@ for (const [index, [disease, name, mechanism, method, body, tongue, pulse]] of s
     for (const state of ["pass", "fail", "failed"]) {
       const solved = forced(root, context(`现病史：${body}。\n舌象：${tongue}。\n脉象：${pulse}。`), state);
       assert.deepEqual(names(solved.root), [disease, name], state);
+      assert.equal(solved.guard, undefined, state);
       assert.deepEqual(a.checkM03ElementClosure(solved.root), [], state);
     }
   });
