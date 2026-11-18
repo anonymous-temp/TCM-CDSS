@@ -1,3 +1,4 @@
+import { quoteGroundedInText } from "./verbatim-quote";
 import "server-only";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { engineeringJargonInText, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
@@ -205,8 +206,10 @@ export function validateRationalePair(raw: unknown, context: FinalRationaleConte
   ];
   const alignment = new Map([...new Set(evidence.map(({ quote }) => quote))]
     .map((quote) => [quote, hasCurrentRationaleQuote(context, quote)]));
-  const unaligned = evidence.filter(({ quote }) => !alignment.get(quote));
-  if (unaligned.length * 3 > evidence.length) {
+  // 辨病证据可以是阴性或正常的检查（「尿妊娠试验阴性」之于月经后期）：只要求逐字出自病历；分组证据仍须是本人本次肯定所见。
+  // 引文只是提纲里的证据，成文另有病历事实核对；对不回的超过一半才整体拒（真链路上三分之一的门槛拒掉了 190 例里的 21 例）。
+  const unaligned = evidence.filter(({ quote, field }) => !alignment.get(quote) && !(field === "d" && quoteGroundedInText(quote, context.recordText)));
+  if (unaligned.length * 2 > evidence.length) {
     for (const { field, quote } of unaligned) reasons.push({ code: "quote_occurrence", field, phrase: quote });
   }
   if (reasons.length || !verdict.ok) return { ok: false, reasons };

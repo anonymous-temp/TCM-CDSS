@@ -261,7 +261,7 @@ await check("02", "完整键隔离轴引文、病历、主兼名、流派、确�
   assert.equal(hit.events[0].prefetch, "hit", JSON.stringify(hit.events));
   assert.equal(hit.calls.length, 1);
 });
-await check("03", "逐处对回本人本次肯定所见，三分之一上界含等号", () => {
+await check("03", "逐处对回本人本次肯定所见；辨病证据逐字即可；对不回过半才拒", () => {
   const ctx = context(input({ symptoms: { presentHistory: "时有心悸。睡中易醒。否认腹痛、恶心。今日自觉腹痛。既往曾出现头痛。母亲本人咳嗽。是否便血不详。今日头晕，时有头晕。", tcmPulse: "脉象：弦" } }));
   for (const quote of ["今日自觉腹痛", "腹痛", "头晕", "时有心悸。", "脉弦"]) assert.ok(hasCurrentRationaleQuote(ctx, quote), quote);
   for (const quote of ["否认腹痛", "恶心", "头痛", "母亲本人咳嗽", "便血", "今日自觉腹痛便血"]) {
@@ -274,7 +274,15 @@ await check("03", "逐处对回本人本次肯定所见，三分之一上界含�
   const normal = context();
   const reply = outline(normal.input);
   assert.ok(validateRationalePair({ ...reply, d: ["未录词条"] }, normal).ok);
-  assertRejected({ ...reply, d: ["未录词条", "另一无据词条"] }, normal, "quote_occurrence");
+  // 第五十轮真链路：门槛由三分之一放到一半；辨病证据可以是病历里逐字的阴性/正常所见，分组证据不行。
+  assert.ok(validateRationalePair({ ...reply, d: ["未录词条", "另一无据词条"] }, normal).ok, "四条里两条对不回：恰好一半，不拒");
+  assertRejected({ ...reply, d: ["未录词条", "另一无据词条", "第三条无据"] }, normal, "quote_occurrence");
+  const negative = outline(ctx.input);
+  const withNegative = validateRationalePair({ ...negative, d: [...negative.d, "否认腹痛、恶心", "否认腹痛、恶心。", "是否便血不详"] }, ctx);
+  assert.ok(withNegative.ok || !withNegative.reasons.some((r) => r.code === "quote_occurrence"), JSON.stringify(withNegative));
+  const negativeGroup = structuredClone(negative);
+  negativeGroup.g[0][0] = ["否认腹痛、恶心", "是否便血不详", "既往曾出现头痛"];
+  assertRejected(negativeGroup, ctx, "quote_occurrence");
   const groups = structuredClone(reply);
   groups.g[0][0] = ["编造一", "编造二"];
   assertRejected(groups, normal, "quote_occurrence");
@@ -437,6 +445,23 @@ await check("12", "off 字节一致，新字节渲染并签名，处方工作副
   const unknown = await wire({ mode: "unknown" });
   assert.equal(off.content, unknown.content);
   assert.equal(off.calls.length, 0);
+  // 缺省口径：未设开关时，生产环境开、其余关；显式值优先。
+  const policy = await lib("m03-final-rationale-policy");
+  const saved = { mode: process.env.CDSS_M03_FINAL_RATIONALE, env: process.env.NODE_ENV };
+  try {
+    delete process.env.CDSS_M03_FINAL_RATIONALE;
+    process.env.NODE_ENV = "test";
+    assert.equal(policy.finalRationaleMode(), "off");
+    process.env.NODE_ENV = "production";
+    assert.equal(policy.finalRationaleMode(), "on");
+    process.env.CDSS_M03_FINAL_RATIONALE = "off";
+    assert.equal(policy.finalRationaleMode(), "off");
+    process.env.CDSS_M03_FINAL_RATIONALE = "shadow";
+    assert.equal(policy.finalRationaleMode(), "shadow");
+  } finally {
+    if (saved.mode === undefined) delete process.env.CDSS_M03_FINAL_RATIONALE; else process.env.CDSS_M03_FINAL_RATIONALE = saved.mode;
+    process.env.NODE_ENV = saved.env;
+  }
   const on = await wire();
   const { reasoning, content, state } = on;
   assert.equal(on.events[0].signed, true, JSON.stringify(on.events));
