@@ -206,7 +206,8 @@ await check("B1 横幅列出每一条不同的红旗：去重、语义层红旗�
 // ───── W 路由接线 ─────
 await check("W1 辨证路由：中医半与兼证一致并行、西医半与病名核对并行，都落在它们的结果上；确定性红旗病例的横幅并进语义层红旗", () => {
   const route = fs.readFileSync(path.join(SRC, "app/api/diagnosis/diagnose/route.ts"), "utf8");
-  assert.match(route, /Promise\.all\(\[\s*reconcileSecondarySyndromes\(completed,[\s\S]{0,200}decidePatientClaimRemovals\(completed,[^)]*"tcm"/u);
+  // 第五十轮：开新台账与旧回退时都与本例说法核对并行。
+  assert.match(route, /Promise\.all\(\[\s*elementClosure\.policy\.mode === "off"[\s\S]{0,300}elementClosure\.collect\(completed, transformSignal\),\s*decidePatientClaimRemovals\(completed,[^)]*"tcm"/u);
   // 2026-10-22 第十五轮：兼证核对的结果先过证素核对（applyElementSupportDecision），本例说法核对仍落在它上面。
   // 2026-10-24 第十七轮：外面再套一层脱证提为主证（promoteCriticalSecondarySyndrome），落在三件核对之后。
   // 2026-10-27 第二十六轮：三件核对落定之后、提脱证之前，再补一次舌脉（reattributeStrandedKeyFindings，见 test:r1038-main 4.2）。

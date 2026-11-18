@@ -182,7 +182,7 @@ export function natureEvidenceTerms(label: string, evidence: readonly string[]):
 }
 
 /** Only close an explicit empty-column contradiction. Other absent elements remain P6a's responsibility. */
-export function reconcileEmptyNatureAssertions(reasoning: Json, recordText: string): void {
+export function reconcileEmptyNatureAssertions(reasoning: Json, recordText: string, allows?: (label: string) => boolean): void {
   const overview = object(reasoning.overview), pathogenesis = object(reasoning.pathogenesis);
   const nature = object(pathogenesis?.natureDifferentiation);
   if (!overview || !pathogenesis || !nature) return;
@@ -200,6 +200,7 @@ export function reconcileEmptyNatureAssertions(reasoning: Json, recordText: stri
   const evidence = [text(nature.basis), ...strings(overview.primarySyndromeBasis), ...nodes.map((node) => text(node.patientFact))].flatMap(clauses)
     .map((quote) => quote.trim()).filter((quote) => quote.length >= 2 && recordText.includes(quote));
   for (const label of missing) {
+    if (allows && !allows(label)) continue;
     const signs = natureEvidenceTerms(label, evidence);
     const grounded = evidence.find((quote) => signs.some((sign) => quote.includes(sign) && recordedFindingReading(recordText, sign) === "affirmed"));
     if (grounded) {
@@ -220,8 +221,8 @@ export function reconcileEmptyNatureAssertions(reasoning: Json, recordText: stri
   classifyNatureColumns(nature);
 }
 
-export function reconcilePathogenesisColumns(reasoning: Json, recordText: string): void {
-  reconcileEmptyNatureAssertions(reasoning, recordText);
+export function reconcilePathogenesisColumns(reasoning: Json, recordText: string, allows?: (label: string) => boolean): void {
+  reconcileEmptyNatureAssertions(reasoning, recordText, allows);
   reconcileAnalysisUncertainties(reasoning, recordText);
   reconcileChainTherapy(reasoning);
 }

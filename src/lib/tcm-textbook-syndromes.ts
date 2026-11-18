@@ -3,6 +3,7 @@ import { diseaseEvidenceGroups, diseaseRecordChief, diseaseRefinementEnabled } f
 import { diseaseNeutralCategoryName, diseaseNeutralPrompt, supportedDiseaseNeutralName } from "./m03-disease-neutral-policy";
 import subtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" with { type: "json" };
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
+import elementClosureSource from "../data/m03-element-closure-v2.source.json" with { type: "json" };
 import elementPromotionSource from "../data/tcm-syndrome-element-promotion.source.json" with { type: "json" };
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
@@ -90,6 +91,7 @@ interface TextbookDisease {
 
 type RawRow = {
   referenceOnly?: boolean;
+  elementAnalysis?: { line: number; text: string };
   formulaBooks?: Record<string, string>;
   candidateChief?: string[];
   precondition?: TextbookFormulaStageRow["precondition"]; preconditionNotice?: string; formulaStage?: string; formulaSequence?: TextbookFormulaStageRow["formulaSequence"]; runtimePolicy?: TextbookFormulaStageRow["runtimePolicy"]; evidence?: unknown[];
@@ -376,6 +378,11 @@ const DISEASES = buildDiseases();
 const DISEASE_SECTION_NAMES = new Set(DISEASES.map((item) => item.disease));
 const ROW_BY_ID = new Map(DISEASES.flatMap((disease) => disease.rows.map((row) => [row.id, row] as const)));
 
+const ROW_ELEMENT_ANALYSIS = new Map(RAW_ROWS.flatMap(row => row.elementAnalysis
+  ? [[text(row.id), row.elementAnalysis] as const] : []));
+export function textbookRowElementAnalysis(row: Pick<TextbookSyndromeRow, "id">) {
+  return ROW_ELEMENT_ANALYSIS.get(row.id);
+}
 export function textbookRowById(id: string): TextbookSyndromeRow | undefined { return ROW_BY_ID.get(id); }
 
 /** 主治覆盖核对用，包含教材正式病名、别名与明确的西医对应名。 */
@@ -1010,6 +1017,11 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
       const original = disease.rows.find((row) => rule.primary.some((name) => syndromeCore(name) === syndromeCore(row.syndromeName) || syndromeCore(name) === syndromeCore(row.syndrome)));
       if (original) return original;
     }
+  }
+  const qualified = elementClosureSource.qualifiedComposites.find(rule => syndromeCore(rule.to) === target);
+  if (qualified) {
+    const original = named.flatMap(disease => disease.rows).find(row => syndromeCore(row.syndromeName) === syndromeCore(qualified.from));
+    if (original) return original;
   }
   // 病名本身是教材某病下的一型（「石淋」是淋证的一型，不是一节）、表里没有以它为名的节：用那一行（2026-10-19 Claude 评审留出例 S067：
   // 模型写「石淋·湿热蕴结证」，查不到行，选方落到外科同名证的五神汤；上一轮写「淋证·石淋」时是石韦散）。只认内科类（优先级≤1）、

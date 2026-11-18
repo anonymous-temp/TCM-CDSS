@@ -302,8 +302,10 @@ await check("5.6 只属于兼证的治法项：含兼证要素用词、不含主
 });
 await check("5.7 流程：模型自写的兼证与两条补立路径都过同一判据；开关与遥测在", async () => {
   const source = readFileSync(new URL("../src/lib/m03-secondary-syndrome-consistency.server.ts", import.meta.url), "utf8");
-  assert.match(source, /verifySecondaryByCriteria\(text\(name\), \{ recordText: context\.recordText, primaryTerms \}, signal\)/);
-  assert.match(source, /criteria = await verifySecondaryByCriteria\(decision\.secondarySyndrome/);
+  // 第五十轮：兼证调用点改用可注入的同名任务，旧单项核对仍是缺省。
+  assert.match(source, /verify: SecondaryCriteriaVerifier = verifySecondaryByCriteria/);
+  assert.match(source, /verify\(text\(name\), \{ recordText: context\.recordText, primaryTerms \}, signal\)/);
+  assert.match(source, /criteria = await verify\(decision\.secondarySyndrome/);
   assert.match(source, /CDSS_M03_SECONDARY_CRITERIA/);
   assert.match(source, /m03_secondary_criteria/);
 });

@@ -135,7 +135,7 @@ function analysisTexts(reasoning: Json): string[] {
  * 治法在治、分析也写了、病历有两条以上表现的实邪证素，病性栏补上（items 与标实两栏，依据补上病历原文小句）。纯函数、就地改，返回补上的标签。
  * 只补不删；病性栏已经写了的不动。给交付面与几处「交付时证名」的预判共用（compositeSyndromeRename 之前）。
  */
-export function withMethodImpliedNatureElements(reasoning: Json, recordText: string): string[] {
+export function withMethodImpliedNatureElements(reasoning: Json, recordText: string, allows?: (element: ExcessElementId) => boolean): string[] {
   const overview = record(reasoning.overview);
   const pathogenesis = record(reasoning.pathogenesis);
   const nature = record(pathogenesis?.natureDifferentiation);
@@ -144,7 +144,7 @@ export function withMethodImpliedNatureElements(reasoning: Json, recordText: str
   const asserted = excessElementMentionsIn(analysisTexts(reasoning).join("。"));
   const added: string[] = [];
   for (const id of methodImpliedExcessElements(method)) {
-    if (!asserted.has(id) || natureListsElement(nature, id)) continue;
+    if (!asserted.has(id) || natureListsElement(nature, id) || (allows && !allows(id))) continue;
     const signs = recordExcessSigns(recordText, id);
     if (signs.length < MIN_RECORD_SIGNS) continue;
     const label = excessElement(id).label;
