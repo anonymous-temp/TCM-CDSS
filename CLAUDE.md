@@ -3635,6 +3635,83 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 - **Rollback.** Image `tcm-cdss:20261117-1c7fcfa-prebuilt` (or `…20261116-08f12eb…`) with the compose backups in the release directory. Container logs before each replacement are in `~/telemetry-archive/container-pre-{1c7fcfa,2967ecd}-*.log.gz` on the host.
 - **Local build.** The first took two minutes with 3.5 GB available. The second was OOM-killed with 3.5 GB of memory plus swap, then went through with a temporary 3 GB zram swap (removed afterwards).
 
+### 11/18 round 50: 中医诊断 and 诊断依据 — disease layer, rationale written after settlement, element closure built but not enforced (2026-11-18)
+
+**Why and how the round was set.**
+- **The analysis first.** The user asked for a full read-only analysis of the two P0 items still under their lines (中医诊断 ≥95, 诊断依据 ≥90). Finding: they are one problem. The syndrome name and the analysis text come from two sources and are reconciled afterwards; the reconciliation gave up on 73% of the elements outside the name, and one third of the alignment rewrites were rejected and left the contradicting text in place. It is not a question of loosening the 兼证 rule (memory `cdss-tcm-dx-basis-analysis-20261118`).
+- **What the user then asked.** Three things, led by a swarm (Codex gpt-6.2-astra for analysis, gpt-6.2-sol for implementation, Kimi for knowledge), then commit, push, deploy and test. The 山茱萸 food-limit decision is set aside.
+  - **P1:** an element outside the syndrome name enters the name or is withdrawn from every column.
+  - **P2:** 辨病依据 and 辨证依据 are written once, after the names are final.
+  - **P3:** the disease layer (no appended 「病名待核实」, finer disease names, no disease subtype in the syndrome slot, neutral names).
+- **Material.**
+  - Worker briefs, analyses, knowledge files, logs and counter-proofs: `/var/tmp/r1067/` (`briefs/`, `analysis/A1–A3`, `know/`, `logs/`, `cp/`, `gate.sh`).
+  - Measurement: `~/runlogs/r1018/work/r1067/` (`gen.sh` paired memo-replay arms, `run-judge-arm.sh`, `probe/cmp.py`, `probe/cmp-judge.py`, `probe/judge-pair.mjs` + `tally-pair.py` (blind old/new judge of the 诊断依据 item), `probe/fr-live.mjs` (drives the rationale author with a real model on saved outputs), `out/`, `judge/`, `deploy/`).
+  - Suites: `test:r1067-disease` (22), `test:r1067-closure` (53), `test:r1067-rationale` (23).
+
+**How the work went.**
+- Three analyses by gpt-6.2-astra (30–50 min each) and two knowledge files by Kimi (29 disease-refinement pairs, subtype → governed syndrome names; 150/150 local quotes verified) came first. Three gpt-6.2-sol packages followed, each with its own suite and counter-proofs.
+- Every package passed its stub replays and then behaved differently on live runs. Four more worker rounds and a main-session fix pass followed. The release criterion was the same-day paired arm judged by qwen4-max, plus a blind old/new judge for the rationale text.
+- Codex CLI 0.162 rejects `gpt-6.2-*`; a private 0.169.1 install is used by `/var/tmp/r1067/launch.sh`.
+
+**P3: disease layer (shipped, on by default).**
+- **Missing defining finding.** `withDiseaseDefiningFindingCaveat` no longer appends 「…尚未见，病名待核实」 to the disease rationale. The one existing redraw offers up to three alternative diseases that the record's affirmed facts support, with their definitions, and tells the model which items are denied and which are simply unrecorded. If the disease stays and the item is still missing, it goes into `pathogenesis.uncertainties` (denied items are not listed).
+- **Finer disease names** (`CDSS_M03_DISEASE_REFINEMENT`; `refinements` in `tcm-disease-defining-findings.source.json`, each rule with its textbook quote and an id that `CDSS_M03_DISEASE_DISABLED_RULES` can switch off):
+  - 肺胀 (own COPD history + current cough, sputum and exertional dyspnoea), 膝痹 (knee pain + knee osteoarthritis history or same-site imaging degeneration), 胆胀 (gallstones + biliary symptoms or ultrasound), 疳证 in children;
+  - same-section subtypes in `tcm-textbook-disease-subtypes.source.json` (17 evidence rules): 中风 stages (后遗症期 only when clearly over six months), 汗证 自汗/盗汗, 痹证（项痹）, 泄泻（暴泻）, 水肿（阴水）, 黄疸（阳黄）, 消渴（下消）;
+  - the Western abbreviation table (COPD, 房颤…) is shared by the history-stated-disease reader, and a current complication of an established disease counts as explaining the visit (消渴 with ketosis is not renamed 呕吐).
+  - Two rules were removed after live runs (tonsillitis flare, recurrent furuncles).
+- **A refined disease does not list its coarse parent as a differential** (`isRefinementParentOf` in `tcm-disease-differential-normalization.ts`; 膝痹 had 痹证 as a differential), unless the textbook itself lists it (肺胀 vs 喘证).
+- **Syndrome slot** (`CDSS_M03_SUBTYPE_SYNDROME_NAMES`): when the disease's own subtype name sits in the syndrome slot (淋证（劳淋）+ 「劳淋」), the syndrome is the textbook row's own syndrome chosen by the case's evidence (脾肾两虚证, 膀胱湿热证). Only this collision is handled; applying the whole 243-row mapping would have changed 24 saved outputs, including customer standard case 3.
+- **Neutral names** (`CDSS_M03_DISEASE_NEUTRAL_POLICY`, `m03-disease-neutral-policy.ts`): per disease, the textbook's basic-mechanism sentence and the governed candidates with the record condition each needs; prompt rule 7, the settled name and the phrase tidy-up read the same table. The five category words (气机失调证, 气机阻滞证, 气滞证, 气逆证, 心神不宁证) are not used when the disease has a qualified specific candidate.
+
+**P2: the two rationales written after settlement (`m03-final-rationale*.ts`; shipped).**
+- **Where.** After the delivered-surface projection and before the final gate and signature, one small task on deepseek-flash (`json_object`, temperature 0, 900 output tokens) rewrites `overview.tcmDiseaseRationale` and `overview.tcmDiagnosticRationale` for the final names. It is prefetched from the settled candidate; the final snapshot must hash the same. The earlier steps are untouched: their text is the fallback.
+- **Shape (version `r1067-5`).** The model first lists evidence — verbatim record quotes for the disease, then groups of [quotes, mechanism, final syndrome], then tongue and pulse with their meaning — and then writes the two paragraphs in ordinary clinical prose. The first design (compact positional outline, `{{q}}` placeholders, strict validation) was accepted 0/10 live; three more iterations reached 20–55% and a blind tie. The round-39 design (outline as evidence, prose, existing patient-claim check) gave 88% on saved outputs.
+- **Server checks** (`-validation.server.ts`): final disease name (base name without its subtype is enough) and final syndrome names present, no other syndrome name, recorded tongue and pulse each explained (a 苔-only clause counts), lengths, no internal wording, the lineage sentence taken from the already-checked earlier rationale, evidence quotes aligned to the record (rejected when more than half fail; disease evidence may quote verbatim negatives). An element outside the name is a soft finding and is accepted on the first draft. Then `decidePatientClaimRemovals` runs on the two paragraphs only. Any failure keeps the earlier two paragraphs; never half and half.
+- **Only for records with both tongue and pulse** (`finalRationaleSparseRecordsEligible`; `CDSS_M03_FINAL_RATIONALE_SPARSE=true` lifts it). Same-judge split of 187 paired outputs: with tongue and pulse (77) the 诊断依据 failures went 8 → 4; without (110) 16 → 19 — on sparse records the new text more often wrote findings the record lacks (「咳时引痛」「耳道未见堵塞」「壮热」 at 38.0 ℃). Sparse records keep the earlier text and make no call.
+- **Switch.** `CDSS_M03_FINAL_RATIONALE=off|shadow|on`; unset means on in production and off elsewhere (tests and local development re-run the same input against stubs). `CDSS_M03_FINAL_RATIONALE_RETRY=true` re-enables the revision retry, which is off: it cost M03 +4.6 s median / +9.4 s p90.
+- **Telemetry** `m03_final_rationale` (eligible, launched, valid replies, verified, signed, adopted, reason codes, wait and model ms; no record text). Read adoption there first.
+
+**P1: element closure v2 (built; default `observe`, not enforced).**
+- **What it is** (`m03-element-closure-v2.server.ts`, `m03-element-assertions.ts`, `m03-element-closure-guard.server.ts`, data `m03-element-closure-v2.source.json`): every affirmed element outside the syndrome name is permitted by the settled textbook row (row-level, per assertion), promoted into the name after the criteria check, or withdrawn from nature, location pairs, chain, overall pathogenesis, method items and pending items; the decision travels with the candidate so later writers (`reconcileEmptyNatureAssertions`, method-implied nature elements, alignment rewrite, lineage and method merges, chain restore) cannot write a withdrawn element back. `CDSS_M03_ELEMENT_CLOSURE_V2=off|observe|enforce`, per-rule `CDSS_M03_ELEMENT_CLOSURE_V2_DISABLE=d1..d7`.
+- **Why it is not enforced.**
+  - The first live enforce arm had 3 limited pages and lost composite names; after a fix round a full arm still had 7 limited pages (h04, h07, C012, C036, C043, C048, n40) and, on 161 pairs, 诊断依据 88.2 → 83.9 and 鉴别 93.8 → 88.8 (customer 47: 中医诊断 91.5 → 95.7).
+  - Three places turned a closure leftover into a voided page (the signing step, the emission block, the final delivery barrier). All three are fail-open now: a leftover is logged as `m03_element_closure_unsettled` and the complete result is delivered.
+  - On the final code, enforce still sends h04 to the limited page (1 of 87) and withdraws 6 of 87 secondaries (肾阳虚证 under 膝痹·肝肾亏损证, 血瘀证 under 心阳欲脱证…). The element checker also has false positives (未化热, 外袭/犯表 synonyms, 阳衰 under 心阳欲脱).
+- **What is delivered in observe mode.** The composite-name fix: a primary plus secondaries that form a GB composite are delivered as the composite (心血不足证 + 脾气虚证 + 心气虚证 → 心脾两虚证; 脾虚 + 湿 → 脾虚湿困证). Production had been delivering the split form on customer 11.05 records 3 and 10. Observe also logs what enforce would do.
+
+**Found on live runs, each with a test and a counter-proof** (19 mutations for the main-session fixes in `/var/tmp/r1067/cp/fixpass*.json`, all caught; two first missed because the fixture passed without the rule):
+- **Rationale never signed in the pipeline (59% adoption against 88% offline).** The delivery hash compared an in-memory object carrying explicit `undefined` keys with the parsed delivered JSON. It now hashes the JSON view (`finalRationaleDeliveryHash`).
+- **Truncated replies.** At 700 output tokens about 5% of live replies were cut into invalid JSON; the cap is 900.
+- **A quality gate must not void a page.** The three closure sites above.
+- **Stub replays did not predict live behaviour** for closure (stubs said 0 leftovers and no name changes; live had limited pages). New model steps and new withdrawal logic are measured live before any quality claim.
+
+**Measured** (local route harness, customer request shape, memo-replayed paired arms; qwen4-max with `r1066/judge-accept.mjs`, 「欠妥算过」; base = production 741d2e02 generated the same day).
+- **Judge noise.** The same 41 outputs judged twice: 3 fail↔non-fail flips each for 中医诊断 and 诊断依据 (about 7%). Only pooled differences of 3–4 points on about 300 outputs mean anything.
+- **Baseline, all 301:** 中医诊断 85.4%, 诊断依据 88.4%.
+- **Arm n5** (closure observe + disease layer + rationale on for every record, i.e. before the tongue-and-pulse gate), 187 pairs (customer 10, retest 20, 11.05 17, holdout 40, customer 100):
+
+  | Item | Base | n5 |
+  |---|---|---|
+  | 中医诊断 | 83.4 | 85.6 |
+  | 诊断依据 | 87.2 (clean pass 67) | 87.7 (clean pass 85) |
+  | 治则治法 | 90.9 | 95.7 |
+  | 病机分析 | 37.4 | 43.3 |
+  | 中医鉴别 | 93.0 | 92.5 |
+  | 随症加减 | 81.6 | 80.2 |
+
+  Customer's own 47 records: 诊断依据 85.1 → 91.5, 中医诊断 91.5 → 89.4 (4 vs 3 flips, inside the noise).
+- **Rationale step.** Blind old/new judge on 43 saved outputs: old pass 8 / minor 23 / fail 12, new pass 25 / minor 16 / fail 2; preferred new 32, old 11. In the pipeline: adopted 64% (n5) and 68% with the final rules (n6); wait p50 3.4–3.6 s, p90 5.3–5.5 s when it runs. Reasons for keeping the old text: sanitizer rewrote the new text, element outside the name, invalid JSON, evidence gap.
+- **Disease layer on the customer's records:** rt-258816 and e05-14 → 膝痹·肝肾亏损证; e05-03 / rt-082816 → 心脾两虚证; e05-10 / rt-509632 → 脾虚湿困证; no limited page in any observe arm.
+- **Neither P0 line is reached pooled.** 中医诊断 stays near 85–86 and 诊断依据 near 88 under this judge; the gains are on full records and in the share of clean passes.
+
+**Left as is.**
+- **Enforce mode** (h04 limited page, checker false positives). It can be tried in production with the override (`CDSS_M03_ELEMENT_CLOSURE_V2=enforce`, no rebuild), but is not recommended before those are fixed.
+- **Rationale on sparse records.** Fabricated findings and unrecorded negatives pass the claim check there; the new text does not go through the 「未诉」 rewrite.
+- **Rationale non-adoption about one third**, mostly the negation sanitizer rewriting the new text (`transaction_sanitized`) and elements outside the name.
+- **中医鉴别** varied with the M03 redraw (differentials that share only a category, textbook definitions pasted as the typical manifestation); one class was fixed (coarse parent).
+- **Model judgement the judge keeps naming:** names narrower than the analysis (肾虚 not in the name when 病位 says 肾), 外感风邪证 for a sparse febrile record, 胃痞 distinguished from 「痞满」.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
