@@ -1,4 +1,5 @@
 import { supportedDiseaseNeutralName } from "./m03-disease-neutral-policy";
+import chiefConceptGroups from "../data/tcm-differential-chief-concepts.source.json" with { type: "json" };
 import { selectGroundedHerbFunction, type HerbFunctionPatient } from "./herb-function-display-source";
 import rxtextPolicy from "../data/rxtext-content-policy.source.json";
 import { populationMatchedPrecautions } from "./population-matched-precautions";
@@ -1291,6 +1292,13 @@ const DEMEANOR_PATTERNS = triggerPolicy.demeanorPatterns.map((pattern) => new Re
 const CRITICAL_FINDING_PATTERNS = triggerPolicy.criticalFindingPatterns.map((pattern) => new RegExp(pattern, "u"));
 const PERFUSION_PATTERNS = triggerPolicy.perfusionPatterns.map((pattern) => new RegExp(pattern, "u"));
 
+const CHIEF_CONCEPT_GROUPS: string[][] = (() => {
+  const groups = (chiefConceptGroups as { concepts: Array<{ forms: string[] }> }).concepts.map((group) => group.forms.filter((form) => typeof form === "string" && form.length >= 2));
+  const owners = new Map<string, number>();
+  for (const group of groups) for (const form of group) owners.set(form, (owners.get(form) || 0) + 1);
+  return groups.filter((group) => group.every((form) => owners.get(form) === 1));
+})();
+
 export function modificationTriggerNotFinding(trigger: string, context: ModificationTriggerContext = {}): "normal_or_meta" | "factor" | "demeanor" | "main_symptom" | "emergency_sign" | undefined {
   const body = String(trigger || "").normalize("NFKC").trim().replace(TRIGGER_LEAD, "").replace(/[。；;，,\s]+$/u, "");
   if (NEGATIVE_FINDING.test(body) || CONSTITUTION_TRIGGER.test(body) || rxtextPolicy.normalNegativeTriggers.includes(body) || normalOrRecordMetaTrigger(body)) return "normal_or_meta";
@@ -1329,6 +1337,9 @@ export function modificationTriggerNotFinding(trigger: string, context: Modifica
   if (chiefSegments.includes(bodyCore)) return "main_symptom";
   const characteristic = recordedMainSymptomCharacteristic(body, context);
   if (characteristic) return undefined;
+  // 与主诉某一症状同属一个受治理症状概念组（已记程度或特点的写法照旧可作条件；主诉「流涕」与条件「喷嚏」、主诉「腹泻」与条件「大便稀溏」），也是主诉本身（第五十一轮：评审判「主诉本身不作加减条件」20/51）。
+  // 只用不与别组共用写法的概念组（「出血」「排尿」这类跨组的大类不用）。
+  if (chiefSegments.length && CHIEF_CONCEPT_GROUPS.some((group) => group.some((form) => chiefSegments.some((segment) => segment.includes(form))) && group.some((form) => bodyCore.includes(form)))) return "main_symptom";
   if (terms.length > 0 && mainForms.length > 0 && terms.every((term) => mainForms.some((form) => form.includes(term) || term === form))) return "main_symptom";
   // 「夜间尿床每周4次」「连声不断」等主症的频次/形态写法，有限描述词表与本病绑定。
   if (descriptors.includes(body.replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim())) return "main_symptom";
@@ -3523,7 +3534,12 @@ export function compileM04JsonObjectContent(
     // would let the provider replace M03-owned overview/pathogenesis/therapy fields and bypass the
     // server compiler. Legacy full-V2 responses must be regenerated through the proposal contract.
     return compileM04Proposal(parsed, prior, caseState, trustedMedicineCandidates, instructionRecords);
-  } catch {
+  } catch (error) {
+    // 第五十一轮生产冒烟一次「proposal_prior_missing」实为编译抛错（本地复现不出），只记错误类型与首个栈帧，不记内容。
+    if (!(error instanceof SyntaxError)) {
+      const frame = error instanceof Error ? String(error.stack || "").split("\n").find((line) => /\.(?:ts|js):\d+/u.test(line))?.trim().slice(0, 160) : undefined;
+      console.warn("[tcm-cdss:telemetry] m04_proposal_compile_error", { name: error instanceof Error ? error.name : typeof error, message: error instanceof Error ? error.message.slice(0, 160) : undefined, frame });
+    }
     return undefined;
   }
 }

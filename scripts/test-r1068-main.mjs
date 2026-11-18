@@ -244,3 +244,11 @@ await check("1.3", "补位关时教材主症甚条件不再经任何一路交付
   for (const trigger of ["学校压力大", "经济压力", "工作压力较大"]) assert.equal(c.modificationTriggerNotFinding(trigger), "factor", trigger);
   assert.equal(c.modificationTriggerNotFinding("血压偏高"), undefined, "反证：不是压力");
 });
+
+await check("10.3", "与主诉某症状同属一个症状概念组的条件也是主诉本身（流涕—喷嚏、腹泻—大便稀溏）；跨组大类不用", () => {
+  const ctx = (chiefComplaint) => ({ caseState: { chiefComplaint }, recordText: `主诉：${chiefComplaint}` });
+  assert.equal(c.modificationTriggerNotFinding("喷嚏", ctx("鼻塞流涕、咽痒2天")), "main_symptom");
+  assert.equal(c.modificationTriggerNotFinding("大便稀溏", ctx("腹泻3天")), "main_symptom");
+  assert.equal(c.modificationTriggerNotFinding("口苦", ctx("腹泻3天")), undefined, "反证：不同概念");
+  assert.equal(c.modificationTriggerNotFinding("尿血", ctx("尿频尿急3天")), undefined, "反证：「排尿」「出血」这类跨组大类不用");
+});
