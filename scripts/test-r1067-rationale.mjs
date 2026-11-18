@@ -278,7 +278,9 @@ await check("03", "逐处对回本人本次肯定所见；辨病证据逐字即�
   assert.ok(validateRationalePair({ ...reply, d: ["未录词条", "另一无据词条"] }, normal).ok, "四条里两条对不回：恰好一半，不拒");
   assertRejected({ ...reply, d: ["未录词条", "另一无据词条", "第三条无据"] }, normal, "quote_occurrence");
   const negative = outline(ctx.input);
-  const withNegative = validateRationalePair({ ...negative, d: [...negative.d, "否认腹痛、恶心", "否认腹痛、恶心。", "是否便血不详"] }, ctx);
+  // 逐字但非「本人本次肯定」的引文要多到超过一半，才分得出「辨病证据逐字即可」这条规则有没有生效。
+  const verbatimNonCurrent = ["否认腹痛、恶心", "否认腹痛", "恶心", "既往曾出现头痛", "头痛", "母亲本人咳嗽", "是否便血不详", "便血", "是否便血", "否认腹痛、恶心。", "既往曾出现头痛。", "是否便血不详。"];
+  const withNegative = validateRationalePair({ ...negative, d: [...negative.d, ...verbatimNonCurrent] }, ctx);
   assert.ok(withNegative.ok || !withNegative.reasons.some((r) => r.code === "quote_occurrence"), JSON.stringify(withNegative));
   const negativeGroup = structuredClone(negative);
   negativeGroup.g[0][0] = ["否认腹痛、恶心", "是否便血不详", "既往曾出现头痛"];
@@ -489,6 +491,23 @@ await check("12", "off 字节一致，新字节渲染并签名，处方工作副
   const gated = await wire({ gate: "enforce" });
   assert.equal(gated.events[0].signed, true, JSON.stringify(gated.events));
   assert.ok(verifyDiagnoseReasoningSignature(gated.reasoning, gated.state));
+});
+await check("12b", "舌或脉缺一的病历不重写两段，也不发模型请求；开关放开后照常", async () => {
+  const noPulse = input({ pulse: "" });
+  const sparse = await wire({ state: noPulse });
+  const offSparse = await wire({ mode: "off", state: noPulse });
+  assert.equal(sparse.calls.length, 0, "稀疏病历不该发定稿依据请求");
+  assert.equal(sparse.content, offSparse.content, "稀疏病历交付与 off 逐字节一致");
+  assert.ok(sparse.events.every((event) => event.eligible === false), JSON.stringify(sparse.events));
+  const noTongue = await wire({ state: input({ tongue: "" }) });
+  assert.equal(noTongue.calls.length, 0);
+  const full = await wire();
+  assert.ok(full.calls.length >= 1, "舌脉齐备照常发起");
+  process.env.CDSS_M03_FINAL_RATIONALE_SPARSE = "true";
+  try {
+    const opened = await wire({ state: noPulse });
+    assert.ok(opened.calls.length >= 1, "放开后稀疏病历也发起");
+  } finally { delete process.env.CDSS_M03_FINAL_RATIONALE_SPARSE; }
 });
 await check("13", "真实流 200 但全超时功能验收为红；shadow、off、缓存另计", async () => {
   const forceTimeout = process.env.R1067_FORCE_TIMEOUT === "1";

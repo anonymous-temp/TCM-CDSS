@@ -3,7 +3,7 @@ import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { deliveryHash } from "./delivery-trusted-record.server";
 import { primaryModelJsonTask } from "./cross-model-small-task.server";
 import { buildFinalRationaleContext, finalRationaleMessages, type FinalRationaleContext } from "./m03-final-rationale-context.server";
-import { FINAL_RATIONALE_VERSION, finalRationaleMode, type FinalRationaleMode } from "./m03-final-rationale-policy";
+import { FINAL_RATIONALE_VERSION, finalRationaleMode, finalRationaleSparseRecordsEligible, type FinalRationaleMode } from "./m03-final-rationale-policy";
 import { parseRationaleOutline, type RationaleRejection } from "./m03-final-rationale-outline.server";
 import { checkFinalRationaleClaims, type RationaleClaimCheck } from "./m03-final-rationale-claims.server";
 import { validateRationalePair, type RationalePair } from "./m03-final-rationale-validation.server";
@@ -85,7 +85,12 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
 
   const remaining = () => options.deadline() - Date.now() - SIGNING_RESERVE_MS;
   const reason = (code: string) => { event.reasons.push({ code, field: "$" }); };
-  const contextFor = (root: ClinicalReasoningResultV2) => buildFinalRationaleContext(root, options.state, options.scope);
+  const contextFor = (root: ClinicalReasoningResultV2) => {
+    const context = buildFinalRationaleContext(root, options.state, options.scope);
+    // 舌、脉缺一的病历不重写（依据见 finalRationaleSparseRecordsEligible）。
+    if (context && !finalRationaleSparseRecordsEligible() && !(context.input.tongue.length && context.input.pulse.length)) return undefined;
+    return context;
+  };
 
   const start = (context: FinalRationaleContext, revise: RationaleRejection[] = []): RationaleRequest | undefined => {
     const timeoutMs = Math.min(timeout, remaining());
