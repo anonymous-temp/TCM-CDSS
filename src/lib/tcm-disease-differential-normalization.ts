@@ -1,4 +1,5 @@
 import crosswalkJson from "../data/tcm-western-disease-crosswalk.json" with { type: "json" };
+import diseaseDefiningFindings from "../data/tcm-disease-defining-findings.source.json" with { type: "json" };
 import { westernDiagnosisAbbreviationFullName } from "./western-diagnosis-aliases";
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import icd10IndexJson from "../data/icd10-diagnosis-index.json" with { type: "json" };
@@ -123,10 +124,21 @@ export function differentialIsOwnCategoryOrComposite(name: string, currentDiseas
   return false;
 }
 
+const DISEASE_REFINEMENTS = (diseaseDefiningFindings as { refinements?: Array<{ fromNames: string[]; to: string; display?: string }> }).refinements || [];
+function isRefinementParentOf(name: string, currentDisease: string): boolean {
+  const same = (value: string | undefined) => Boolean(value) && value!.replace(/(?:类病|病)$/u, "") === currentDisease.trim().replace(/(?:类病|病)$/u, "");
+  return Boolean(currentDisease.trim()) && DISEASE_REFINEMENTS.some((rule) => rule.fromNames.includes(name) &&
+    (same(rule.to) || same(rule.display) || same(textbookSectionDeliveryName(rule.to))));
+}
+
 export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseaseWritten = ""): TcmDiseaseDifferentialNameResolution {
   const name = rawName.trim();
   if (!name) return { action: "drop", from: rawName };
   if (differentialIsOwnCategoryOrComposite(name, splitTextbookDiseaseSubtype(currentDiseaseWritten).disease)) return { action: "drop", from: name };
+  // 病名由粗到细（痹证→膝痹、咳嗽→肺胀）之后，原来的粗病名不是它的鉴别（第五十轮：膝痹的鉴别栏列了痹证，评审判「与上位病名自鉴」）。
+  // 教材自己把它列为本病鉴别病的照留（肺胀与喘证）。
+  if (isRefinementParentOf(name, splitTextbookDiseaseSubtype(currentDiseaseWritten).disease) &&
+    !textbookListedTcmDifferential(name, currentDiseaseWritten.trim().replace(/类病$/u, ""))) return { action: "drop", from: name };
   // 分型病（血证（鼻衄））：与本病同名按所属的病比（「血证」不是血证（鼻衄）的鉴别）；教材按分段写明的本型鉴别病名照留。
   if (subtypeTextbookDifferentialName(currentDiseaseWritten, name)) return { action: "keep", name };
   const currentDisease = splitTextbookDiseaseSubtype(currentDiseaseWritten).disease;

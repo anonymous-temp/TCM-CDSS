@@ -165,6 +165,14 @@ check('D15', '项痹只作有定位证据的父节括注，未定位妊娠和单
   assert.equal(tb.diseaseNameWithRecordSubtype('乳蛾', '主诉：咽痛3天。\n既往史：慢性扁桃体炎史2年。'), '乳蛾');
   assert.equal(tb.diseaseNameWithRecordSubtype('疖', '项后有一处脓头。'), '疖');
 });
+check('D15b', '病名细分后，原来的粗病名不作它的鉴别；教材自己列的鉴别病照留', () => {
+  const norm = jiti('../src/lib/tcm-disease-differential-normalization.ts');
+  assert.equal(norm.resolveTcmDiseaseDifferentialName('痹证', '膝痹').action, 'drop');
+  assert.equal(norm.resolveTcmDiseaseDifferentialName('胁痛', '胆胀病').action, 'drop');
+  assert.equal(norm.resolveTcmDiseaseDifferentialName('虚劳', '疳证').action, 'drop');
+  assert.equal(norm.resolveTcmDiseaseDifferentialName('痹证', '腰痛').action, 'keep');
+  assert.equal(norm.resolveTcmDiseaseDifferentialName('咳嗽', '感冒').action, 'keep');
+});
 check('D16', '留有原行的劳淋和血淋成组换证，鉴别与辨病原文不换字', () => {
   const labor = surface.projectDeliveredReasoning(root('淋证（劳淋）', '劳淋'), { recordText: laborUrine });
   const hot = root('淋证（血淋）', '血淋');
