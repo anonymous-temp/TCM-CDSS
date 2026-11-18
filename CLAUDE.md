@@ -3668,7 +3668,11 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 - **Where.** After the delivered-surface projection and before the final gate and signature, one small task on deepseek-flash (`json_object`, temperature 0, 900 output tokens) rewrites `overview.tcmDiseaseRationale` and `overview.tcmDiagnosticRationale` for the final names. It is prefetched from the settled candidate; the final snapshot must hash the same. The earlier steps are untouched: their text is the fallback.
 - **Shape (version `r1067-5`).** The model first lists evidence — verbatim record quotes for the disease, then groups of [quotes, mechanism, final syndrome], then tongue and pulse with their meaning — and then writes the two paragraphs in ordinary clinical prose. The first design (compact positional outline, `{{q}}` placeholders, strict validation) was accepted 0/10 live; three more iterations reached 20–55% and a blind tie. The round-39 design (outline as evidence, prose, existing patient-claim check) gave 88% on saved outputs.
 - **Server checks** (`-validation.server.ts`): final disease name (base name without its subtype is enough) and final syndrome names present, no other syndrome name, recorded tongue and pulse each explained (a 苔-only clause counts), lengths, no internal wording, the lineage sentence taken from the already-checked earlier rationale, evidence quotes aligned to the record (rejected when more than half fail; disease evidence may quote verbatim negatives). An element outside the name is a soft finding and is accepted on the first draft. Then `decidePatientClaimRemovals` runs on the two paragraphs only. Any failure keeps the earlier two paragraphs; never half and half.
-- **Only for records with both tongue and pulse** (`finalRationaleSparseRecordsEligible`; `CDSS_M03_FINAL_RATIONALE_SPARSE=true` lifts it). Same-judge split of 187 paired outputs: with tongue and pulse (77) the 诊断依据 failures went 8 → 4; without (110) 16 → 19 — on sparse records the new text more often wrote findings the record lacks (「咳时引痛」「耳道未见堵塞」「壮热」 at 38.0 ℃). Sparse records keep the earlier text and make no call.
+- **Only for records with both tongue and pulse** (`finalRationaleSparseRecordsEligible`; `CDSS_M03_FINAL_RATIONALE_SPARSE=true` lifts it). Same-judge split of the 301 paired outputs by the module's own tongue/pulse reading:
+  - both recorded (258): 诊断依据 failures 27 → 23, clean passes 106 → 135;
+  - one missing (34): failures 6 → 9, clean passes 10 → 7. The outline asks for a tongue and a pulse statement, and without them the new text more often wrote findings the record lacks.
+  - Records missing either keep the earlier text and make no call.
+  - **The first version of this split was wrong.** It classified by a text heuristic that missed structured pulse fields written without 「脉」 (「弦细」), so its 「77 records 8 → 4, 110 records 16 → 19」 (in commit 303a4306's message) does not describe this gate. Classify with the predicate the code uses (`/var/tmp/r1067/probe/elig.mjs`).
 - **Switch.** `CDSS_M03_FINAL_RATIONALE=off|shadow|on`; unset means on in production and off elsewhere (tests and local development re-run the same input against stubs). `CDSS_M03_FINAL_RATIONALE_RETRY=true` re-enables the revision retry, which is off: it cost M03 +4.6 s median / +9.4 s p90.
 - **Telemetry** `m03_final_rationale` (eligible, launched, valid replies, verified, signed, adopted, reason codes, wait and model ms; no record text). Read adoption there first.
 
@@ -3688,24 +3692,29 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 
 **Measured** (local route harness, customer request shape, memo-replayed paired arms; qwen4-max with `r1066/judge-accept.mjs`, 「欠妥算过」; base = production 741d2e02 generated the same day).
 - **Judge noise.** The same 41 outputs judged twice: 3 fail↔non-fail flips each for 中医诊断 and 诊断依据 (about 7%). Only pooled differences of 3–4 points on about 300 outputs mean anything.
-- **Baseline, all 301:** 中医诊断 85.4%, 诊断依据 88.4%.
-- **Arm n5** (closure observe + disease layer + rationale on for every record, i.e. before the tongue-and-pulse gate), 187 pairs (customer 10, retest 20, 11.05 17, holdout 40, customer 100):
+- **Arm n5** (closure observe + disease layer + rationale on for every record, i.e. before the tongue-and-pulse gate and the coarse-parent differential rule), all 301 pairs:
 
   | Item | Base | n5 |
   |---|---|---|
-  | 中医诊断 | 83.4 | 85.6 |
-  | 诊断依据 | 87.2 (clean pass 67) | 87.7 (clean pass 85) |
-  | 治则治法 | 90.9 | 95.7 |
-  | 病机分析 | 37.4 | 43.3 |
-  | 中医鉴别 | 93.0 | 92.5 |
-  | 随症加减 | 81.6 | 80.2 |
+  | 中医诊断 (P0 ≥95) | 85.4 | 88.4 (24 fixed, 15 broken) |
+  | 诊断依据 (P0 ≥90) | 88.4 (clean pass 118) | 89.4 (clean pass 144) |
+  | 治则治法 | 93.7 | 97.0 |
+  | 病机分析 | 46.5 | 49.8 |
+  | 中医鉴别 | 90.4 | 91.4 |
+  | 随症加减 (P0 ≥90) | 84.6 | 81.7 (18 fixed, 27 broken) |
+  | 红旗 / 西医 / 剂量 / 反畏 / 特殊人群 | 97.7 / 96.0 / 99.7 / 100 / 98.3 | 97.0 / 95.3 / 99.3 / 100 / 98.0 |
 
-  Customer's own 47 records: 诊断依据 85.1 → 91.5, 中医诊断 91.5 → 89.4 (4 vs 3 flips, inside the noise).
-- **Rationale step.** Blind old/new judge on 43 saved outputs: old pass 8 / minor 23 / fail 12, new pass 25 / minor 16 / fail 2; preferred new 32, old 11. In the pipeline: adopted 64% (n5) and 68% with the final rules (n6); wait p50 3.4–3.6 s, p90 5.3–5.5 s when it runs. Reasons for keeping the old text: sanitizer rewrote the new text, element outside the name, invalid JSON, evidence gap.
+  - **By set, 诊断依据:** the customer's own-style records (standard 10, retest 20, 11.05 17, 10.29 34) 72/81 → 76/81; the customer's 100-case set 85 → 82; new40 37 → 39, new45 34 → 33, holdout 38 → 39.
+  - **随症加减 fell 2.9 points.** All 27 newly failed outputs were read: the row counts did not fall (2+ conditions 280 → 286 of 301); the failures are model-written herb–symptom mismatches after M04 redrew (its prompt carries the M03 text, which changed), 7 of them with a changed disease. No modification logic changed this round.
+- **Rationale step.** Blind old/new judge on 43 saved outputs: old pass 8 / minor 23 / fail 12, new pass 25 / minor 16 / fail 2; preferred new 32, old 11. In the pipeline: adopted 64% (n5), 69% of eligible records on the final code (n8: 179 adopted, 80 kept the old text, 42 not eligible). Reasons for keeping the old text: disease paragraph names an element (22), sanitizer rewrote the new text (19), element outside the name (18), chief symptom missing (11).
+- **Latency: the rationale step costs M03 about 3–3.5 s on eligible records, and nothing else in this round costs time.** Local attribution with real model calls on six standard cases, run one after another: production code before this round 15.2 s median; this round's code with the rationale off 15.3 s (closure observe and the disease layer add nothing); everything on 18.2–19.1 s. The prefetch starts at the 「prepared」 checkpoint, after which nothing else runs, so the call's 3.2–3.5 s is almost all waited for (production: prefetch hit 30, stale 11; wait 2.4–4.7 s).
 - **Disease layer on the customer's records:** rt-258816 and e05-14 → 膝痹·肝肾亏损证; e05-03 / rt-082816 → 心脾两虚证; e05-10 / rt-509632 → 脾虚湿困证; no limited page in any observe arm.
-- **Neither P0 line is reached pooled.** 中医诊断 stays near 85–86 and 诊断依据 near 88 under this judge; the gains are on full records and in the share of clean passes.
+- **Neither P0 line is reached pooled.** 中医诊断 85.4 → 88.4 and 诊断依据 88.4 → 89.4 under this judge; the gains are on the customer's own-style records and in the share of clean passes.
+- **P0 audit on the final code (n8, 301):** 300 dosed (the other is the child of unknown age); dose over ChP, over 2×, 十八反十九畏 incl. 加减, pregnancy-prohibited, child-toxic, organ, anticoagulant blood movers all 0; no limited page; fewer than two TCM disease differentials 4.
 
 **Left as is.**
+- **Rationale latency.** To hide the 3 s the call has to start from the TCM half's first settled names and be accepted on revalidation instead of hash equality; that is a design change with its own live measurement.
+- **Three of four prescriptions pay a repair round for nothing.** In production logs before and after this round (11/16, 11/17, 11/18), about 25 of 34 M04 runs are rejected for `herb_N_function_ungrounded`, repaired once, and then accepted with a quality annotation anyway. It predates this round and was not touched; two probe prescriptions took 70 s and 110 s.
 - **Enforce mode** (h04 limited page, checker false positives). It can be tried in production with the override (`CDSS_M03_ELEMENT_CLOSURE_V2=enforce`, no rebuild), but is not recommended before those are fixed.
 - **Rationale on sparse records.** Fabricated findings and unrecorded negatives pass the claim check there; the new text does not go through the 「未诉」 rewrite.
 - **Rationale non-adoption about one third**, mostly the negation sanitizer rewriting the new text (`transaction_sanitized`) and elements outside the name.
