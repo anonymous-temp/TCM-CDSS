@@ -8,7 +8,7 @@ import { parseRationaleOutline, type RationaleRejection } from "./m03-final-rati
 import { validateRationalePair, type RationalePair } from "./m03-final-rationale-validation.server";
 
 export const FINAL_RATIONALE_TIMEOUT_MS = 8000;
-const FINAL_RATIONALE_MAX_TOKENS = 640;
+const FINAL_RATIONALE_MAX_TOKENS = 900;
 const SIGNING_RESERVE_MS = 250;
 const MIN_START_MS = 1000;
 const MIN_REVISION_MS = 4000;
