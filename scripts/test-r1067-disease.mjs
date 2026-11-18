@@ -160,7 +160,9 @@ check('D15', '项痹只作有定位证据的父节括注，未定位妊娠和单
   assert.equal(tb.diseaseNameWithRecordSubtype('痹证', '主诉：颈项疼痛。'), '痹证');
   assert.equal(tb.diseaseNameWithRecordSubtype('异位妊娠（已破损期）', '停经后腹痛，超声未做。'), '异位妊娠');
   assert.equal(tb.diseaseNameWithRecordSubtype('骨折（髋部骨折）', '跌伤后髋痛。未拍片。'), '骨折');
-  assert.equal(tb.diseaseNameWithRecordSubtype('疖', '项背反复起红肿结节，多处，此起彼伏，有脓头。'), '疖（疖病）');
+  // 总指挥第五十轮取舍：「疖（疖病）」「乳蛾（慢乳蛾急性发作）」两条细分不交付（括注读起来不像病名；甲方 11.05 病历 2 的答案就是「乳蛾」），规则已从数据里去掉。
+  assert.equal(tb.diseaseNameWithRecordSubtype('疖', '项背反复起红肿结节，多处，此起彼伏，有脓头。'), '疖');
+  assert.equal(tb.diseaseNameWithRecordSubtype('乳蛾', '主诉：咽痛3天。\n既往史：慢性扁桃体炎史2年。'), '乳蛾');
   assert.equal(tb.diseaseNameWithRecordSubtype('疖', '项后有一处脓头。'), '疖');
 });
 check('D16', '留有原行的劳淋和血淋成组换证，鉴别与辨病原文不换字', () => {
