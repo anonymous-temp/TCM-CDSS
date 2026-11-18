@@ -5,10 +5,11 @@ import { primaryModelJsonTask } from "./cross-model-small-task.server";
 import { buildFinalRationaleContext, finalRationaleMessages, type FinalRationaleContext } from "./m03-final-rationale-context.server";
 import { FINAL_RATIONALE_VERSION, finalRationaleMode, type FinalRationaleMode } from "./m03-final-rationale-policy";
 import { parseRationaleOutline, type RationaleRejection } from "./m03-final-rationale-outline.server";
+import { checkFinalRationaleClaims, type RationaleClaimCheck } from "./m03-final-rationale-claims.server";
 import { validateRationalePair, type RationalePair } from "./m03-final-rationale-validation.server";
 
 export const FINAL_RATIONALE_TIMEOUT_MS = 8000;
-const FINAL_RATIONALE_MAX_TOKENS = 900;
+const FINAL_RATIONALE_MAX_TOKENS = 700;
 const SIGNING_RESERVE_MS = 250;
 const MIN_START_MS = 1000;
 const MIN_REVISION_MS = 4000;
@@ -22,7 +23,7 @@ type TransportOptions = {
 export type RationaleTransport = (messages: Messages, options: TransportOptions) => Promise<unknown>;
 type AuthorOptions = {
   state: CaseState; scope: string; signal: AbortSignal; deadline: () => number;
-  mode?: FinalRationaleMode; transport?: RationaleTransport; timeoutMs?: number;
+  mode?: FinalRationaleMode; transport?: RationaleTransport; timeoutMs?: number; claimCheck?: RationaleClaimCheck;
   caseRef?: string; requestRef?: string; observe?: (event: RationaleEvent) => void;
 };
 type RationaleRequest = { key: string; controller: AbortController; reply: Promise<unknown> };
@@ -34,13 +35,14 @@ type RationaleEvent = {
   eligible: boolean; launched: boolean; requests: number; physicalCalls: number; validReplies: number;
   verified: boolean; signed: boolean; adopted: boolean; delivery: Delivery; prefetch: "none" | "hit" | "stale" | "cancelled";
   retried: boolean; softAccepted: boolean; softReasons: Pick<RationaleRejection, "code" | "field">[]; reasons: Pick<RationaleRejection, "code" | "field">[]; skip?: SkipReason;
+  claimCheck: "skipped" | "checked" | "unavailable"; claimCalls: number; claimRemovals: number;
   promptTokens: number; completionTokens: number; modelMs: number; validationMs: number; waitMs: number;
 };
 
 const emptyEvent = (mode: FinalRationaleMode): RationaleEvent => ({
   mode, version: FINAL_RATIONALE_VERSION, eligible: false, launched: false, requests: 0, physicalCalls: 0, validReplies: 0, verified: false, signed: false,
   adopted: false, delivery: "none", prefetch: "none", retried: false, softAccepted: false, softReasons: [], reasons: [], promptTokens: 0, completionTokens: 0,
-  modelMs: 0, validationMs: 0, waitMs: 0,
+  claimCheck: "skipped", claimCalls: 0, claimRemovals: 0, modelMs: 0, validationMs: 0, waitMs: 0,
 });
 const log = (event: RationaleEvent) => console.info("[tcm-cdss:telemetry] m03_final_rationale", event);
 
@@ -119,7 +121,10 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
         },
       });
     }).then((value) => {
-      if (!controller.signal.aborted && value !== undefined && "outline" in parseRationaleOutline(value)) event.validReplies++;
+      if (!controller.signal.aborted && value !== undefined) {
+        const parsed = parseRationaleOutline(value);
+        if (parsed.outline || parsed.reasons?.[0]?.code === "evidence_gap") event.validReplies++;
+      }
       settle(value);
     }).catch(() => {
       if (!controller.signal.aborted) reason("transport_error");
@@ -192,8 +197,19 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
         event.softAccepted = true;
         event.softReasons = (result.reasons || []).map(({ code, field }) => ({ code, field }));
       }
+      const claimBudget = remaining();
+      const claimSignal = claimBudget > 0
+        ? AbortSignal.any([options.signal, AbortSignal.timeout(claimBudget)])
+        : AbortSignal.abort();
+      const { verdict, claimCheck, claimCalls, claimRemovals } = await checkFinalRationaleClaims(result, context, claimSignal, options.claimCheck);
+      Object.assign(event, { claimCheck, claimCalls, claimRemovals });
+      if (options.signal.aborted || finished) return undefined;
+      if (!verdict.ok) {
+        event.reasons.push(...verdict.reasons.map(({ code, field }) => ({ code, field })));
+        return undefined;
+      }
       event.verified = true;
-      return { pair: result.pair, context, adopt: mode === "on" };
+      return { pair: verdict.pair, context, adopt: mode === "on" };
     } catch {
       reason("validation_error");
       return undefined;

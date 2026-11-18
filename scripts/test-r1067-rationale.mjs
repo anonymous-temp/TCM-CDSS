@@ -7,6 +7,7 @@ process.env.OPENAI_BASE_URL = "https://api.deepseek.com/v1";
 process.env.PRIMARY_DIAGNOSE_MODEL = "deepseek-flash";
 process.env.REASONING_CONTRACT_SIGNING_KEY = "test-only-r1067-rationale-signing-key";
 process.env.CDSS_MODEL_CALL_MEMO = "false";
+process.env.CDSS_SMALL_TASK_MEMO = "false";
 process.env.CDSS_DELIVERY_GATES = "off";
 process.env.CDSS_CLINICAL_FACTS_BACKSTOP = "false";
 process.env.CDSS_DEFAULT_CUSTOMER_ID = "r1067-test";
@@ -25,7 +26,8 @@ const jiti = createJiti(import.meta.url, { alias: {
 const lib = (name) => jiti.import(`../src/lib/${name}.ts`);
 const { normalizeCaseStateInput } = await lib("diagnosis-types");
 const { clinicalGroundingText } = await lib("diagnosis-safety");
-const { buildFinalRationaleContext, bindRationaleQuote, recordedRationaleSitePain } = await lib("m03-final-rationale-context.server");
+const { buildFinalRationaleContext, hasCurrentRationaleQuote } = await lib("m03-final-rationale-context.server");
+const { parsePatientClaimRemovals } = await lib("m03-patient-claim-check.server");
 const { validateRationalePair, withFinalRationalePair } = await lib("m03-final-rationale-validation.server");
 const { FINAL_RATIONALE_SYSTEM, parseRationaleOutline } = await lib("m03-final-rationale-outline.server");
 const { createFinalRationaleAuthor } = await lib("m03-final-rationale.server");
@@ -95,40 +97,22 @@ const context = (state = input(), reasoning = root(), scope = "test-tenant") => 
   return snapshot;
 };
 function outline(snapshot) {
-  const { records, chief, tongue, pulse, conclusion, lineage } = snapshot;
-  const q = Object.create(null);
-  const add = (quote, term, line = records.find((entry) => entry[1].includes(quote))?.[0]) => {
-    assert.ok(line, `缺合成引文 ${quote}`);
-    const id = `q${Object.keys(q).length + 1}`;
-    q[id] = term ? [line, quote, term] : [line, quote];
-    return id;
+  const { chief, tongue, pulse, conclusion, lineage } = snapshot;
+  const symptom = chief[0].term;
+  const tongueText = tongue.map(({ term }) => term).join("、");
+  const pulseText = pulse.map(({ term }) => term).join("、");
+  return {
+    s: "ok", d: [symptom], g: [[[symptom, "时有心悸"], "心血亏虚则神失所养", conclusion.names[0]]],
+    t: tongue.length ? ["s", tongueText, "舌质与血少相应"] : ["u"],
+    p: pulse.length ? ["s", pulseText, "脉道充盈欠足"] : ["u"],
+    l: lineage ? "扶阳学派看时有心悸，须合舌脉辨其相应处。" : null,
+    x: `${symptom}，睡中又容易醒，入睡与续睡均受扰，归于${conclusion.disease}。`,
+    y: `${symptom}，是心神失于濡养，到了夜间难以安定；睡中易醒，也与心神失养相应。时有心悸，为心血不足，心脉失于濡养。` +
+      "心血不足，既不能充养心脉，也不能使神志入夜得安。" +
+      (tongue.length ? `${tongueText}，舌质与血少相应。` : "舌象未记录。") +
+      (pulse.length ? `${pulseText}，提示脉道充盈不足。` : "脉象未记录。") +
+      `合参本次睡眠和心悸所见，故属${conclusion.names[0]}。`,
   };
-  const tagged = (id) => `{{${id}}}`;
-  const quote = chief[0].term;
-  const first = add(quote, undefined, chief[0].line);
-  const second = add("时有心悸", "心悸");
-  const t = tongue.map((item) => add(item.term, undefined, item.line));
-  const p = pulse.map((item) => add(item.term, undefined, item.line));
-  const mechanism = "心血亏虚则神失所养";
-  const tMeaning = "血少失于充养";
-  const pMeaning = "脉道充盈欠足";
-  const s = {
-    s: "ok", q, d: [first], g: [[[first, second], mechanism, conclusion.names[0]]],
-    t: t.length ? ["s", t, tMeaning] : ["u"], p: p.length ? ["s", p, pMeaning] : ["u"], u: [], l: null, b: [],
-    x: `${tagged(first)}，睡眠起始受阻，归于${conclusion.disease}。`,
-    y: `${tagged(first)}，伴${tagged(second)}，${mechanism}，合参属${conclusion.names[0]}。` +
-      (t.length ? `${t.map(tagged).join("、")}与${tMeaning}相应。` : "舌象未记录。") +
-      (p.length ? `${p.map(tagged).join("、")}示${pMeaning}。` : "脉象未记录。"),
-  };
-  if (conclusion.resolution === "bounded") {
-    s.b = ["补问入睡后的情形"];
-    s.y += "现据所述辨证，夜间睡眠详况尚缺。";
-  }
-  if (lineage) {
-    const line = `扶阳学派看${tagged(second)}，辨其与所定证的相应处。`;
-    s.l = line;
-  }
-  return s;
 }
 function assertRejected(reply, ctx, code) {
   const checked = validateRationalePair(reply, ctx);
@@ -136,10 +120,9 @@ function assertRejected(reply, ctx, code) {
   assert.ok(checked.reasons.some((r) => r.code === code), JSON.stringify(checked));
 }
 
-const qid = (ctx, text, predicate = () => true) => ctx.lines.find((entry) => entry.text.includes(text) && predicate(entry))?.id;
 const parsed = (content) => JSON.parse(content.match(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/u)[1]);
 
-async function wire({ mode = "on", parallel = false, route = false, twoPass = false, gate = "off", author, align, state = input(), candidate = root(), timeout = 8000 } = {}) {
+async function wire({ mode = "on", parallel = false, route = false, twoPass = false, gate = "off", author, align, state = input(), candidate = root(), timeout = 8000, claim } = {}) {
   process.env.CDSS_M03_FINAL_RATIONALE = mode;
   process.env.CDSS_DELIVERY_GATES = gate;
   process.env.M03_PARALLEL_GENERATION = String(parallel);
@@ -152,6 +135,7 @@ async function wire({ mode = "on", parallel = false, route = false, twoPass = fa
     else if (process.env.R1067_DEBUG) previousLog(tag, value, ...args);
   };
   const calls = [];
+  const claimRequests = [];
   const stream = (value) => new Response(
     `data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(value) } }] })}\n\n` +
     'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
@@ -165,6 +149,7 @@ async function wire({ mode = "on", parallel = false, route = false, twoPass = fa
     if (request.messages[0].content === FINAL_RATIONALE_SYSTEM) {
       assert.equal(request.model, "deepseek-flash");
       assert.equal(request.temperature, 0);
+      assert.equal(request.max_tokens, 700);
       assert.equal(request.response_format.type, "json_object");
       assert.equal(request.thinking?.type, "disabled");
       const snapshot = JSON.parse(last);
@@ -175,6 +160,20 @@ async function wire({ mode = "on", parallel = false, route = false, twoPass = fa
         choices: [{ message: { content: JSON.stringify(reply) }, finish_reason: "stop" }],
         usage: { prompt_tokens: 800, completion_tokens: 300, total_tokens: 1100 },
       });
+    }
+    if (!request.stream && request.messages[0].content.startsWith("你是病历事实核对器")) {
+      const payload = JSON.parse(last);
+      const authored = payload.fields.some(({ text }) => text.includes("入睡与续睡均受扰"));
+      if (authored) claimRequests.push(payload);
+      const result = authored && claim ? claim(payload) : { claims: [] };
+      if (result instanceof Response) return result;
+      return Response.json({ choices: [{ message: { content: JSON.stringify(result) } }] });
+    }
+    if (!request.stream && request.messages[0].content.startsWith("你是病历核对员")) {
+      const payload = JSON.parse(last);
+      if (payload.claims.some(({ context }) => context.includes("入睡与续睡均受扰"))) claimRequests.push(payload);
+      const result = { items: payload.claims.map(({ id }) => ({ id, verdict: "absent" })) };
+      return Response.json({ choices: [{ message: { content: JSON.stringify(result) } }] });
     }
     if (!request.stream) {
       const result = /synthetic-western|并行分工·西医半/u.test(last) ? { westernDiagnosis: candidate.westernDiagnosis, management: candidate.management } : {};
@@ -207,7 +206,7 @@ async function wire({ mode = "on", parallel = false, route = false, twoPass = fa
     const lines = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
     const content = lines.findLast((frame) => frame.content?.includes("<!-- DIAGNOSIS_JSON_START -->"))?.content;
     assert.ok(content, "实际 M03 流须有终稿 " + JSON.stringify(lines.slice(-4)));
-    return { content, reasoning: parsed(content), events, calls, state };
+    return { content, reasoning: parsed(content), events, calls, claimRequests, state };
   } finally {
     globalThis.fetch = previousFetch;
     console.info = previousLog;
@@ -245,7 +244,7 @@ await check("02", "完整键隔离轴引文、病历、主兼名、流派、确�
   const events = [];
   let calls = 0;
   const runner = createFinalRationaleAuthor({ state: input(), scope: "test-tenant", mode: "on", signal: controller.signal, deadline: () => Date.now() + 1000, timeoutMs: 150,
-    observe: (event) => events.push(event), transport: (messages, opts) => {
+    observe: (event) => events.push(event), claimCheck: async () => [], transport: (messages, opts) => {
       opts.onNetworkAttempt();
       calls++;
       if (calls === 1) return new Promise(() => {});
@@ -262,90 +261,80 @@ await check("02", "完整键隔离轴引文、病历、主兼名、流派、确�
   assert.equal(hit.events[0].prefetch, "hit", JSON.stringify(hit.events));
   assert.equal(hit.calls.length, 1);
 });
-await check("03", "逐处辨本人、当前、未问及和否认，禁止拼接", () => {
-  const ctx = context(input({ symptoms: { presentHistory: "否认腹痛、恶心。今日自觉腹痛。既往曾出现头痛。母亲本人咳嗽。是否便血不详。今日头晕，时有头晕。" } }));
-  const bind = (quote, term) => bindRationaleQuote(ctx, [qid(ctx, quote) || qid(ctx, "否认腹痛"), quote, term]);
-  assert.ok(bind("今日自觉腹痛", "腹痛"));
-  for (const [quote, term] of [["否认腹痛", "腹痛"], ["恶心", "恶心"], ["既往曾出现头痛", "头痛"], ["母亲本人咳嗽", "咳嗽"], ["是否便血不详", "便血"], ["今日自觉腹痛便血", "腹痛"]]) {
-    assert.equal(bind(quote, term), undefined, quote);
+await check("03", "逐处对回本人本次肯定所见，三分之一上界含等号", () => {
+  const ctx = context(input({ symptoms: { presentHistory: "时有心悸。睡中易醒。否认腹痛、恶心。今日自觉腹痛。既往曾出现头痛。母亲本人咳嗽。是否便血不详。今日头晕，时有头晕。", tcmPulse: "脉象：弦" } }));
+  for (const quote of ["今日自觉腹痛", "腹痛", "头晕", "时有心悸。", "脉弦"]) assert.ok(hasCurrentRationaleQuote(ctx, quote), quote);
+  for (const quote of ["否认腹痛", "恶心", "头痛", "母亲本人咳嗽", "便血", "今日自觉腹痛便血"]) {
+    assert.equal(hasCurrentRationaleQuote(ctx, quote), false, quote);
   }
-  assert.ok(bind("腹痛", "腹痛"), "同处有肯否时只绑定唯一的肯定现症");
-  assert.equal(bind("头晕", "头晕"), undefined);
+  ctx.state.clinicalFacts = { redFlags: [{ status: "negative", quote: "否认腹痛、恶心" }] };
+  assert.ok(hasCurrentRationaleQuote(ctx, "腹痛"), "只保护否认所在位置");
+  const mixed = context(input({ symptoms: { presentHistory: "时有心悸，否认胸痛。睡中易醒。" } }));
+  assert.equal(hasCurrentRationaleQuote(mixed, "时有心悸，否认胸痛"), false);
+  const normal = context();
+  const reply = outline(normal.input);
+  assert.ok(validateRationalePair({ ...reply, d: ["未录词条"] }, normal).ok);
+  assertRejected({ ...reply, d: ["未录词条", "另一无据词条"] }, normal, "quote_occurrence");
+  const groups = structuredClone(reply);
+  groups.g[0][0] = ["编造一", "编造二"];
+  assertRejected(groups, normal, "quote_occurrence");
 });
-await check("04", "教材仅论通则，裸部位、数值或伴随主症退修", () => {
+await check("04", "逐字保留病名分型，病段无证名，主症允许自然转述", () => {
+  const ctx = context(input(), root({ tcmDiseaseName: "不寐（入睡型）" }));
+  const reply = outline(ctx.input);
+  assert.ok(validateRationalePair(reply, ctx).ok);
+  assertRejected({ ...reply, x: reply.x.replace("（入睡型）", "") }, ctx, "disease_name");
+  assertRejected({ ...reply, x: reply.x + "亦见心血虚证。" }, ctx, "disease_element");
+  const sameMeaning = { ...reply, x: reply.x.replace("入睡困难", "难以入睡") };
+  assert.ok(validateRationalePair(sameMeaning, ctx).ok);
+  for (const field of ["x", "y"]) {
+    assertRejected({ ...reply, [field]: field === "x" ? "近来常在夜间梦中惊醒，精神难得安稳，所患属不寐（入眠型）。" : reply.y.replace("入睡困难", "夜间梦多").replace("睡眠", "夜间") }, ctx, "chief_missing");
+  }
+});
+await check("05", "舌质苔与脉各按成分覆盖，单字脉与缺测分别处理", () => {
   const ctx = context();
   const reply = outline(ctx.input);
-  const supported = { ...reply, x: "多寐病通常以日间乏力为伴。{{q1}}，睡眠起始受阻，归于不寐。" };
-  assert.equal(validateRationalePair(supported, ctx).ok, true, JSON.stringify(validateRationalePair(supported, ctx)));
-  assertRejected({ ...reply, x: "本例已见咳嗽，" + reply.x }, ctx, "text_unquoted_finding");
-  assertRejected({ ...reply, x: "持续18周，" + reply.x }, ctx, "text_unquoted_finding");
-  assertRejected({ ...reply, x: "{{q1}}，属不寐。" }, ctx, "disease_reasoning");
-  assert.ok(validateRationalePair({ ...reply, x: reply.x.replace("归于不寐", "心血亏虚而属不寐") }, ctx).ok);
-  assertRejected({ ...reply, x: reply.x.replace("归于不寐", "心血虚证而属不寐") }, ctx, "disease_element");
-  assertRejected({ ...reply, x: reply.x + "本例无皮损。" }, ctx, "text_unquoted_finding");
-  assertRejected({ ...reply, x: reply.x + "可见皮损但病程尚缺。" }, ctx, "text_unquoted_finding");
-  assertRejected({ ...reply, x: reply.x.replace("不寐", "睡眠病") }, ctx, "disease_name");
-  assertRejected({ ...reply, x: reply.x.replace("{{q1}}", "{{q2}}") }, ctx, "disease_chief");
-  const subtype = context(input(), root({ tcmDiseaseName: "不寐（分型）" }));
-  assertRejected(reply, subtype, "disease_name");
-  assert.ok(validateRationalePair(outline(subtype.input), subtype).ok);
-});
-await check("05", "舌质苔和复合脉逐项，单字脉可用，脉搏指纹分列", () => {
-  const ctx = context();
-  const reply = outline(ctx.input);
-  assert.equal(validateRationalePair(reply, ctx).ok, true, JSON.stringify(validateRationalePair(reply, ctx)));
-  const cut = structuredClone(reply);
-  cut.y = cut.y.replace("、{{q4}}", "");
-  assertRejected(cut, ctx, "inspection_components");
+  assert.ok(validateRationalePair({ ...reply, y: reply.y.replace("舌淡白、苔薄白", "舌淡白苔薄白").replace("脉细弱", "脉弱细") }, ctx).ok);
+  assert.ok(validateRationalePair({ ...reply, y: reply.y.replace("脉细弱", "脉细") }, ctx).ok);
+  assertRejected({ ...reply, y: reply.y.replace("舌淡白、苔薄白", "舌淡") }, ctx, "inspection_recorded");
+  assertRejected({ ...reply, y: reply.y.replace("脉细弱，提示脉道充盈不足。", "合看心神仍难濡养。") }, ctx, "inspection_recorded");
+  assertRejected({ ...reply, y: reply.y.replace("脉细弱", "脉象未记录") }, ctx, "inspection_recorded");
   const single = context(input({ pulse: "弦" }));
-  assert.equal(single.input.pulse[0].term, "弦");
-  const sparse = context(input({ pulse: "", tongue: "", vitals: { P: "80" }, symptoms: { presentHistory: "时有心悸。小儿指纹淡红。" } }));
-  assert.equal(sparse.input.pulse.length, 0);
-  assert.ok(sparse.input.important.some((finding) => finding.term === "小儿指纹淡红"));
-  const normal = context(input({ tongue: "舌淡红苔薄白", pulse: "平脉" }));
-  const neutral = outline(normal.input);
-  assertRejected(neutral, normal, "inspection_normal");
-  assert.equal(validateRationalePair(neutral, normal, { revision: true }).softAccepted, true);
-  for (const axis of ["t", "p"]) {
-    neutral.y = neutral.y.replace(neutral[axis][2], "不具区分力");
-    neutral[axis] = ["n", neutral[axis][1], "不具区分力"];
-  }
-  assert.ok(validateRationalePair(neutral, normal).ok, JSON.stringify(validateRationalePair(neutral, normal)));
-  assertRejected({ ...outline(sparse.input), y: outline(sparse.input).y.replace("脉象未记录。", "") }, sparse, "inspection_missing_disclosure");
+  assert.ok(validateRationalePair({ ...outline(single.input), y: reply.y.replace("脉细弱", "脉弦") }, single).ok);
+  const absent = context(input({ tongue: "", pulse: "", vitals: { P: 80 }, symptoms: { presentHistory: "时有心悸。睡中易醒。指纹淡。" } }));
+  assert.equal(absent.input.pulse.length, 0);
+  const missing = outline(absent.input);
+  assert.ok(validateRationalePair({ ...missing, y: missing.y.replace("舌象未记录。脉象未记录。", "舌象、脉象未记录。") }, absent).ok);
+  assertRejected({ ...missing, y: missing.y.replace("脉象未记录。", "") }, absent, "inspection_missing_disclosure");
 });
-await check("06", "证素与器官收敛，外证名和主兼倒置退修", () => {
+await check("06", "主兼证原名与顺序，越名不采纳", () => {
+  const ctx = context(input(), root({ secondarySyndromes: ["气虚证"] }));
+  const reply = outline(ctx.input);
+  const accepted = { ...reply, y: reply.y.replace("故属心血虚证。", "故属心血虚证，兼气虚证。") };
+  assert.ok(validateRationalePair(accepted, ctx).ok);
+  assertRejected({ ...accepted, y: reply.y }, ctx, "syndrome_name");
+  assertRejected({ ...accepted, y: accepted.y.replace("属心血虚证，兼气虚证", "属气虚证，兼心血虚证") }, ctx, "syndrome_name");
+  assertRejected({ ...accepted, y: accepted.y.replace("属心血虚证，兼气虚证", "兼心血虚证，主证为气虚证") }, ctx, "syndrome_name");
+  assertRejected({ ...accepted, y: accepted.y + "另属气血两虚证。" }, ctx, "foreign_syndrome");
+  assertRejected({ ...accepted, y: accepted.y + "另辨为气血两虚。" }, ctx, "foreign_syndrome");
+  const overlap = context(input(), root({ primarySyndrome: "心气虚证", secondarySyndromes: ["气虚证"] }));
+  const drafted = outline(overlap.input);
+  assertRejected(drafted, overlap, "syndrome_name");
+  assert.ok(validateRationalePair({ ...drafted, y: drafted.y.replace("故属心气虚证。", "故属心气虚证，兼气虚证。") },
+    overlap, { revision: true }).ok);
+
+});
+await check("07", "新提纲及 JSON 形状，成文改写接受", () => {
   const ctx = context();
   const reply = outline(ctx.input);
-  for (const mechanism of ["肝血亏虚则神失所养", "心阴亏虚则神失所养"]) {
-    const changed = structuredClone(reply);
-    changed.y = changed.y.replace(changed.g[0][1], mechanism);
-    const result = validateRationalePair(changed, ctx);
-    assert.ok(!result.ok && result.reasons.some((item) => item.code === "foreign_element" && mechanism.includes(item.phrase)));
-  }
-  assertRejected({ ...reply, y: reply.y + "另属气血两虚证。" }, ctx, "foreign_syndrome");
-  assertRejected({ ...reply, y: reply.y + "另辨为气血两虚。" }, ctx, "foreign_syndrome");
-  assertRejected({ ...reply, y: reply.y + "兼见心血虚证。" }, ctx, "syndrome_name");
+  assert.ok(parseRationaleOutline(JSON.stringify(reply)).outline);
+  assertRejected("{", ctx, "invalid_json");
+  assertRejected({ ...reply, y: undefined }, ctx, "outline_shape");
+  assertRejected({ ...reply, t: ["s", ["舌淡白"], "血少"] }, ctx, "outline_shape");
+  assertRejected({ ...reply, q: {} }, ctx, "outline_shape");
+  assertRejected({ ...reply, y: reply.y + "{{q1}}。" }, ctx, "text_fragment");
 });
-await check("07", "提纲证据与成文相扣，拒无引文查体和只列正常舌脉", () => {
-  const ctx = context();
-  const reply = outline(ctx.input);
-  assert.ok(validateRationalePair({ ...reply, y: reply.y.replace(reply.g[0][1], "心神少养，难安于夜") }, ctx).ok);
-  assert.ok(validateRationalePair({ ...reply, y: reply.y.replace("伴{{q2}}，", "") }, ctx).ok);
-  const missingGroup = structuredClone(reply);
-  missingGroup.g.push([["q99"], "心血亏虚", "心血虚证"]);
-  assertRejected(missingGroup, ctx, "group_reference");
-  const restated = structuredClone(reply);
-  restated.g[0][1] = "心悸，心神失养";
-  assertRejected(restated, ctx, "group_repeated_finding");
-  assert.equal(validateRationalePair(restated, ctx, { revision: true }).softAccepted, true);
-  assertRejected({ ...reply, y: "{{q1}}、{{q2}}，属心血虚证。" + reply.y.split("。").slice(1).join("。") }, ctx, "group_reasoning");
-  assertRejected({ ...reply, y: reply.y.replace("{{q2}}", "{{q2}}".repeat(6)) }, ctx, "group_reasoning");
-  const wrongFirst = structuredClone(reply);
-  wrongFirst.g[0][0] = ["q2"];
-  assertRejected(wrongFirst, ctx, "chief_group");
-  assertRejected({ ...reply, y: reply.y + "另见双肺湿啰音。" }, ctx, "text_unquoted_finding");
-  assertRejected({ ...reply, y: reply.y.replace(reply.p[2], "参考") }, ctx, "inspection_meaning");
-});
+
 await check("08", "只去同一属性已答疑问，混合保留余项，保留程度既往和急症", () => {
   const sample = root();
   const row = (item, affects = "辨证") => ({ item, reason: "尚需核实", affects });
@@ -370,15 +359,14 @@ await check("09", "流派仅末句且方向一致，标签、工程字、残尾�
   assert.ok(validateRationalePair(lens, selected).ok, JSON.stringify(validateRationalePair(lens, selected)));
   assertRejected(lens, ctx, "lineage_unsolicited");
   const wrong = structuredClone(lens);
-  wrong.l = wrong.l.replace("辨其与所定证的相应处", "选用四逆汤");
+  wrong.l = "扶阳学派由本例心悸主张选用四逆汤。";
   assertRejected(wrong, selected, "lineage_formula");
 });
 await check("10", "bounded 写明缺项，证据空缺与有限结果只留底稿", async () => {
   const ctx = context(input({ tongue: "", pulse: "" }), root({ primarySyndromeResolution: "bounded" }));
   const reply = outline(ctx.input);
   assert.ok(validateRationalePair(reply, ctx).ok, JSON.stringify(validateRationalePair(reply, ctx)));
-  assert.ok(validateRationalePair({ ...reply, b: [] }, ctx).ok);
-  assertRejected({ ...reply, y: reply.y.replace("舌象未记录。脉象未记录。现据所述辨证，夜间睡眠详况尚缺。", "现据所述辨证。") }, ctx, "bounded_limit");
+
   assertRejected({ ...reply, s: "evidence_gap" }, ctx, "evidence_gap");
   assert.equal(buildFinalRationaleContext(root({ primarySyndromeResolution: "unresolved" }), input(), ""), undefined);
   const old = await wire({ mode: "off" });
@@ -388,13 +376,12 @@ await check("10", "bounded 写明缺项，证据空缺与有限结果只留底�
 });
 await check("11", "父取消、异常和两次拒稿整体回退，带拒因且最多两次", async () => {
   const old = await wire({ mode: "off" });
-  const bad = await wire({ author: (request) => ({ ...outline(request), y: "{{q1}}{{q2}}{{q3}}{{q4}}{{q5}}" }) });
+  const bad = await wire({ author: (request) => ({ ...outline(request), y: outline(request).y + "故为。" }) });
   assert.deepEqual(bad.content, old.content);
   assert.equal(bad.calls.length, 2);
-  const revision = bad.calls[1].revise.find((item) => item.code === "group_reasoning");
+  const revision = bad.calls[1].revise.find((item) => item.code === "text_fragment");
   assert.equal(revision.field, "y");
-  assert.match(revision.instruction, /六个汉字/u);
-  assert.match(revision.phrase, /\{\{q1\}\}/u);
+  assert.match(revision.instruction, /完整句/u);
   assert.deepEqual(bad.events[0].reasons.find((item) => item.code === revision.code), { code: revision.code, field: "y" });
   assert.equal(bad.events[0].physicalCalls, 2);
   const recovered = await wire({ author: (request, _opts, call) => call === 1 ? "{" : outline(request) });
@@ -503,123 +490,69 @@ await check("13", "真实流 200 但全超时功能验收为红；shadow、off�
   assert.equal(computed, 1);
 });
 
-await check("14", "新版与实见变体归一，带标签和同处重复引文可用", () => {
-  const ctx = context(input({ tongue: "正常舌象：淡红舌，薄白苔", faceNote: "正常面色：红黄隐隐，明润含蓄",
-    tcmLineagePreference: "support-yang" }));
+await check("14", "已定名的撤回与对内措辞退修，保留 M04 漂移探针", () => {
+  const ctx = context();
   const reply = outline(ctx.input);
-  const row = ctx.lines.find(({ text }) => text.startsWith("正常舌象："));
-  const face = ctx.lines.find(({ text }) => text.startsWith("正常面色："));
-  assert.equal(bindRationaleQuote(ctx, [face.id, face.text]).text, "红黄隐隐，明润含蓄");
-  const tongueRefs = reply.t[1];
-  reply.q[tongueRefs[0]] = [row.id, row.text, null, null];
-  reply.y = reply.y.replace(tongueRefs.map((id) => `{{${id}}}`).join("、"), `{{${tongueRefs[0]}}}`)
-    .replace(reply.t[2], "平和，无明确分证价值");
-  reply.t = ["n", [tongueRefs[0]], "舌象平和"];
-  const modern = validateRationalePair(reply, ctx);
-  assert.ok(modern.ok, JSON.stringify(modern));
-  assert.match(modern.pair.tcmDiagnosticRationale, /淡红舌，薄白苔/u);
-  assert.doesNotMatch(modern.pair.tcmDiagnosticRationale, /正常舌象：/u);
-
-  const variant = structuredClone(reply);
-  variant.t = [[...variant.t, null]];
-  variant.p = null;
-  variant.q.q11 = variant.q.q2;
-  variant.q.q12 = ["r999", "无关的弃用摘录"];
-  variant.g = [[1, ["q1", "q11"], "不要求逐字复现的病机", "心血虚证", ["S99"]]];
-  variant.d = [["q11", "D99", "不在成文的说明"]];
-  variant.l = ["support-yang", ["q11"], reply.l];
-  variant.b = [["四诊", "无需逐字写入", "支持有限"]];
-  variant.u = [];
-  variant.extra = "忽略多余键";
-  const normalized = parseRationaleOutline(variant);
-  assert.ok(normalized.outline);
-  assert.deepEqual(normalized.outline.t, reply.t);
-  assert.equal(normalized.outline.p, null);
-  assert.deepEqual(normalized.outline.d, ["q11"]);
-  assert.deepEqual(normalized.outline.g, [[["q1", "q11"], "不要求逐字复现的病机", "心血虚证"]]);
-  assert.deepEqual(normalized.outline.u, []);
-  assert.equal(normalized.outline.l, variant.l[2]);
-  assert.deepEqual(normalized.outline.b, ["无需逐字写入"]);
-  assert.deepEqual(validateRationalePair(variant, ctx), modern);
-  assertRejected({ ...reply, x: reply.x.replace("{{q1}}", "{{q99}}") }, ctx, "quote_reference");
-  assertRejected({ ...reply, q: { ...reply.q, q1: ["r999", "入睡困难"] } }, ctx, "quote_occurrence");
+  assertRejected({ ...reply, x: reply.x.replace("归于不寐", "暂按不寐") }, ctx, "disease_retracted");
+  assertRejected({ ...reply, y: reply.y.replace("故属心血虚证", "心血虚证尚待核实") }, ctx, "syndrome_retracted");
+  assertRejected({ ...reply, y: reply.y + "不具区分力。" }, ctx, "text_internal");
+  assertRejected({ ...reply, x: reply.x.replace("睡中又容易醒", "睡中又容易醒，睡中又容易醒") }, ctx, "m04_carryover_drift");
+  assertRejected({ ...reply, y: reply.y.replace("时有心悸", "时有心悸，时有心悸") }, ctx, "m04_carryover_drift");
 });
-
-await check("15", "主兼顺序、两处不同兼证引文和有界披露各自验收", () => {
-  const ctx = context(input(), root({ secondarySyndromes: ["气虚证"] }));
-  const reply = outline(ctx.input);
-  reply.y += "{{q2}}、{{q5}}，这些所见合参为气虚证。";
-  reply.g.push([["q2", "q5"], "推动乏力", "气虚证"]);
-  assert.ok(validateRationalePair(reply, ctx).ok, JSON.stringify(validateRationalePair(reply, ctx)));
-  const overlap = structuredClone(reply);
-  overlap.q.q11 = overlap.q.q2;
-  overlap.g[1][0] = ["q2", "q11"];
-  assertRejected(overlap, ctx, "secondary_support");
-  assert.equal(validateRationalePair(overlap, ctx, { revision: true }).softAccepted, true);
-  assertRejected({ ...reply, g: reply.g.slice(0, 1) }, ctx, "secondary_support");
-  assertRejected({ ...reply, y: "兼气虚证。" + reply.y }, ctx, "syndrome_name");
-  const compactConclusion = { ...reply, y: reply.y.replace("合参属心血虚证", "主证为心血虚证兼气虚证") };
-  assert.ok(validateRationalePair(compactConclusion, ctx).ok, JSON.stringify(validateRationalePair(compactConclusion, ctx)));
-  assertRejected({ ...compactConclusion, y: compactConclusion.y + "气虚证为主证。" }, ctx, "syndrome_name");
-  assertRejected({ ...reply, y: reply.y + "心血虚证尚待核实。" }, ctx, "syndrome_retracted");
-  assertRejected({ ...reply, x: reply.x.replace("归于", "暂按") }, ctx, "disease_retracted");
-
+await check("15", "流派末句与定稿方、治法、适配一致，篇幅按合成后核对", () => {
   const selected = context(input({ tcmLineagePreference: "support-yang" }));
   const lens = outline(selected.input);
+  assert.ok(validateRationalePair(lens, selected).ok, JSON.stringify(validateRationalePair(lens, selected)));
   assertRejected({ ...lens, l: null }, selected, "lineage_last");
   assertRejected({ ...lens, y: lens.y + lens.l }, selected, "lineage_embedded");
-  assertRejected({ ...lens, l: lens.l.replace("扶阳", "温病") }, selected, "lineage_subject");
-  assert.ok(validateRationalePair({ ...lens, l: lens.l.replace("扶阳学派看", "按扶阳思路，参看") }, selected).ok);
-  assertRejected({ ...lens, l: lens.l.replace("辨其与所定证的相应处", "治当清热解毒") }, selected, "lineage_method");
-
-  const ordinary = context();
-  const valid = outline(ordinary.input);
-  assertRejected({ ...valid, x: valid.x + "部位在右胸。" }, ordinary, "text_record_boundary");
-  assertRejected({ ...valid, x: valid.x + "起病急。" }, ordinary, "text_record_boundary");
-  assertRejected({ ...valid, y: valid.y + "另有重度乏力。" }, ordinary, "text_unquoted_finding");
-  assertRejected({ ...valid, y: valid.y + "病历没有心悸。" }, ordinary, "text_record_boundary");
-  assertRejected({ ...valid, y: valid.y + "本证之所见（）。" }, ordinary, "m04_carryover_drift");
-  assert.ok(validateRationalePair({ ...valid, y: valid.y.replace("{{q5}}示", "{{q5}}，脉细弱，示") }, ordinary).ok);
+  assertRejected({ ...lens, x: lens.x + lens.l }, selected, "lineage_disease");
+  assertRejected({ ...lens, l: lens.l + "应通盘看待。" }, selected, "lineage_last");
+  assertRejected({ ...lens, l: lens.l.replace("扶阳", "丹溪") }, selected, "lineage_subject");
+  assertRejected({ ...lens, l: "扶阳学派据此治以行气活血。" }, selected, "lineage_method");
+  const adaptation = structuredClone(selected);
+  adaptation.input.lineage.adaptation = { applicable: "not-applicable" };
+  assertRejected(lens, adaptation, "lineage_applicability");
+  const excessive = { ...lens, l: "扶阳学派看时有心悸，" + "应合舌脉辨其相应处，".repeat(30) + "合参辨其相应处。" };
+  assertRejected(excessive, selected, "text_length");
 });
 
 await check("16", "本次起病与病程吻合，单列以前发作或否认仍不能引用", () => {
   const symptoms = { presentHistory: "两月前出现腹部隐痛，伴嗳气。曾有咳嗽。无腹泻，查体可见皮疹。无呕吐，黑便。否认胸痛、气短。不痒不痛。" };
   const current = context(input({ chiefComplaint: "腹痛2个月", symptoms }), root({ tcmDiseaseName: "腹痛" }));
-  const quote = (ctx, text) => bindRationaleQuote(ctx, [qid(ctx, text), text]);
+  const quote = hasCurrentRationaleQuote;
   assert.ok(quote(current, "伴嗳气"));
   assert.ok(quote(current, "查体可见皮疹"));
-  for (const finding of ["曾有咳嗽", "黑便", "气短", "不痒不痛"]) assert.equal(quote(current, finding), undefined, finding);
+  for (const finding of ["曾有咳嗽", "黑便", "气短", "不痒不痛"]) assert.equal(quote(current, finding), false, finding);
   const anotherEpisode = context(input({ symptoms }));
-  assert.equal(quote(anotherEpisode, "伴嗳气"), undefined);
+  assert.equal(quote(anotherEpisode, "伴嗳气"), false);
   const unrelated = context(input({ chiefComplaint: "咳嗽2个月", symptoms }), root({ tcmDiseaseName: "咳嗽" }));
-  assert.equal(quote(unrelated, "伴嗳气"), undefined);
+  assert.equal(quote(unrelated, "伴嗳气"), false);
   const hairLoss = (chiefComplaint) => context(input({ chiefComplaint, symptoms: { presentHistory: "十天前梳头发现耳后有小片脱发区，不痒不痛。" } }),
     root({ tcmDiseaseName: "油风" }));
   assert.ok(quote(hairLoss("耳后片状脱发十天"), "耳后有小片脱发区"));
-  assert.equal(quote(hairLoss("耳后片状脱发十天"), "不痒不痛"), undefined);
-  assert.equal(quote(hairLoss("耳后片状脱发三天"), "耳后有小片脱发区"), undefined);
-  assert.ok(recordedRationaleSitePain(current, "腹部疼痛"));
-  assert.equal(recordedRationaleSitePain(current, "腰部疼痛"), false);
-  const deniedPain = context(input({ symptoms: { presentHistory: "否认胃脘隐痛。" } }));
-  assert.equal(recordedRationaleSitePain(deniedPain, "胃脘疼痛"), false);
-
+  assert.equal(quote(hairLoss("耳后片状脱发十天"), "不痒不痛"), false);
+  assert.equal(quote(hairLoss("耳后片状脱发三天"), "耳后有小片脱发区"), false);
   const relief = (history) => context(input({ chiefComplaint: "腹痛2个月", symptoms: { presentHistory: history } }), root({ tcmDiseaseName: "腹痛" }));
   assert.ok(quote(relief("两月前出现腹痛，餐后加重，休息后稍缓解。"), "餐后加重"));
-  assert.equal(quote(relief("两月前出现腹痛，餐后加重，现已完全缓解。"), "餐后加重"), undefined);
+  assert.equal(quote(relief("两月前出现腹痛，餐后加重，现已完全缓解。"), "餐后加重"), false);
   const reporter = context(input({ symptoms: { presentHistory: "近三天睡眠颠倒、认不清亲属，母亲本人咳嗽。" } }));
   assert.ok(quote(reporter, "近三天睡眠颠倒、认不清亲属"));
-  assert.equal(quote(reporter, "母亲本人咳嗽"), undefined);
+  assert.equal(quote(reporter, "母亲本人咳嗽"), false);
   const witness = context(input({ symptoms: { presentHistory: "今早突然眼前发黑，没来得及站稳就跌倒，老伴说喊她不应，片刻后自行醒来。" } }));
   assert.ok(quote(witness, "喊她不应，片刻后自行醒来"));
 });
 
 await check("17", "首稿软拒退修，末稿软采纳并计码，硬拒仍回底稿", async () => {
   const state = input(), ctx = context(state);
+  const groupDraft = outline(ctx.input);
+  groupDraft.g[0][1] = "所见由肝阴亏虚所致";
+  const groupVerdict = validateRationalePair(groupDraft, ctx);
+  assert.ok(!groupVerdict.ok && groupVerdict.reasons.some(({ code, field }) => code === "foreign_element" && field === "g"));
   const propose = async (hardOnRetry) => {
     const events = [];
     let calls = 0;
     const author = createFinalRationaleAuthor({ state, scope: "test", mode: "on", signal: new AbortController().signal,
-      deadline: () => Date.now() + 20_000, observe: (event) => events.push(event),
+      deadline: () => Date.now() + 20_000, observe: (event) => events.push(event), claimCheck: async () => [],
       transport: async (messages) => {
         const request = JSON.parse(messages[1].content);
         const draft = outline(request);
@@ -643,71 +576,75 @@ await check("17", "首稿软拒退修，末稿软采纳并计码，硬拒仍回�
   assert.equal(hard.proposal, undefined);
   assert.equal(hard.event.softAccepted, false);
 });
-await check("18", "服务端拼 u 和 l，保留已定结论，严格验流派独立段和引文", () => {
-  const state = input({ tcmLineagePreference: "support-yang", symptoms: { presentHistory: "时有心悸。睡中易醒。偶有耳鸣。伴鼻塞。" } });
-  const ctx = context(state);
-  const draft = outline(ctx.input);
-  draft.q.q11 = [qid(ctx, "偶有耳鸣"), "偶有耳鸣"];
-  draft.q.q12 = [qid(ctx, "伴鼻塞"), "伴鼻塞"];
-  draft.u = [[["q11", "q12"], "暂无解释"]];
-  const accepted = validateRationalePair(draft, ctx);
-  assert.ok(accepted.ok, JSON.stringify(accepted));
-  assert.match(accepted.pair.tcmDiagnosticRationale, /另有偶有耳鸣、伴鼻塞，本证难以概括，是否另有兼夹尚待核实。扶阳学派/u);
-  assertRejected({ ...draft, y: draft.y + "{{q11}}，定稿证素不归入。" }, ctx, "text_internal");
-  assertRejected({ ...draft, y: draft.y + "{{q11}}，也是临床另有所见。" }, ctx, "text_internal");
-  assertRejected({ ...draft, y: draft.y.replace("{{q5}}", "{{r3}}") }, ctx, "quote_line_number");
-  assertRejected({ ...draft, l: "扶阳学派看本例时有心悸，仍应合参诸证。" }, ctx, "lineage_unquoted_finding");
-  assertRejected({ ...draft, l: "扶阳学派看{{q99}}，仍应合参诸证。" }, ctx, "quote_reference");
-  assertRejected({ ...draft, l: draft.l + "此处仍需结合所见。" }, ctx, "lineage_last");
-  assertRejected({ ...draft, l: "扶阳学派看{{q2}}，心血虚证尚待核实。" }, ctx, "syndrome_retracted");
-  assertRejected({ ...draft, l: "扶阳学派看{{q2}}，仍与定稿治法相合。" }, ctx, "text_internal");
-  const incompatible = { ...ctx, input: { ...ctx.input, lineage: { ...ctx.input.lineage, adaptation: { applicable: "not-applicable" } } } };
-  assertRejected(draft, incompatible, "lineage_applicability");
-  const negative = { ...draft, l: "扶阳学派看{{q2}}，证据与此派眼目不合，故不宜用扶阳法。" };
-  assert.ok(validateRationalePair(negative, incompatible).ok);
-  const legacy = { ...draft, y: draft.y + "{{q11}}、{{q12}}难以归入定稿证素。" + draft.l };
-  assert.deepEqual(validateRationalePair(legacy, ctx, { legacyLayout: true }), accepted);
-  const rowId = draft.q.q11[0];
-  const lineAside = `{{${rowId}}}，偶有耳鸣、伴鼻塞属证素范围外的表现。`;
-  const rowLayout = { ...draft, y: draft.y + lineAside + draft.l, u: [[rowId, "偶有耳鸣、伴鼻塞属证素范围外的表现"]] };
-  assert.deepEqual(validateRationalePair(rowLayout, ctx, { legacyLayout: true }), accepted);
-  assertRejected(rowLayout, ctx, "quote_line_number");
-  const misquoted = { ...rowLayout, u: [[rowId, "偶有耳鸣、伴腹痛属证素范围外的表现"]] };
-  assert.equal(validateRationalePair(misquoted, ctx, { legacyLayout: true }).ok, false);
+await check("18", "只核两段，编造表现作最小删除，病历仅否认的字面可删", async () => {
+  const field = "tcmDiseaseRationale";
+  const span = "双手颤动";
+  const state = input({ symptoms: { presentHistory: "时有心悸。睡中易醒。否认双手颤动。" } });
+  const reply = (request) => ({ ...outline(request), x: outline(request).x.replace("入睡与续睡均受扰", `${span}，入睡与续睡均受扰`) });
+  const result = await wire({ route: true, parallel: true, state, author: reply, claim: () => ({ claims: [{ field, span }] }) });
+  const event = result.events[0];
+  assert.equal(event.signed, true, JSON.stringify(event));
+  assert.deepEqual([event.claimCheck, event.claimCalls, event.claimRemovals], ["checked", 3, 1]);
+  assert.ok(result.claimRequests.filter(({ fields }) => fields).length === 2);
+  for (const { fields } of result.claimRequests.filter(({ fields }) => fields)) {
+    assert.deepEqual(fields.map(({ id }) => id).sort(), ["tcmDiagnosticRationale", "tcmDiseaseRationale"]);
+  }
+  assert.equal(result.reasoning.overview[field], outline(result.calls.at(-1)).x);
+  assert.deepEqual(parsePatientClaimRemovals(JSON.stringify({ claims: [{ field, span }] }),
+    [{ id: field, text: span }], "查体见双手颤动。"), []);
+  assert.deepEqual(parsePatientClaimRemovals(JSON.stringify({ claims: [{ field, span }] }),
+    [{ id: field, text: span }], "否认双手颤动。"), [{ field, span }]);
 });
-await check("19", "长引文截到唯一表现，重复摘同一处只交付一次", () => {
-  const state = input({ symptoms: { presentHistory: "时有心悸，平时每天午饭后散步半个小时并在家中照顾家人，晚饭过后常与家人一起在公园走很久，睡中易醒。" } });
-  const ctx = context(state);
-  const long = "时有心悸，平时每天午饭后散步半个小时并在家中照顾家人，晚饭过后常与家人一起在公园走很久，睡中易醒";
-  const line = qid(ctx, long);
-  assert.equal(bindRationaleQuote(ctx, [line, long, "心悸"]).text, "时有心悸");
-  assert.equal(bindRationaleQuote(ctx, [line, long, "腹痛"]), undefined);
-  assert.equal(bindRationaleQuote(ctx, [line, long.replace("午饭", "早饭"), "心悸"]), undefined);
-  const draft = outline(ctx.input);
-  draft.q.q11 = draft.q.q5;
-  const accepted = validateRationalePair({ ...draft, y: draft.y.replace("{{q5}}示", "{{q5}}，{{q11}}，脉细弱，示") }, ctx);
-  assert.ok(accepted.ok, JSON.stringify(accepted));
-  assert.equal(accepted.pair.tcmDiagnosticRationale.split("脉细弱").length, 2);
+await check("19", "删除后失去舌脉或证名、低于字数时，两段一起退回", async () => {
+  const ctx = context();
+  const reply = outline(ctx.input);
+  const propose = async (field, span, raw = reply) => {
+    const events = [];
+    const runner = createFinalRationaleAuthor({ state: ctx.state, scope: "test", mode: "on", signal: new AbortController().signal,
+      deadline: () => Date.now() + 1000, timeoutMs: 80, observe: (event) => events.push(event),
+      transport: async () => raw,
+      claimCheck: async () => [{ field, span }],
+    });
+    const result = await runner.propose(ctx.root);
+    runner.finish(result ? "new" : "old", Boolean(result));
+    assert.equal(result, undefined);
+    assert.equal(events[0].claimRemovals, 1);
+    assert.equal(events[0].requests, 1);
+    return events[0].reasons;
+  };
+  for (const [span, code] of [["脉细弱", "inspection_recorded"], ["心血虚证", "syndrome_name"]]) {
+    assert.ok((await propose("tcmDiagnosticRationale", span)).some((reason) => reason.code === code));
+  }
+  const short = { ...reply, x: "入睡困难反复发生且睡中多醒，睡眠始终受扰，归于不寐。" };
+  assert.ok((await propose("tcmDiseaseRationale", "睡眠始终受扰", short)).some((reason) => reason.code === "text_length"));
+  assert.ok((await propose("tcmDiseaseRationale", "入睡困难反复发生", short)).some((reason) => reason.code === "claim_check_shortened"));
 });
-
-await check("20", "教材典型舌苔可作支持，确认相邻摘录只记软拒", () => {
-  const wind = context(input({ tongue: "苔薄白", pulse: "脉浮紧" }),
-    root({ tcmDiseaseName: "感冒", primarySyndrome: "风寒束表证" }));
-  const typed = validateRationalePair(outline(wind.input), wind);
-  assert.ok(!typed.reasons?.some(({ code, field }) => code === "inspection_normal" && field === "t"), JSON.stringify(typed));
-
-  const state = input({ tongue: "", symptoms: { presentHistory: "时有心悸。睡中易醒。苔薄白，头晕。" } });
-  const ctx = context(state);
-  const row = ctx.lines.find(({ text }) => text.includes("苔薄白，头晕"));
-  ctx.input.important.push({ line: row.id, term: "头晕", at: row.text.indexOf("头晕") });
-  const draft = outline(ctx.input);
-  const [id] = draft.t[1];
-  draft.q[id] = [row.id, "苔薄白，头晕"];
-  draft.y = draft.y.replace(draft.t[2], "平和而不具区分力");
-  draft.t = ["n", [id], "平和"];
-  assertRejected(draft, ctx, "inspection_adjacent_excerpt");
-  const revised = validateRationalePair(draft, ctx, { revision: true });
-  assert.ok(revised.ok && revised.softAccepted, JSON.stringify(revised));
+await check("20", "事实模型失败或超时仍正常签入，并区分不可用和零删除", async () => {
+  const failure = await wire({ route: true, parallel: true, claim: () => new Response(null, { status: 503 }) });
+  const event = failure.events[0];
+  assert.equal(event.signed, true, JSON.stringify(event));
+  assert.deepEqual([event.claimCheck, event.claimCalls, event.claimRemovals], ["unavailable", 2, 0]);
+  const ctx = context();
+  const events = [];
+  const deadline = Date.now() + 330;
+  let lateReply = false;
+  let timer;
+  const runner = createFinalRationaleAuthor({ state: ctx.state, scope: "test", mode: "on", signal: new AbortController().signal,
+    deadline: () => deadline, timeoutMs: 20, observe: (item) => events.push(item),
+    transport: async () => outline(ctx.input), claimCheck: async (_content, _record, _signal, attempted) => {
+      attempted();
+      return new Promise((resolve) => {
+        timer = setTimeout(() => { lateReply = true; resolve([]); }, 700);
+      });
+    } });
+  const proposal = await runner.propose(ctx.root);
+  clearTimeout(timer);
+  assert.ok(proposal);
+  assert.equal(lateReply, false);
+  runner.finish("new", true);
+  assert.deepEqual([events[0].claimCheck, events[0].claimCalls], ["unavailable", 1]);
+  const good = await wire();
+  assert.deepEqual([good.events[0].claimCheck, good.events[0].claimCalls, good.events[0].claimRemovals], ["checked", 2, 0]);
 });
 
 console.log(JSON.stringify({ checks, failures }));

@@ -1,7 +1,7 @@
 import "server-only";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
-  deliveryNamePairs, findUnsupportedM03ElementAssertions, m03ElementContext, selectedElementRow,
+  findUnsupportedM03ElementAssertions, m03ElementContext, selectedElementRow,
   type ElementAssertion,
 } from "./m03-element-assertions";
 import { textbookRowForSyndrome, type TextbookCaseInput } from "./tcm-textbook-syndromes";
@@ -16,15 +16,6 @@ export function finalRationaleElementContext(root: ClinicalReasoningResultV2, in
   const row = selectedElementRow(m03ElementContext(source,
     textbookRowForSyndrome(diagnosis.disease, diagnosis.primarySyndrome, input)));
   return { diagnosis: m03ElementContext(source, row), row };
-}
-
-export function allowedRationaleElements(name: string) {
-  const allowed: Record<string, string[] | "any"> = {};
-  for (const { type, organ } of deliveryNamePairs(name)) {
-    const existing = allowed[type];
-    if (existing !== "any") allowed[type] = organ ? [...(existing || []), organ] : "any";
-  }
-  return allowed;
 }
 
 export function unsupportedRationaleElements(prose: string, context: ReturnType<typeof finalRationaleElementContext>, recordText = ""): ElementAssertion[] {

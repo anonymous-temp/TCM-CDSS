@@ -429,7 +429,7 @@ export function negativeClaimAsNotReported(span: string, recordText: string): st
 }
 
 /** 把片段删除落到一半的 JSON 上（纯函数，原地改 root）。片段已不在字段里的跳过；返回实际删了几处。recordText 给了时，病历没写到的阴性说法改写而不删。 */
-export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, removals: readonly PatientClaimRemoval[], recordText = ""): number {
+export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, removals: readonly PatientClaimRemoval[], recordText = "", { deletionOnly = false } = {}): number {
   if (removals.length === 0) return 0;
   const slots = new Map(fieldSlots(root, half).map((slot) => [slot.id, slot]));
   let applied = 0;
@@ -446,7 +446,7 @@ export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, re
     // 片段里的「无」全是固定说法（无痛性、无意中、面色无华…，maskNonNegatingWuWords）：不是阴性说法，留模型原话（第四十五轮复核 C069、n30）。
     if (/无/u.test(span) && !/无/u.test(maskNonNegatingWuWords(span))) continue;
     // 片段里夹着病历肯定写着的项：整段删会连它们一起丢（「发热不恶寒、口渴汗出、舌红苔黄腻」），这种留模型原话。
-    if (recordText && span.includes("、") && span.split("、").some((part) => part.length >= 3 && recordText.includes(part.trim()))) continue;
+    if (recordText && span.includes("、") && span.split("、").some((part) => part.length >= 3 && recordText.includes(part.trim()) && (!deletionOnly || !onlyDeniedInRecord(part.trim(), recordText)))) continue;
     // 片段前面紧挨着「推之/按之/之/非」这类构词（「推之无固定」只标了「无固定」）：改成「推之未诉固定」读不通（第四十六轮复核 C069）。
     // 与交付面「无→未诉」改写的 unreadable 同一口径（diagnosis-visible-summary）：这时删掉片段所在的那一项（顿号、逗号之间），不改写。
     const at = current.indexOf(span);
@@ -459,7 +459,7 @@ export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, re
       if (next !== current) { slot.write(next); applied += 1; }
       continue;
     }
-    const rewritten = recordText ? negativeClaimAsNotReported(span, recordText) : undefined;
+    const rewritten = recordText && !deletionOnly ? negativeClaimAsNotReported(span, recordText) : undefined;
     const next = rewritten ? current.replace(span, rewritten) : withoutClaimSpan(current, span);
     if (next !== current) {
       slot.write(next);
@@ -584,12 +584,17 @@ export function parsePatientClaimVerification(content: unknown, count: number): 
   return supported;
 }
 
+function claimModelClient(config: ReturnType<typeof getControlledTerminologyModelConfig>, onNetworkAttempt?: () => void) {
+  return createTextModelClient(config, onNetworkAttempt ? { retryOwner: "application", onNetworkAttempt } : undefined);
+}
+
 async function patientClaimPass(
   task: string,
   messages: ReturnType<typeof buildPatientClaimMessages>,
   fields: readonly PatientClaimField[],
   recordText: string,
   signal?: AbortSignal,
+  onNetworkAttempt?: () => void,
 ): Promise<PatientClaimRemoval[] | undefined> {
   const config = getControlledTerminologyModelConfig();
   return memoizedSmallTask<PatientClaimRemoval[] | undefined>(task, smallTaskMemoKey([config.model, messages]), async () => {
@@ -597,7 +602,7 @@ async function patientClaimPass(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const response = await observeModelTask({ task, stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
+      const response = await observeModelTask({ task, stage: "diagnose", model: config.model }, () => claimModelClient(config, onNetworkAttempt).chat.completions.create({
         model: config.model,
         temperature: 0,
         max_tokens: 400,
@@ -623,7 +628,7 @@ async function patientClaimPass(
  */
 export async function decidePatientClaimRemovals(
   content: string,
-  context: { recordText: string },
+  context: { recordText: string; onNetworkAttempt?: () => void; onChecked?: () => void },
   half: PatientClaimHalf,
   signal?: AbortSignal,
 ): Promise<PatientClaimRemoval[]> {
@@ -640,8 +645,8 @@ export async function decidePatientClaimRemovals(
   // 一并删掉，辨病依据只剩鉴别排除语，评审「诊断依据」复测集 85%→70%。缺省关；CDSS_TEXTBOOK_DEFINITION_CLAIMS=true 打开。
   const textbookClaims = half === "tcm" && textbookDefinitionClaimsEnabled() ? textbookCopiedDiseaseClaims(root, recordText) : [];
   const [first, second] = await Promise.all([
-    patientClaimPass(task, buildPatientClaimMessages(recordText, fields), fields, recordText, signal),
-    patientClaimPass(task, buildPatientClaimMessages(recordText, [...fields].reverse()), fields, recordText, signal),
+    patientClaimPass(task, buildPatientClaimMessages(recordText, fields), fields, recordText, signal, context.onNetworkAttempt),
+    patientClaimPass(task, buildPatientClaimMessages(recordText, [...fields].reverse()), fields, recordText, signal, context.onNetworkAttempt),
   ]);
   const agreed = first && second
     ? patientClaimCandidatesForVerification(first, second, { eitherPass: process.env.CDSS_M03_PATIENT_CLAIM_EITHER_PASS === "true" })
@@ -661,7 +666,7 @@ export async function decidePatientClaimRemovals(
       const ends = ["。", "；", ";"].map((mark) => fieldText.indexOf(mark, at + span.length)).filter((index) => index >= 0);
       return { span, context: fieldText.slice(sentenceStart, ends.length > 0 ? Math.min(...ends) : fieldText.length) };
     });
-    const supported = await patientClaimVerification(`${task}_verify`, buildPatientClaimVerificationMessages(recordText, claims), claims.length, signal);
+    const supported = await patientClaimVerification(`${task}_verify`, buildPatientClaimVerificationMessages(recordText, claims), claims.length, signal, context.onNetworkAttempt);
     removals = supported ? agreed.filter((_, index) => !supported.has(index)) : undefined;
   }
   console.info("[tcm-cdss:telemetry] m03_patient_claim_check", {
@@ -672,6 +677,7 @@ export async function decidePatientClaimRemovals(
     agreed: agreed?.length ?? "unavailable",
     removals: removals?.length ?? "unavailable",
   });
+  if (removals && !signal?.aborted) context.onChecked?.();
   return removals ?? [];
 }
 
@@ -680,13 +686,14 @@ async function patientClaimVerification(
   messages: ReturnType<typeof buildPatientClaimVerificationMessages>,
   count: number,
   signal?: AbortSignal,
+  onNetworkAttempt?: () => void,
 ): Promise<Set<number> | undefined> {
   const config = getControlledTerminologyModelConfig();
   const ids = await memoizedSmallTask<number[] | undefined>(task, smallTaskMemoKey([config.model, messages]), async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const response = await observeModelTask({ task, stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
+      const response = await observeModelTask({ task, stage: "diagnose", model: config.model }, () => claimModelClient(config, onNetworkAttempt).chat.completions.create({
         model: config.model,
         temperature: 0,
         max_tokens: 400,

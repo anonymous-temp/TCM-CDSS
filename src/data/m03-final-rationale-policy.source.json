@@ -1,6 +1,6 @@
 {
-  "schemaVersion": "m03-final-rationale-policy-v3",
-  "sourceRef": "第五十轮 P2、P2b、P2c 验收约定与 A2 辨病辨证定稿设计",
+  "schemaVersion": "m03-final-rationale-policy-v4",
+  "sourceRef": "第五十轮 P2d 验收约定与 A2 辨病辨证定稿设计",
   "basis": "仅用于作者输出的受控格式、声明与章节语境验收。沿用诊断安全层的临床极性和时相读法。",
   "historyHeading": "^(?:既往史|个人史|家族史|婚育史|月经史|生育史|手术史|外伤史|输血史|过敏史|用药史)\\s*[:：]",
   "tonguePath": "/(?:tongue|tcmTongue|舌象|舌质|舌苔)$",
@@ -15,8 +15,6 @@
   "painModifier": "(?:部位?)?(?:持续性?|阵发性?)?(?:疼|隐|刺|胀|灼|酸)?",
   "affirmativeObservation": "可见|查见|检查见|镜见",
   "boundedGap": "未(?:记录|录|记|明|知|查|测)|尚缺|还缺|仍缺|均缺|不详|(?:需|待|尚待)(?:补|查|完善|评估|核实)",
-  "bounded": "仅据|现据|暂据|暂以|仅以|据此|支持有限|佐证有限|尚缺|还缺|未记录|未明|未录|未记|均缺|待查|待补|需补|尚待|不详",
-  "textbookGeneralization": "通常|多见于|一般可见|常以|则可",
   "namedSyndromeLead": "(?:辨为|辨作|辨属|归于|属于|主证(?:是|为)|兼证(?:是|为)|兼有|兼夹|兼见)\\s*([^，,。；;、\\s]{2,16})",
   "secondaryRole": "兼证(?:为|是)|兼有|兼夹|兼见|作兼证",
   "tongueTermAffix": "^(?:舌质|舌苔|舌|苔)|[舌苔]$",
@@ -30,14 +28,10 @@
   "syndromePredicateTail": "(?:相合|所致|之候|为主|为兼)$",
   "missingResolvedDisease": "暂按|病名[尚仍]?待",
   "missingResolvedName": "暂按|证候[尚仍]?待",
-  "patientQualifiers": "(?:^|[，、：])(?:左侧|右侧|双侧|剧烈|重度|轻度)|(?:已加重|病程迁延|持续加重)",
-  "recurrenceAssertion": "反复发作",
-  "normalInspection": "^(?:舌象|脉象)?(?:正常|无异常)$",
   "primaryRole": "主证(?:为|是)|(?:为|作)主证",
   "tongueMissing": "舌(?:象|质)?(?:脉|和脉|及脉|、脉)?(?:象)?(?:均)?(?:未(?:能)?记录|未测|未查|不详|尚缺)",
   "pulseMissing": "(?<!心)脉(?:象)?(?:均)?(?:未(?:能)?记录|未测|未查|不详|尚缺)",
   "internalRationaleWording": "定稿|证素|不(?:作|能)?归入|不强行|超出[^。；;]{0,24}范围|区分力|难以概括|待补充|还缺这些",
-  "legacyUnexplainedWording": "难以概括|难以解释|难归|难以归|难定|不能归|不作归|无法归|不强行|不作[^。；;]{0,8}依据|超出[^。；;]{0,24}范围|不[属在为是][^。；;]{0,12}解释|非[^。；;]{0,16}(?:解释|所能)|证素|如实存疑|暂难归属",
   "lineageAliases": {
     "classical-formula": [
       "经方",
@@ -58,8 +52,6 @@
     ]
   },
   "lineageDoesNotApply": "不(?:适用|适配|吻合|取|宜|作|以|用)|未(?:取|用|见)|无[^。；;]{0,24}(?:之据|证据)|方证不合|难以按",
-  "explicitDiseaseDefinition": "(?:属|是|为|指)(?:[^否无未不本患者。；;]{2,40})(?:性(?:皮肤)?病|类病|疾病)(?=$|[，。；;])",
-  "bareNegation": "(?:^|[、])(?:而)?(?:无|没有|未见|否认)|而(?:无|未见|没有)",
   "negativeLineageTreatment": "(?:故)?不(?:取|宜|用|以)|未(?:取|用)|避免",
   "elementAllowances": {
     "diseasePathogens": {
@@ -201,20 +193,5 @@
       }
     ]
   },
-  "inspectionUnavailable": "^(?:舌象|脉象)(?:难配合|无法配合|未能测得|无法测得)$",
-  "affirmedFindingEquivalents": {
-    "气短": [
-      "气不够用",
-      "气不够使"
-    ],
-    "尿频": [
-      "小便次数增多",
-      "排尿次数增多"
-    ]
-  },
-  "frequentNocturnalUrination": "夜尿(?:每晚)?[2-9二两三四五六七八九](?:[至到~～-][2-9二两三四五六七八九])?次",
-  "legacyDirectionBoilerplate": "(?<=与)定稿(?=[^。；;]{2,30}(?:方向相合|相合|一致))",
-  "legacyUnexplainedFindingEnd": "(?:[，,](?=超出|未含|不能归|不强行)|(?<=[\\p{Script=Han}])(?:属|为)(?=[\\p{Script=Han}]))",
-  "findingAssertionLead": "(?:本例|患者|患儿)(?:自觉|自诉|伴有|见|有)|(?:出现|自诉|伴见|查体见|可见|且见|另见|已见|并见)(?![^，。；;]{0,4}(?:与否|有无|是否))",
-  "restatementLead": "为|乃|属|主|示|提示|系|均"
+  "inspectionUnavailable": "^(?:舌象|脉象)(?:难配合|无法配合|未能测得|无法测得)$"
 }

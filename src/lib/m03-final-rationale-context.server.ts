@@ -7,16 +7,16 @@ import { buildTrustedRecordIndex, deliveryHash } from "./delivery-trusted-record
 import { chiefComplaintFindings, chiefComplaintPhrase, rationaleFindingsChecklist } from "./rationale-findings-checklist";
 import { followupConversationView } from "./followup-conversation";
 import { getLineageCard, resolveLineageCode } from "./tcm-lineages";
-import { isTextbookDiseaseName, splitTextbookDiseaseSubtype, textbookDiseaseDiagnosisPoints, textbookRowForSyndrome, tongueOptionsMutuallyExclusive, pulseOptionsMutuallyExclusive, withoutFingerVeinClause } from "./tcm-textbook-syndromes";
+import { isTextbookDiseaseName, splitTextbookDiseaseSubtype, textbookDiseaseDiagnosisPoints, textbookRowForSyndrome, withoutFingerVeinClause } from "./tcm-textbook-syndromes";
 import { diagnosticsCriteriaFor, elementCompositeCriteriaEntry, compoundCriteriaEntries } from "./m03-secondary-syndrome-consistency.server";
-import { allowedRationaleElements, finalRationaleElementContext } from "./m03-final-rationale-elements.server";
-import { withoutNormalFindingSegments } from "./diagnosis-visible-summary";
-import { inspectionLexiconNormal, TCM_INSPECTION_AXES } from "./tcm-inspection-lexicon";
+import { finalRationaleElementContext } from "./m03-final-rationale-elements.server";
+import { TCM_INSPECTION_AXES } from "./tcm-inspection-lexicon";
 import exam from "../data/physical-exam-claim-lexicon.source.json";
 import symptomAxis from "../data/tcm-symptom-axis-map.source.json";
 import chiefConcepts from "../data/tcm-differential-chief-concepts.source.json";
 import rules from "../data/m03-final-rationale-policy.source.json";
 import deliveryFactsPolicy from "../data/delivery-facts-policy.source.json";
+import { alignQuoteToSource } from "./source-quote-alignment";
 import { courseSpans } from "./western-record-course";
 import { FINAL_RATIONALE_VERSION } from "./m03-final-rationale-policy";
 import { FINAL_RATIONALE_SYSTEM, rationaleRevision, type RationaleRejection } from "./m03-final-rationale-outline.server";
@@ -32,13 +32,13 @@ const inspectionPaths = {
 };
 const inspectionPrefix = { tongue: new RegExp(rules.tonguePrefix, "u"), pulse: /^(?:脉象|切诊)\s*[:：]\s*/u };
 const inspectionWords = { tongue: /^(?:舌(?!下含服)|苔)/u, pulse: new RegExp(rules.pulseFindingPrefix, "u") };
-export const inspectionUnavailable = new RegExp(rules.inspectionUnavailable, "u");
+const inspectionUnavailable = new RegExp(rules.inspectionUnavailable, "u");
 const inspectionLabel = new RegExp(rules.inspectionLabel, "u");
 const stripInspectionLabel = (value: string) => value.replace(inspectionLabel, "");
 const familyObject = new RegExp(rules.familyObject, "gu");
 const historyHeading = new RegExp(rules.historyHeading, "u");
 
-export const GOVERNED_FINDINGS = unique([
+const GOVERNED_FINDINGS = unique([
   ...symptomAxis.entries.flatMap((entry) => entry.terms),
   ...exam.groups.flatMap((entry) => entry.terms),
   ...TCM_INSPECTION_AXES.flatMap((axis) => [...axis.groups.flatMap((group) => group.terms), ...axis.normal.split(/[，、]/u)]),
@@ -171,7 +171,7 @@ function independentlyAffirmedAt(text: string, offset: number): boolean {
     affirmedClinicalSourceClauses(text).some((affirmed) => affirmed.includes(clause));
 }
 
-export function isCurrentFindingAt(line: Line, at: number, term: string, affirmedSpan = false): boolean {
+function isCurrentFindingAt(line: Line, at: number, term: string, affirmedSpan = false): boolean {
   const offset = line.contextOffset + at;
   const polarity = recordMentionPolarityAt(line.reading, offset);
   return line.current && polarity !== "excluded" &&
@@ -185,7 +185,7 @@ function findingInLine(line: Line, term: string): Finding | undefined {
   return at === undefined ? undefined : { line: line.id, at, term };
 }
 
-export function inspectionFindings(lines: readonly Line[], field: Inspection): Finding[] {
+function inspectionFindings(lines: readonly Line[], field: Inspection): Finding[] {
   const found: Finding[] = [];
   const covered = new Set<string>();
   for (const line of lines.filter((entry) => entry.current)) {
@@ -271,10 +271,6 @@ export function buildFinalRationaleContext(root: ClinicalReasoningResultV2, stat
   const displayed = new Set(lines.map((line) => line.id));
   // An omitted measured finding cannot be described as unrecorded.
   if ([...tongue, ...pulse].some((finding) => !displayed.has(finding.line))) return undefined;
-  const conflicting = {
-    tongue: tongue.some((a) => tongue.some((b) => a !== b && tongueOptionsMutuallyExclusive(a.term, b.term))),
-    pulse: pulse.some((a) => pulse.some((b) => a !== b && pulseOptionsMutuallyExclusive(a.term, b.term))),
-  };
   const age = authoritativePatientAgeYears(state) ?? undefined;
   const disease = overview.tcmDiseaseName;
   const source = textbookDiseaseDiagnosisPoints(disease, age) ?? textbookDiseaseDiagnosisPoints(splitTextbookDiseaseSubtype(disease).disease, age);
@@ -299,7 +295,7 @@ export function buildFinalRationaleContext(root: ClinicalReasoningResultV2, stat
   const nature = pathogenesis.natureDifferentiation;
   const input = {
     records: lines.map(({ id, text, path, current, inspection }) => [id, text, inspection || path.split("/").at(-1), current ? undefined : "history"]),
-    chief, tongue, pulse, conflicting, important: [...new Map([...important, ...fingerVein].map((item) => [item.term, item])).values()],
+    chief, tongue, pulse, important: [...new Map([...important, ...fingerVein].map((item) => [item.term, item])).values()],
     conclusion: { disease, names, resolution: overview.primarySyndromeResolution, reason: overview.primarySyndromeResolutionReason, confidence: overview.evidence?.confidence },
     axes: {
       location: { ...location, details: location.details?.map(({ location, basis }) => ({ location, basis: ground(basis) ?? null })) },
@@ -308,7 +304,6 @@ export function buildFinalRationaleContext(root: ClinicalReasoningResultV2, stat
     ground: unique([...overview.primarySyndromeBasis, ...pathogenesis.chain.map((node) => node.patientFact)])
       .map(ground).filter((finding): finding is Finding => Boolean(finding)),
     pending: pathogenesis.uncertainties,
-    allowed: names.map(allowedRationaleElements),
     method: therapy?.overallMethod, direction: overview.recommendedFormulaDirection, formulas: overview.recommendedFormulaNames,
     lineage: card ? { code, label: card.label, lens: card.dxEmphasis, adaptation: lineageAdaptation } : null,
     diseaseReference: source ? { book: source.book, definition: source.definition, points } : null,
@@ -322,17 +317,10 @@ export function buildFinalRationaleContext(root: ClinicalReasoningResultV2, stat
     theory: { method: therapy, lineageAdaptation, location, nature, primaryBasis: overview.primarySyndromeBasis },
   });
   const elements = finalRationaleElementContext(root, { ageYears: age, chiefComplaint: state.chiefComplaint });
-  return { key, input, lines, facts, recordText, state, root, elements };
+  return { key, input, lines, recordText, state, root, elements };
 }
 
 export type FinalRationaleContext = NonNullable<ReturnType<typeof buildFinalRationaleContext>>;
-
-/** A pain adjective may refine the recorded symptom without changing its anatomical site. */
-export function recordedRationaleSitePain(context: FinalRationaleContext, term: string): boolean {
-  const pattern = sitePainPattern(term);
-  return Boolean(pattern && context.lines.some((line) => [...line.text.matchAll(pattern)].some((match) =>
-    isCurrentFindingAt(line, match.index + match[0].length - 1, match[0].slice(-1)))));
-}
 
 export function finalRationaleMessages(context: FinalRationaleContext, reasons: RationaleRejection[] = []) {
   return [
@@ -341,81 +329,46 @@ export function finalRationaleMessages(context: FinalRationaleContext, reasons: 
   ];
 }
 
-export type BoundQuote = Finding & { text: string; end: number };
-
-export function bindRationaleQuote(context: FinalRationaleContext, quote: readonly [string, string, (string | null)?, (string | null)?]): BoundQuote | undefined {
-  const [id, raw, anchor, scope] = quote;
-  const line = context.lines.find((entry) => entry.id === id);
-  if (!line || !raw || (scope && scope !== "current")) return undefined;
-  const spans = offsets(line.text, raw);
-  if (!spans.length) return undefined;
-  let excerpts = [{ text: raw, offset: 0 }];
-  if (stripInspectionLabel(raw).length > 40) {
-    // The original must be verbatim. Shorten only to the clause bearing the identified finding.
-    const findings = [...context.input.chief, ...context.input.tongue, ...context.input.pulse, ...context.input.important]
-      .filter((finding) => finding.line === id);
-    excerpts = [...raw.matchAll(/[^，,。；;！？]+/gu)].flatMap((match) => {
-      const text = match[0].trim();
-      const matchesFinding = anchor ? text.includes(anchor) : findings.some(({ term }) => text.includes(term));
-      return matchesFinding ? [{ text, offset: match.index + match[0].indexOf(text) }] : [];
-    });
-    if (new Set(excerpts.map(({ text }) => text)).size !== 1) return undefined;
-  }
-  const bound = spans.flatMap((start) => excerpts.flatMap(({ text, offset }) => {
-    if (stripInspectionLabel(text).length > 40) return [];
-    const result = bindAt(context, line, [id, text, anchor, scope], start + offset);
-    return result ? [result] : [];
-  }));
-  return bound.length === 1 ? bound[0] : undefined;
-}
-
-function bindAt(context: FinalRationaleContext, line: Line,
-  [id, raw, anchor, scope]: readonly [string, string, (string | null)?, (string | null)?], rawStart: number): BoundQuote | undefined {
-  const text = stripInspectionLabel(raw);
-  const term = (anchor && stripInspectionLabel(anchor)) || text;
-  if (!text || (scope && scope !== "current") || text !== text.trim() || !text.includes(term) || /[\r\n<>]/u.test(text) || /^[、，,。；;]|[。；;]$/u.test(text)) return undefined;
-  const terms = offsets(text, term);
-  if (terms.length !== 1) return undefined;
-  const start = rawStart + raw.length - text.length, at = start + terms[0];
-  const readingStart = line.contextOffset + start;
-  const readingText = line.reading.slice(readingStart, readingStart + text.length);
-  const readingTerm = readingText.slice(terms[0], terms[0] + term.length);
-  const reading = recordedFindingReading(line.reading, readingTerm);
-  // A contiguous, independently affirmed span can carry several clauses in a witness report.
-  // Local subject, negation and temporal checks still apply to each clause and governed finding.
-  const affirmativePassage = /[，,]/u.test(readingText) && recordedFindingReading(line.reading, readingText) === "affirmed" &&
-    affirmedClinicalSourceClauses(line.reading).some((affirmed) => affirmed.includes(readingText));
-  if (!isCurrentFindingAt(line, at, term, affirmativePassage)) return undefined;
-  // An assertion can carry more than one finding (including one in a denial run).
-  for (const finding of GOVERNED_FINDINGS) {
-    if (!text.includes(finding)) continue;
-    for (const local of offsets(text, finding)) {
-      if (!isCurrentFindingAt(line, start + local, finding, affirmativePassage)) return undefined;
+/** Find one continuous record span. For repeated wording, try another occurrence if the first is excluded. */
+export function hasCurrentRationaleQuote(context: FinalRationaleContext, quote: string): boolean {
+  for (const line of context.lines) {
+    if (!line.current) continue;
+    const rejected = new Set<number>();
+    for (;;) {
+      const aligned = alignQuoteToSource(quote, line.context, { excludedAt: (_, at) => rejected.has(at) });
+      if (!aligned || rejected.has(aligned.start)) break;
+      const text = stripInspectionLabel(aligned.span);
+      const start = aligned.end - text.length - line.contextOffset;
+      if (text && quoteOccurrenceAffirmed(context, line, text, start)) return true;
+      rejected.add(aligned.start);
     }
   }
-  const fragments = [...text.matchAll(/[^，,。；;！？]+/gu)];
-  for (const fragment of fragments) {
-    const part = fragment[0].trim();
-    if (clinicalClausePolarity(part) !== "affirmed" &&
-      !((GOVERNED_FINDINGS.includes(part) || /^无(?:苔|异常)$/u.test(part)) && recordedFindingReading(line.context, part) === "affirmed")) return undefined;
-    if (!isCurrentFindingAt(line, start + fragment.index, fragment[0], affirmativePassage)) return undefined;
-  }
-  if (reading !== "affirmed" && reading !== "conflicting") {
-    // Whole-quote matching can inherit a preceding denial across a comma even when every
-    // component of a contiguous descriptive span has an affirmed reading at its own position.
-    const affirmedSpan = fragments.length > 1 && fragments.every((fragment) =>
-      recordMentionPolarityAt(line.reading, line.contextOffset + start + fragment.index) === "affirmed") &&
-      affirmedClinicalSourceClauses(line.reading).some((affirmed) => affirmed.includes(readingText));
-    if (reading === "denied" || !(affirmedSpan || independentlyAffirmedAt(line.reading, line.contextOffset + at))) return undefined;
-  }
-  // A separately attested current negative conflicts with a proposed positive for the same occurrence.
-  if (context.state.clinicalFacts?.redFlags.some((fact) => fact.status === "negative" && fact.quote?.includes(term) &&
-      line.text.indexOf(fact.quote) >= 0 && fact.quote.includes(text))) return undefined;
-  return { line: id, at: start, end: start + text.length, term, text };
+  return false;
 }
 
-export function isNormalInspection(field: Inspection, finding: Finding): boolean {
-  const normal = inspectionLexiconNormal(field).split(/[，、]/u);
-  return normal.some((part) => part === finding.term) || new RegExp(rules.normalInspection, "u").test(finding.term) ||
-    (!/^[无不]/u.test(finding.term) && withoutNormalFindingSegments(finding.term) === "");
+function quoteOccurrenceAffirmed(context: FinalRationaleContext, line: Line, text: string, start: number): boolean {
+  if (inspectionUnavailable.test(text) || RECORD_GAP_MARKER.test(text)) return false;
+  const readingText = line.reading.slice(line.contextOffset + start, line.contextOffset + start + text.length);
+  const reading = recordedFindingReading(line.reading, readingText);
+  const affirmedPassage = /[，,]/u.test(readingText) && reading === "affirmed" &&
+    affirmedClinicalSourceClauses(line.reading).some((affirmed) => affirmed.includes(readingText));
+  if (!isCurrentFindingAt(line, start, text, affirmedPassage)) return false;
+  // A continuous excerpt can still include a negative or historical item after its opening finding.
+  for (const fragment of text.matchAll(/[^，,。；;！？]+/gu)) {
+    const part = fragment[0].trim();
+    const at = start + fragment.index + fragment[0].indexOf(part);
+    if (!part) continue;
+    if (clinicalClausePolarity(part) !== "affirmed" &&
+      !((GOVERNED_FINDINGS.includes(part) || /^无(?:苔|异常)$/u.test(part)) && recordedFindingReading(line.context, part) === "affirmed")) return false;
+    if (!isCurrentFindingAt(line, at, part, affirmedPassage)) return false;
+  }
+  for (const finding of GOVERNED_FINDINGS) {
+    for (const at of offsets(text, finding)) {
+      if (!isCurrentFindingAt(line, start + at, finding, affirmedPassage)) return false;
+    }
+  }
+  if (reading === "denied" || (reading !== "affirmed" && reading !== "conflicting" &&
+    !independentlyAffirmedAt(line.reading, line.contextOffset + start))) return false;
+  return !context.state.clinicalFacts?.redFlags.some(({ status, quote }) => status === "negative" && quote &&
+    offsets(line.text, quote).some((at) => at <= start && at + quote.length >= start + text.length));
 }
