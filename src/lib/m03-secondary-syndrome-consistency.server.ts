@@ -385,7 +385,7 @@ async function decideSecondaryConsistency(
 // 病历表现与教材条目的对应由小任务做（只许从给定条目里选、病历逐字摘录，同义写法算，如「食欲差」之于「纳少」），条数由服务端数。
 // 查不到这个证名、或小任务失败：判 unknown，照旧（不因判据缺失而增删兼证）。开关 CDSS_M03_SECONDARY_CRITERIA=false。
 
-type CriteriaEntry = {
+export type CriteriaEntry = {
   name: string;
   line: number;
   keyPointsText: string;
@@ -447,7 +447,7 @@ const sharesPrimaryManifestation = (quote: string, primaryTerms: readonly string
 
 /** quotes：计入判定的病历摘录（去重、已排除主证同一表现），证素核对给证据标签用。 */
 /** strict：不靠证素宽路径（breadth）也够数，即按辨证要点成组（第四十六轮：证名带上分析里的证素要按这一档，立兼证同一判据）。 */
-export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: string; specific: number; category: number; listed: number; distinct: number; quotes?: string[]; observedQuotes?: string[]; strict?: boolean };
+export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: string; specific: number; category: number; listed: number; distinct: number; quotes?: string[]; observedQuotes?: string[]; strict?: boolean; evidenceDomains?: number; sharedQuotes?: string[] };
 
 /** 小任务给出的对应 → 判定。纯函数，供测试。 */
 export function evaluateCriteriaMatches(
@@ -608,6 +608,67 @@ function textbookCriteriaEntry(name: string): CriteriaEntry | undefined {
     : undefined;
 }
 
+type CriteriaContext = { recordText: string; primaryTerms: readonly string[]; breadth?: boolean };
+export type SecondaryCriteriaVerifier = (name: string, context: CriteriaContext, signal?: AbortSignal) => Promise<CriteriaVerdict>;
+export type CriteriaMatches = ReadonlyArray<{ item: string; quote: string | null }>;
+
+export function secondaryCriteriaTargets(name: string): CriteriaEntry[] {
+  const direct = diagnosticsCriteriaFor(name);
+  if (direct && (direct.specific.length > 0 || direct.manifestations.length > 0)) return [direct];
+  const parts = compoundCriteriaEntries(name);
+  if (!parts.length) {
+    const fallback = elementCompositeCriteriaEntry(name) || textbookCriteriaEntry(name);
+    return fallback ? [fallback] : [];
+  }
+  const element = elementCompositeCriteriaEntry(name);
+  if (parts.length === 1 && element && element.name !== parts[0].name && !element.components?.includes(parts[0].name) && PATHOGEN_ELEMENT_IN_SYNDROME_NAME.test(compact(name))) {
+    const elementNames = element.components?.length ? element.components.filter((item) => !/虚证$/u.test(item)) : [element.name];
+    if (elementNames.length > 0 && !/虚证$/u.test(elementNames[0])) return [{
+      name: compact(name), line: 0, keyPointsText: "", specific: [], category: null, categoryEntries: [],
+      manifestations: [...new Set([parts[0], ...elementNames.map((item) => CRITERIA_ENTRIES.get(item)).filter((item): item is CriteriaEntry => Boolean(item))].flatMap((item) => [...item.specific, ...item.manifestations]))],
+      components: [parts[0].name, ...elementNames],
+    }];
+  }
+  return parts;
+}
+
+const GROUPED_CRITERIA_SYSTEM = [
+  "逐组核对教材辨证条目。只取病历本次肯定的逐字摘录，不用既往史、否认、推断或治疗本身。",
+  "组内同一表现只匹配一条最贴切的条目。每组优先要点，再列不同表现，按原文摘录2至16字。",
+  "输出 JSON 对象，键是组编号，值为 [条目下标, 摘录] 的数组。无匹配输出空数组。必须返回每个组。下标从0起。",
+].join("\n");
+
+/** Same task name, timeout and output budget as the single-entry verifier. */
+export async function requestGroupedSecondaryCriteria(
+  targets: readonly CriteriaEntry[], recordText: string, signal?: AbortSignal,
+): Promise<Map<string, CriteriaMatches>> {
+  if (!targets.length || !criteriaCheckEnabled()) return new Map();
+  const entries = targets.map(target => ({ name: target.name, keyPoints: target.keyPointsText, items: criteriaItemsFor(target) }));
+  const parsed = await smallJsonTask("m03_secondary_criteria", [
+    { role: "system", content: GROUPED_CRITERIA_SYSTEM },
+    { role: "user", content: JSON.stringify({ entries, record: recordText.slice(0, MAX_RECORD_CHARS) }) },
+  ], 700, (content) => {
+    let value: Json | undefined;
+    try { value = typeof content === "string" ? record(JSON.parse(content)) : undefined; } catch { return undefined; }
+    if (!value) return undefined;
+    const matches = new Map<string, CriteriaMatches>();
+    entries.forEach(({ name, items }, index) => {
+      const group = value[String(index)];
+      if (!Array.isArray(group)) return;
+      const result: { item: string; quote: string }[] = [];
+      for (const match of group) {
+        if (!Array.isArray(match) || !Number.isInteger(match[0]) || !items[match[0]] || typeof match[1] !== "string") return;
+        result.push({ item: items[match[0]], quote: match[1] });
+      }
+      matches.set(name, result);
+    });
+    return matches;
+  }, signal);
+  return parsed || new Map();
+}
+
+export const sharesPrimaryCriteriaManifestation = sharesPrimaryManifestation;
+
 /** 一个兼证名按辨证要点核一遍。查不到条目或小任务失败为 unknown。breadth：证素核对用的宽路径（见 evaluateCriteriaMatches）。 */
 export async function verifySecondaryByCriteria(
   name: string,
@@ -615,7 +676,6 @@ export async function verifySecondaryByCriteria(
   signal?: AbortSignal,
 ): Promise<CriteriaVerdict> {
   const unknown: CriteriaVerdict = { verdict: "unknown", specific: 0, category: 0, listed: 0, distinct: 0 };
-  const entry = diagnosticsCriteriaFor(name);
   const verifyEntry = async (target: CriteriaEntry): Promise<CriteriaVerdict> => {
     const items = criteriaItemsFor(target);
     const recordText = context.recordText.slice(0, MAX_RECORD_CHARS);
@@ -625,27 +685,13 @@ export async function verifySecondaryByCriteria(
     ], 700, (content) => parseCriteriaMatches(content, items), signal);
     return matches ? evaluateCriteriaMatches(target, matches, context) : { ...unknown, entry: target.name };
   };
-  if (entry && (entry.specific.length > 0 || entry.manifestations.length > 0)) return verifyEntry(entry);
-  const parts = compoundCriteriaEntries(name);
-  if (parts.length === 0) {
-    const fallback = elementCompositeCriteriaEntry(name) || textbookCriteriaEntry(name);
-    if (fallback) return verifyEntry(fallback);
+  const targets = secondaryCriteriaTargets(name);
+  if (targets.length === 0) {
     console.info("[tcm-cdss:telemetry] m03_secondary_criteria_miss", { name: compact(name).slice(0, 12) });
     return unknown;
   }
-  // 一个脏腑的虚证加一个病邪（脾虚湿蕴证）：只按脾气虚证核，湿那一半的表现都不算（第三十五轮 W46：渗液、舌胖、便溏）。两边合起来按组合证判：至少 3 条，各至少 1 条。
-  const element = elementCompositeCriteriaEntry(name);
-  if (parts.length === 1 && element && element.name !== parts[0].name && !element.components?.includes(parts[0].name) && PATHOGEN_ELEMENT_IN_SYNDROME_NAME.test(compact(name))) {
-    const elementNames = element.components?.length ? element.components.filter((item) => !/虚证$/u.test(item)) : [element.name];
-    if (elementNames.length > 0 && !/虚证$/u.test(elementNames[0])) {
-      return verifyEntry({
-        name: compact(name), line: 0, keyPointsText: "", specific: [], category: null, categoryEntries: [],
-        manifestations: [...new Set([parts[0], ...elementNames.map((item) => CRITERIA_ENTRIES.get(item)).filter((item): item is CriteriaEntry => Boolean(item))].flatMap((item) => [...item.specific, ...item.manifestations]))],
-        components: [parts[0].name, ...elementNames],
-      });
-    }
-  }
-  const verdicts = await Promise.all(parts.map(verifyEntry));
+  const verdicts = await Promise.all(targets.map(verifyEntry));
+  if (verdicts.length === 1) return verdicts[0];
   if (verdicts.some((item) => item.verdict === "unknown")) return unknown;
   const failing = verdicts.find((item) => item.verdict === "fail");
   return failing ?? verdicts[0];
@@ -818,6 +864,8 @@ export async function reconcileSecondarySyndromes(
   tcmContent: string,
   context: { recordText: string },
   signal?: AbortSignal,
+  verify: SecondaryCriteriaVerifier = verifySecondaryByCriteria,
+  strictAdd = false,
 ): Promise<string> {
   if (!enabled()) return tcmContent;
   let root: Json | undefined;
@@ -846,7 +894,7 @@ export async function reconcileSecondarySyndromes(
     if (structural > 0) console.info("[tcm-cdss:telemetry] m03_secondary_structural", { withdrawn: structural, reasons: structuralReasons });
     const remainingSecondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.filter((item) => text(item)) : [];
     if (remainingSecondary.length === 0 || !criteriaCheckEnabled()) return structural > 0 ? JSON.stringify(root) : tcmContent;
-    const verdicts = await Promise.all(remainingSecondary.map((name) => verifySecondaryByCriteria(text(name), { recordText: context.recordText, primaryTerms }, signal)));
+    const verdicts = await Promise.all(remainingSecondary.map((name) => verify(text(name), { recordText: context.recordText, primaryTerms }, signal)));
     let withdrawn = structural;
     remainingSecondary.forEach((name, index) => {
       if (verdicts[index].verdict === "fail" && withdrawSecondarySyndrome(root!, text(name), textbookRow?.therapy || "")) withdrawn += 1;
@@ -889,8 +937,8 @@ export async function reconcileSecondarySyndromes(
   // 立之前按辨证要点核一遍（两条路同一判据）。不够数：依据里自称兼夹的那几句删掉（第一条路原本的「删说法」），否则不动。
   let criteria: CriteriaVerdict | undefined;
   if (decision?.decision === "add" && criteriaCheckEnabled()) {
-    criteria = await verifySecondaryByCriteria(decision.secondarySyndrome, { recordText: context.recordText, primaryTerms }, signal);
-    if (criteria.verdict === "fail") {
+    criteria = await verify(decision.secondarySyndrome, { recordText: context.recordText, primaryTerms }, signal);
+    if (criteria.verdict === "fail" || (strictAdd && (criteria.verdict !== "pass" || !criteria.strict))) {
       const removable = claims.filter((clause) => secondaryPatternClaims(clause).length > 0 || declaresSecondaryMechanism(clause));
       decision = claimDecision?.decision === "remove" ? claimDecision : removable.length > 0 ? { decision: "remove", clauses: removable } : undefined;
     }

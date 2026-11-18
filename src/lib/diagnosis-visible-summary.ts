@@ -4290,7 +4290,7 @@ export function normalizeDiagnoseConfidenceAndLabels(content: string, clinicalCo
  * patient fact that already passed the M03 grounding contract. Restore only the grounded chain from
  * the accepted server copy; all other transformed fields (including evidence redaction) stay intact.
  */
-export function restoreValidatedM03Chain(content: string, acceptedContent: string): string {
+export function restoreValidatedM03Chain(content: string, acceptedContent: string, allows?: (reasoning: Record<string, unknown>) => boolean): string {
   const parse = (value: string): { start: number; end: number; reasoning: Record<string, unknown> } | null => {
     const start = value.indexOf(START_MARKER);
     const end = start >= 0 ? value.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -4309,6 +4309,7 @@ export function restoreValidatedM03Chain(content: string, acceptedContent: strin
   const transformedPathogenesis = recordValue(transformed.reasoning.pathogenesis);
   if (!acceptedPathogenesis || !transformedPathogenesis || !Array.isArray(acceptedPathogenesis.chain)) return content;
   transformedPathogenesis.chain = JSON.parse(JSON.stringify(acceptedPathogenesis.chain));
+  if (allows && !allows(transformed.reasoning)) return content;
   return `${content.slice(0, transformed.start + START_MARKER.length)}\n${JSON.stringify(transformed.reasoning, null, 2)}\n${content.slice(transformed.end)}`;
 }
 

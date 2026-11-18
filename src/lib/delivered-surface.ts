@@ -98,6 +98,8 @@ import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priori
  * requiredPrecautions 是本例注意事项必须写到的项目（required-precautions.server.ts 由病历算出）。
  */
 export type DeliveredSurfaceOptions = {
+  /** Request-local closure authorization on the actual candidate before each clinical writer. */
+  m03ElementAllows?: (reasoning: Json, value: string, source: "nature" | "method" | "element" | "pending") => boolean;
   /** 两步投影沿用已定红旗状态；仅作展示上下文，不重算安全结论。 */
   safetyGate?: Pick<NonNullable<CaseState["safetyGate"]>, "status">;
   /** 编译、补写与缓存投影使用同一主诉和既定安全门，不从无标题正文猜主诉。 */
@@ -1572,8 +1574,8 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
   // 治法在治的实邪（渗湿、化痰、活血…），分析也写了、病历有两条以上表现时，病性栏列出它（analysis-element-closure，第四十六轮
   // new45-n20「水湿内停…健脾渗湿」而病性只有气虚）；随后的国标合称按补齐后的病性栏判（脾虚证 + 湿 → 脾虚湿困证）。
   if (!readOnlyConclusions && options?.recordText && !isLimitedDiagnose(reasoning)) {
-    withMethodImpliedNatureElements(reasoning, options.recordText);
-    compositeSyndromeRename(reasoning, options.recordText);
+    withMethodImpliedNatureElements(reasoning, options.recordText, options.m03ElementAllows && (id => options.m03ElementAllows!(reasoning, id, "element")));
+    if (!options.m03ElementAllows) compositeSyndromeRename(reasoning, options.recordText);
   }
   if (!readOnlyConclusions && !isLimitedDiagnose(reasoning)) {
     withGovernedSyndromeNames(reasoning);
@@ -3677,7 +3679,7 @@ export function followupWithDoseCount(text: string, doses: unknown, days: unknow
  * 又不是急危重风险未排除的病例时，模型写的「有界」多半是在说证候之外的细节（「晨僵时长未记录」「兼夹判断受限」）。
  * 这时证候按已确定交付，概览置信度为「中」；模型写的理由不丢，挪进待核实栏（与第三十八轮病位、病性两轴同一口径）。
  */
-function withSyndromeResolutionFromAxes(reasoning: Json, recordText: string): void {
+function withSyndromeResolutionFromAxes(reasoning: Json, recordText: string, allows?: DeliveredSurfaceOptions["m03ElementAllows"]): void {
   const overview = record(reasoning.overview);
   const pathogenesis = record(reasoning.pathogenesis);
   if (!overview || !pathogenesis || isLimitedDiagnose(reasoning)) return;
@@ -3690,7 +3692,7 @@ function withSyndromeResolutionFromAxes(reasoning: Json, recordText: string): vo
   delete overview.primarySyndromeResolutionReason;
   const evidence = record(overview.evidence);
   if (evidence && evidence.confidence === "低") evidence.confidence = "中";
-  if (reason) {
+  if (reason && (!allows || allows(reasoning, reason, "pending"))) {
     const uncertainties = Array.isArray(pathogenesis.uncertainties) ? pathogenesis.uncertainties : [];
     // 项目取理由的第一小句，理由只留其后的部分（2026-11-14 第四十五轮：甲方 100 例 40 份「缺食欲、二便与寒热记录——缺食欲、二便与寒热记录，
     // 脾虚程度待定」，项目与理由开头一字不差）。只有一小句时理由写「尚待核实」。
@@ -4146,7 +4148,7 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   if (therapy && typeof therapy.overallPrinciple === "string") therapy.overallPrinciple = principleWhenRedFlag(therapy.overallPrinciple, redFlagActiveFor(options));
   if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope))), methodCap, textbookMethodItems);
   if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope))), methodCap, textbookMethodItems);
-  if (projected.stage === "diagnose" && options?.recordText) withSyndromeResolutionFromAxes(projected, options.recordText);
+  if (projected.stage === "diagnose" && options?.recordText) withSyndromeResolutionFromAxes(projected, options.recordText, options.m03ElementAllows);
   // 证素核对的待核实项里列着辨证要点原文：本例不可能有的那几项（男性、儿童、老人的滑胎、带下、月经）不列（2026-11-14 第四十五轮：
   // 63 岁男性、91 岁男性的待核实写「滑精、滑胎、带下量多清稀」）。人群按开方同一口径（herbBoundaryAudience.reproductive）。
   if (options?.herbBoundaryAudience && !options.herbBoundaryAudience.reproductive) {
@@ -4205,7 +4207,8 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   }
   // 去理由里的重复放在措辞替换之后：红旗边界句先换成「急危重风险未排除，请先完成急诊或转诊评估…」才对得上项目「急危重风险尚未排除」
   //（此前在替换前比，理由开头是「急危重风险未排除：以下辨证…」，冒号连着后半句，比不上，红旗病例的待核实照样重复；第四十五轮复核 20 余份）。
-  reconcilePathogenesisColumns(projected, options?.recordText || "");
+  reconcilePathogenesisColumns(projected, options?.recordText || "", projected.stage === "diagnose" && options?.m03ElementAllows
+    ? (label) => options.m03ElementAllows!(projected, label, "nature") : undefined);
   withoutReasonEchoingItem(record(projected.pathogenesis));
   if (projected.stage === "prescribe") {
     const careItems = (options?.requiredPrecautions || []).filter((item) => item.kind === "disease_care");

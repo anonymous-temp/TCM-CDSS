@@ -3,7 +3,8 @@ import { applyM04FinalContent } from "./m04-final-delivery.server";
 import { finalizeWesternGuidelineContent } from "./western-guideline-references";
 import { deliveryGatePolicy } from "./delivery-gate-policy";
 import { withRewriteLedger } from "./delivery-rewrite-ledger.server";
-import { createFinalDeliveryBarrier, joinDeliveryContent, renderFinalDeliveryContent, prepareFinalDeliveryContent } from "./delivery-final-content.server";
+import type { M03ElementClosureRuntime } from "./m03-element-closure-v2.server";
+import { createFinalDeliveryBarrier, joinDeliveryContent, splitDeliveryContent, renderFinalDeliveryContent, prepareFinalDeliveryContent } from "./delivery-final-content.server";
 import { markStageGenerationNonReusable } from "./stage-generation-outcome.server";
 import { r1064GenerationIdentity } from "./r1064-generation-identity.server";
 import { runM03TcmTwoPass, m03TcmTwoPassPolicy, type M03TcmTwoPassIO } from "./m03-tcm-two-pass.server";
@@ -552,6 +553,7 @@ type StreamSafetyOptions = {
    * 失败、超时或返回空串时原样不动。
    */
   m03AnalysisAlignment?: (content: string, signal: AbortSignal) => Promise<string>;
+  m03ElementClosure?: M03ElementClosureRuntime;
   /**
    * M04 已编译候选（带 DIAGNOSIS_JSON 哨兵）在合同核对与签名之前的收口（开方路由注入方义药物功效核对，
    * 见 m04-formula-analysis-claim-check.server.ts）。首轮与两处修复轮各调一次；抛错、超时或返回空串时沿用原内容。
@@ -2877,9 +2879,33 @@ async function callPrimaryTextModelStream(
       };
       const rerenderDelivery = (content: string): string => opts.structuredStage
         ? renderFinalDeliveryContent(content, opts.structuredStage, opts.structuredClinicalContext || "", opts.structuredCaseState) : content;
+      const elementClosure = opts.m03ElementClosure;
+      const enforceElementClosure = elementClosure?.policy.mode === "enforce" ? elementClosure : undefined;
+      const closeM03Elements = (content: string, allowNames: boolean): string => {
+        if (!enforceElementClosure || !content.includes("<!-- DIAGNOSIS_JSON_START -->")) return content;
+        let split: ReturnType<typeof splitDeliveryContent>;
+        try { split = splitDeliveryContent(content, "diagnose"); } catch { return content; }
+        const { candidate, kind } = split;
+        if (kind !== "reasoning" || !candidate.structured || typeof candidate.structured !== "object") return content;
+        const root = candidate.structured as Record<string, unknown>;
+        if (root.stage !== "diagnose") return content;
+        const closed = enforceElementClosure.settle(root, allowNames).root;
+        if (JSON.stringify(root) === JSON.stringify(closed)) return content;
+        return rerenderDelivery(joinDeliveryContent({ ...candidate, structured: closed }, kind));
+      };
+      const m03ElementAllows = enforceElementClosure?.allowsWriter;
+      const checkM03ElementsBeforeSign = (reasoning: ClinicalReasoningResultV2): boolean => {
+        if (!elementClosure || elementClosure.policy.mode === "off" || reasoning.stage !== "diagnose") return true;
+        const unsupported = elementClosure.audit(reasoning as unknown as Record<string, unknown>);
+        return !enforceElementClosure || unsupported.length === 0;
+      };
       const signFinalDelivery = (content: string): string => {
         const reasoning = structuredReasoningFromContent(content);
         if (!reasoning) return content;
+        if (!checkM03ElementsBeforeSign(reasoning)) {
+          markStageGenerationNonReusable();
+          return opts.truncateFallback || "";
+        }
         enterVerificationPhase();
         const old = reasoning.clinicalReview;
         const attestation = old ? rebindClinicalReviewAttestation(old, reasoning) : clinicalReviewNotPerformedAttestation(reasoning);
@@ -2892,11 +2918,13 @@ async function callPrimaryTextModelStream(
       const finalDelivery = opts.structuredStage ? createFinalDeliveryBarrier({
         stage: opts.structuredStage, caseState: opts.structuredCaseState, priorM03: opts.structuredPriorReasoning,
         signal: upstreamController.signal, deadline: () => absoluteRunDeadline, policy: deliveryPolicy,
-        prepare: prepareFinalDeliveryContent,
+        prepare: content => prepareFinalDeliveryContent(closeM03Elements(content, false)),
         render: rerenderDelivery,
         accept: content => {
           const reasoning = structuredReasoningFromContent(content);
           if (!reasoning || reasoningV2SchemaIssueCode(reasoning)) return false;
+          if (enforceElementClosure && reasoning.stage === "diagnose"
+            && enforceElementClosure.inspect(reasoning as unknown as Record<string, unknown>).length) return false;
           // The pre-display contract already accepted this EXACT deterministic projection.
           // Display labels (e.g. the self-devised formula label) are not generator identities.
           // Any gate edit changes this hash and must pass the original safety floor again.
@@ -2950,6 +2978,9 @@ async function callPrimaryTextModelStream(
             );
           }
           transformed = settleM03ClinicalOutput(transformed, opts.structuredClinicalContext || "");
+          const closed = closeM03Elements(transformed, true);
+          const closureChanged = closed !== transformed;
+          transformed = closed;
           if (opts.m03AnalysisAlignment) {
             const aligned = await opts.m03AnalysisAlignment(transformed, upstreamController.signal).catch(() => transformed);
             if (typeof aligned === "string" && aligned.trim() && aligned !== transformed) {
@@ -2959,7 +2990,7 @@ async function callPrimaryTextModelStream(
               next = settleM03ClinicalOutput(next, opts.structuredClinicalContext || "");
               // R49: rejected alignment may deliberately cut a required field. Let the existing contract/repair
               // path reject that candidate; retaining transformed here would resurrect the contradictory original.
-              transformed = next;
+              transformed = closeM03Elements(next, false);
             }
           }
           const reasoning = validatedStructuredReasoning(
@@ -2970,7 +3001,7 @@ async function callPrimaryTextModelStream(
             true,
           );
           finalDelivery?.observe("finalize_m03", content, transformed);
-          if (!reasoning && alignmentChanged) return { content: transformed, alignmentRejected: true };
+          if (!reasoning && (alignmentChanged || closureChanged)) return { content: transformed, alignmentRejected: true };
           return reasoning ? { content: transformed, reasoning } : undefined;
         } catch {
           return alignmentChanged ? { content: "", alignmentRejected: true } : undefined;
@@ -3407,6 +3438,13 @@ async function callPrimaryTextModelStream(
             });
             return;
           }
+          if (enforceElementClosure) {
+            const reasoning = m03ReasoningFromStructuredContent(content);
+            if (reasoning && enforceElementClosure.inspect(reasoning as unknown as Record<string, unknown>).length) {
+              markStageGenerationNonReusable();
+              content = `${STREAM_REPLACE_MARKER}${opts.truncateFallback || ""}`;
+            }
+          }
           stopHeartbeat();
         }
         // Every client-visible chunk passes the internal-vocabulary scrubber (P2-2); the sentinel
@@ -3729,9 +3767,9 @@ async function callPrimaryTextModelStream(
           content = rerenderDelivery(content);
           if (opts.outputTransform) content = opts.outputTransform(content);
           finalDelivery?.observe("two_pass_output", merged, content);
-          content = applyDeliveredSurfaceToContent(content, { recordText: deliveredSurfaceRecordText(opts.structuredCaseState),
+          content = applyDeliveredSurfaceToContent(content, { m03ElementAllows, recordText: deliveredSurfaceRecordText(opts.structuredCaseState),
             doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation });
-          content = rerenderDelivery(content);
+          content = closeM03Elements(rerenderDelivery(content), false);
           const finalReasoning = structuredReasoningFromContent(content);
           try {
             if (!finalReasoning) throw new Error("m03_tcm_final_invalid");
@@ -5366,7 +5404,8 @@ async function callPrimaryTextModelStream(
               )
             : undefined;
           if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && !transformedM03) {
-            const restored = restoreValidatedM03Chain(transformed.content, authoritativeContent);
+            const restored = restoreValidatedM03Chain(transformed.content, authoritativeContent, enforceElementClosure
+              ? (root) => !enforceElementClosure.inspect(root).some(hit => hit.field?.startsWith("/pathogenesis/chain/")) : undefined);
             const restoredReasoning = validatedStructuredReasoning(
               restored,
               "diagnose",
@@ -5676,7 +5715,7 @@ async function callPrimaryTextModelStream(
           //（delivered-surface.ts 是唯一口径）。可见正文随之重渲染，常量 attestation 重新绑定到最终载荷。
           let emissionM04Attestation = m04AttestationWithScope;
           if (!truncated && transformed.ok && (opts.structuredStage === "diagnose" || opts.structuredStage === "prescribe")) {
-            const surfaced = applyDeliveredSurfaceToContent(emissionContent, { herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState), patientSex: String((opts.structuredCaseState as { patient?: { sex?: unknown } } | undefined)?.patient?.sex || "") });
+            const surfaced = applyDeliveredSurfaceToContent(emissionContent, { m03ElementAllows, herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState), patientSex: String((opts.structuredCaseState as { patient?: { sex?: unknown } } | undefined)?.patient?.sex || "") });
             if (surfaced !== emissionContent) {
               // 辨证结果随载荷重渲染可见正文（与上面的特异性投影同一做法），正文之前的服务端前置区（安全警示横幅、
               // 质量批注）原样带回。开方结果只换结构化载荷：它的可见正文里有渲染之后才并入的内容（儿童用药说明等），
@@ -5725,6 +5764,20 @@ async function callPrimaryTextModelStream(
           ({ content: emissionContent, attestation: emissionM04Attestation } = await applyM04FinalContent(
             emissionContent, emissionM04Attestation, opts, upstreamController.signal, absoluteRunDeadline,
           ));
+          if (enforceElementClosure && !truncated && transformed.ok) {
+            emissionContent = closeM03Elements(emissionContent, false);
+            const closed = m03ReasoningFromStructuredContent(emissionContent);
+            if (!closed || reasoningV2SchemaIssueCode(closed)
+              || m03SafetyContractIssue(closed, opts.structuredClinicalContext || "", isSafetyRejection)) {
+              markStageGenerationNonReusable();
+              transformed = transformTruncateFallback();
+              emissionContent = transformed.content;
+              emissionM03Attestation = undefined;
+              truncated = true;
+            } else if (emissionM03Attestation) {
+              emissionM03Attestation = rebindClinicalReviewAttestation(emissionM03Attestation, closed);
+            }
+          }
           if (finalDelivery && deliveryPolicy.mode !== "off") {
             if (!truncated && transformed.ok) rememberAcceptedProjection(emissionContent);
             emissionContent = await finalDelivery.run(emissionContent);
@@ -5742,7 +5795,15 @@ async function callPrimaryTextModelStream(
           if (!truncated && transformed.ok && opts.structuredStage === "diagnose") {
             const signatureContext = opts.diagnoseSignatureContext;
             if (!signatureContext) throw new Error("Missing M03 signature context");
-            signedContent = applyDiagnoseContractSignature(signedContent, signatureContext);
+            const finalM03 = m03ReasoningFromStructuredContent(signedContent);
+            if (finalM03 && checkM03ElementsBeforeSign(finalM03)) {
+              signedContent = applyDiagnoseContractSignature(signedContent, signatureContext);
+            } else if (enforceElementClosure) {
+              markStageGenerationNonReusable();
+              transformed = transformTruncateFallback();
+              signedContent = transformed.content;
+              truncated = true;
+            } else signedContent = applyDiagnoseContractSignature(signedContent, signatureContext);
           } else if (!truncated && transformed.ok && opts.structuredStage === "prescribe") {
             const signatureContext = opts.prescribeSignatureContext;
             if (!signatureContext) throw new Error("Missing M04 signature context");
@@ -5788,7 +5849,7 @@ async function callPrimaryTextModelStream(
           // 有限合同，M04 照常 m03_unstable；客户端按机器码提供 M03 重跑。
           const m03ProvisionalSection = opts.structuredStage === "diagnose" && (truncated || !transformed.ok || authoritativeFallbackAccepted)
             ? renderM03ProvisionalDraftSection(
-                schemaValidDiagnoseDraft(authoritativeContent),
+                schemaValidDiagnoseDraft(closeM03Elements(authoritativeContent, false)),
                 [m03LastRepairTriggerReason],
                 opts.structuredClinicalContext || "",
                 opts.structuredCaseState as CaseState | undefined,

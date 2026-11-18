@@ -236,8 +236,10 @@ await check("2.4 路由：两个阶段的证据清洗都传入受治理出处核
     assert.match(readFileSync(route, "utf8"), /governedEvidenceSourceVerified,\n\s*\)/, route);
   }
   const diagnose = readFileSync("src/app/api/diagnosis/diagnose/route.ts", "utf8");
-  // 第四十九轮 D3：同一核对接入台账，并携带确定性红旗与生命体征。
-  assert.match(diagnose, /decideElementSupport\(completed, \{ recordText: trustedInputText\(safeState\), caseState: safeState, gateRedFlags: gated.safetyGate\?\.redFlags \|\| \[\] \}, transformSignal\)/);
+  // 第五十轮：请求内台账与关停回退都携带同一份确定性红旗和生命体征。
+  assert.match(diagnose, /const elementContext = \{ recordText: trustedInputText\(safeState\), caseState: safeState, gateRedFlags: gated.safetyGate\?\.redFlags \|\| \[\] \}/);
+  assert.match(diagnose, /elementClosure\.collect\(completed, transformSignal\)/);
+  assert.match(diagnose, /decideElementSupport\(completed, elementContext, transformSignal\)/);
   assert.match(diagnose, /applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals, patientClaimRecord\)/);
 });
 
