@@ -3755,6 +3755,119 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 - **中医鉴别** varied with the M03 redraw (differentials that share only a category, textbook definitions pasted as the typical manifestation); one class was fixed (coarse parent).
 - **Model judgement the judge keeps naming:** names narrower than the analysis (肾虚 not in the name when 病位 says 肾), 外感风邪证 for a sparse febrile record, 胃痞 distinguished from 「痞满」.
 
+### 11/18 round 51: the customer's 11/18 notes — scoring in the customer's view, no standby modifications, Western name follows its basis (2026-11-18)
+
+The customer annotated six rows on 11/18. 05-1 「确认忽略既往史，可」. 10-3 「不是没采纳就没问题，而是不应该推荐」: a modification whose condition is not in the record must not be recommended. 11-2/16-1 「目前你们返回的西医诊断只有一个，没有鉴别」: the user explained that their page shows only the Western primary diagnosis, never the Western differentials; the TCM differentials are the only differentials it shows. A read-only review (plan `~/runlogs/r1018/work/r1068/PLAN.md`) found that round 50's numbers were measured on a panel that is not what the customer sees. The user then decided (memory `cdss-decisions-20261118`):
+- withdraw round 49's D1 textbook 「若见」 fill;
+- sparse records get as many modification rows as they really have (possibly fewer than two);
+- under current anticoagulant or antiplatelet therapy, no 化瘀止血 herbs either;
+- a reply to the customer (Western differentials are returned in `westernDiagnosis.differentials[]`, display is their choice; confirm the 05-1 reading).
+Material: `~/runlogs/r1018/work/r1068/` (`panel-cust.py`, `judge-accept.mjs`, `gen.sh`, `queue.sh`, `compare.py`, `probe/`, `cp/cp.py`, `deploy/`, `甲方11.18批注回复.md`). Suite `test:r1068-main` (16 checks; 20 mutations in `cp/cp.py`, all caught).
+
+**Scoring in the customer's view (stage 0).**
+- **The review panel** (`panel-cust.py`) shows the Western diagnosis as the customer does: the primary name plus the one basis sentence. No Western differentials, no 待查依据/检查建议, no guideline references.
+- **The judge** (`r1068/judge-accept.mjs`, qwen4-max):
+  - F: name and basis sentence must agree; a missing Western differential is not a fault.
+  - O: a condition not in the record is wrong. Fewer than two rows is wrong only when the record has two or more addable findings.
+  - The 「无胃镜写浅表性胃炎」 precedent excludes a diagnosis stated in the past history.
+  - One modification row holds one herb, so two rows with the same condition count as one modification.
+- **Checked on the customer's own 11.05 scores** (17 records): F hits both of their fails; O fails 15/17 (the customer failed 3 on 11.05, but those outputs were all standby rows, which their 11/18 wording now calls wrong).
+- **Round 50's 随症加减 82.7% was inflated.** By the customer's wording it was about 65%: 108 of 707 rows were standby 「若见」 fills, in 74 of 301 prescriptions.
+
+**What changed.**
+- **No standby rows.** `CDSS_MODIFICATION_TEXTBOOK_FILL` defaults off (`=true` restores round 49's D1). All 108 standby rows in round 50's outputs were these fills.
+- **Chain-node therapy** (`reconcileChainTherapy`):
+  - when no item of the overall method corresponds to the node, the model's own node therapy is kept;
+  - a node that copies the whole overall method in a multi-node chain is mapped by mechanism, preferring an item not already used;
+  - the subTherapy with the same target is rewritten to match.
+  - Round 49 had put the first overall item on every unmatched node (「热邪伤津，肠道失润 → 疏风清热」; 149 of 272 multi-node chains had two identical node therapies).
+- **The Western name follows its basis** (`basisAffirmedOtherDisease` in `settleWesternDiagnosisBasis`):
+  - when the basis affirms a different governed disease (criteria table or preferred-name table), the name becomes that disease. Example: 「符合妊娠期恶心呕吐…尚未达重度脱水标准」 under 妊娠剧吐 → 妊娠呕吐 (hold40 h31, the 11-2 class on a new record);
+  - broader and narrower forms of one disease (糖尿病 / 2型糖尿病) are not changed;
+  - 「诊断待客观依据确立」 and 「尚未排除…器质（性）病因」 now count as not established (`clinicalNotEstablishedPattern`);
+  - an exclusion diagnosis (`exclusionDiagnosisWords` plus `organicExclusionBasisNames`: 原发性痛经, 惊恐障碍) whose basis says organic disease still has to be excluded is 待查 (「尚需盆腔超声排除子宫内膜异位症…」).
+  - Replay over round 50's 301 outputs: 3 names changed (h31, 重症肌无力 → 待查, 惊恐障碍 → 待查).
+- **TCM differentials with nothing in common with the case** (`tcmDifferentialSelfDeclaredUnrelated`):
+  - the row itself says the record lacks the differential's own main symptom, its 「相似」 field names no recorded finding or site (「同属胃气上逆」「同属老年脑神病证」), and the differential's textbook main symptoms share no recorded finding;
+  - textbook-listed differentials and same-site reasons (胃痞—胃痛 「部位相同易混」) are kept; the shared-finding condition keeps the rows the M03 top-up adds (their points also say 「本例未诉X」 — the first version dropped them again, 7 records ended with one differential);
+  - the M03 top-up counts with the same predicate, so it refills.
+  - Replay: 10 of 606 rows dropped; 5 of them are rows the judge had failed.
+- **Typical manifestation is the definition's main-symptom part** (`textbookDefinitionKeyManifestation`: 「以…为主要表现」, 「是指…」 cut before naming/causal clauses, 「…，称为X」). Definitions that only give the cause or pathology (暑温, 乳癖) deliver nothing.
+- **Recorded or possible pregnancy:**
+  - ChP 孕妇慎用 herbs are barred in any role, not just as 君/臣; finalize prunes non-chief ones singly;
+  - patent medicines whose label says 孕妇禁用/忌用/慎用 are not recommended (`medicineLabelConflictsWithCase`).
+- **Anticoagulant or antiplatelet therapy:** 《中药学》 化瘀止血药 (三七、蒲黄、茜草、花蕊石) are barred too (`extraCategories` in `tcm-antithrombotic-herb-avoid.source.json`). The prompt points to 收敛/凉血止血 herbs and a coagulation recheck.
+- **Population advisories name the actual population** (`special-population-labels.ts`, shared by finalize pruning and the delivery advisory). Before, every population code printed 「年龄、妊娠哺乳、基础病等」, including for an 82-year-old man.
+- **「皮肤弹性可」 is not reduced skin turgor:** the discriminator quote must contain 弹性差/回缩缓慢 and similar (c31/c34 had a red flag).
+- **Modifications (stage 2, no new model step):**
+  - the fit check gets each herb's 《中药学》 function plus 【应用】 headings (`herb-indication.ts`) and fails a row whose finding is not among them;
+  - misfit rows are dropped even when no row remains (`MIN_ROWS_AFTER_FIT = 0`), and the top-up then refills with present findings;
+  - every symptom listed in the chief complaint (also after 「伴」) is the chief complaint itself, and so is a trigger in the same governed symptom concept as one of them (流涕—喷嚏, 腹泻—大便稀溏; only concept groups that share no written form with another group). A recorded severity or feature (「胃痛拒按」「疼痛剧烈」) still counts as a condition, as in round 48;
+  - with the fill off, no textbook 「主症甚」 row reaches delivery by any path (`textbookMainSymptomPresent` returns nothing): production still delivered two 「若见恶寒甚」 rows after the first two deploys;
+  - work, study or financial pressure is a factor, not a condition (`factorPatterns`).
+  - A literal "does the herb treat this finding" match was tried first and rejected: 282 of 536 present-finding rows failed it, including 伸筋草 for 屈膝受限 and 防风 for 剧痒.
+- **The syndrome name follows the analysis for deficiency pairs (stage 3):**
+  - four composite rules: a single 气虚/血虚/阴虚 name, plus the other element in the nature column with two or more recorded signs, becomes 气血两虚证 / 气阴两虚证;
+  - the matching method item is added unless an equivalent is present (补气 = 益气, 补血 = 养血, 滋阴 = 养阴);
+  - the rules are not used in the element-closure lookahead.
+  - Replay: 5 of 301 renamed (h09, m20, n19, C087, h16).
+- **Rationale latency (stage 4):** a stale rationale draft whose disease, names, record, tongue/pulse and lineage are unchanged is revalidated against the final snapshot. A fresh request runs in parallel; the first valid one wins (`finalRationaleConclusionUnchanged`).
+- **M04 compile exceptions are logged** (`m04_proposal_compile_error`: error type, message, first stack frame; no content). One production smoke sample on 0eb6e91 lost its prescription: the compiler threw, the log called it 「proposal_prior_missing」, and the same raw outputs (decrypted inside the container from the model-call memo) compiled locally. A rerun had 0 failures.
+- **Corrected, not changed:** the log line 「M04 quality-tier acceptance after repair」 includes a zero repair budget. `herb_N_function_ungrounded` is T2 and never triggers a repair round. The plan's 「half of prescriptions pay a repair round」 was a misreading; real repair rounds are `[tcm-cdss:timing] structured_repair_round`.
+
+**Measured.** Same-day paired arms, memo replay (`gen.sh`): `base51` = production code f0d5112d (fresh draws written to a new memo), new arms replay it. qwen4-max with the customer-view judge, 「欠妥算过」. The red-flag reader's prompt changed with the skin-turgor anchors, so some downstream M03/M04 calls were redrawn; differences of a few cases per item are generation and judge noise.
+
+| Item (301 pairs, base51 → new51b = b5817715) | Before | After |
+|---|---|---|
+| 随症加减 | 50.8 | 65.2 |
+| 病机 | 53.5 | 63.1 |
+| 出处方义 | 81.4 | 85.6 |
+| 配伍 | 90.4 | 93.7 |
+| 中成药 | 83.5 | 87.5 |
+| 中医鉴别 | 88.7 | 90.0 |
+| 西医 | 89.0 | 90.4 |
+| 特殊人群 | 98.7 | 99.3 |
+| 中医诊断 / 诊断依据 / 治则 | 84.4 / 87.0 / 94.4 | 84.1 / 86.7 / 94.0 |
+| 红旗 / 剂量 / 反畏 | 98.0 / 100 / 100 | 97.7 / 100 / 100 |
+
+- **The customer's own 81 records** (c10, retest, 11.05, 10.29), base51 → new51c (209779ee): 随症加减 60.5 → 79.0, 中医鉴别 82.7 → 87.7, 病机 64.2 → 80.2, 治则 95.1 → 98.8, 诊断依据 85.2 → 86.4, 中医诊断 87.7 → 87.7, 西医 92.6 → 90.1, 红旗 98.8 → 100.
+- **The customer's 100-case set,** base51 → new51b: 随症加减 26.0 → 46.9 (the remaining failures: 20 「条件即主诉本身」 — closed in 885db27 — 18 fewer than two, 8 herb–symptom mismatch).
+- **Deterministic, 301 pairs:**
+  - standby 「若」 rows 94 → 0;
+  - multi-node chains with two identical node therapies 160 → 4;
+  - typical manifestations over 60 characters 86 → 0;
+  - prescriptions with ≥2 distinct conditions 280 → 257, with 0 conditions 8 → 18 (decision 2);
+  - fewer than two TCM disease differentials 8 → 9.
+- **P0 audit, new arm (301):** 300 dosed (C046: anticoagulant + fracture, non-dose in both arms); dose over ChP, over 2×, 十八反十九畏 incl. 加减, pregnancy-prohibited, child-toxic, organ, anticoagulant blood movers all 0.
+- **Final code 885db272 on the customer's 181 records** (new51d, base51 → new51d):
+  - their own 81: 随症加减 60.5 → 81.5, 诊断依据 85.2 → 90.1, 病机 64.2 → 81.5, 中医鉴别 82.7 → 86.4, 治则 95.1 → 98.8, 中医诊断 87.7 → 88.9, 西医 92.6 → 91.4, 红旗 98.8 → 100; 随访 98.8 → 93.8 and 中成药 91.7 → 81.8 are redrawn follow-up timing and model medicine choices (5 and 3 records);
+  - the 100-case set: 随症加减 26.0 → 45.0 (left: 24 still judged 「主诉本身」 — mostly recorded-severity rows such as 「腰部隐痛」 that round 48 keeps on purpose — 20 fewer than two, 5 herb–symptom), 出处方义 75.0 → 83.0, 配伍 80.0 → 86.0, 特殊人群 96.0 → 99.0, 西医 89.0 → 91.0, 中医诊断 82.0 → 82.0, 诊断依据 82.0 → 81.0;
+  - prescriptions with ≥2 conditions 165 → 135 and with none 5 → 20 of 181, as decided (sparse records, chief-complaint rows removed).
+
+**In production (885db272, tag `20261118-885db27-prebuilt`, same release directory and `20260927-dsrepair` override).** Four deploys the same evening:
+- **52a23abe (18:42 UTC).** The production probe (customer 10 plus 20 targets) found 「若见恶寒甚」 standby rows still delivered and 「学校压力大」 as a condition.
+- **209779ee (19:32).** Added chief-complaint items after 伴 and the exclusion-diagnosis rule.
+- **0eb6e916 (20:08).** Closed the 主症甚 path and pressure triggers. One smoke sample lost its prescription to a compiler exception; a rerun had 0 failures.
+- **885db272 (20:39).** Added the concept-group rule and compile-exception telemetry.
+
+Verification and probes:
+- Each deploy passed `verify:release`-equivalent gating (lint, 345 suites, fresh-artifact suites, typecheck; six full runs) and `verify:deployed-image` (commit, digest, strictReady, both families).
+- `regress:prod-smoke` had 0 failures on 52a23ab, 209779e and 885db27. M03 P95 was 24 s and M04 P95 16–22 s while qwen judging and generation ran on the same accounts; no single-stream latency run was made.
+- Probes on 885db272:
+  - customer 10 on hospital-b: all stages 200, standard disease and syndrome, no red flag;
+  - 10 targets on hospital-a: no standby rows, 48 rows over 20 prescriptions, C070 without 三七/蒲黄/花蕊石, C064 without 牛膝/枳壳, C083 and c23 待查, h31 妊娠呕吐, c31 no red flag.
+
+Rollback: image `tcm-cdss:20261118-0eb6e91-prebuilt` (or `…209779e…`, `…52a23ab…`, `…f0d5112…`) with the `docker-compose.yml.pre-*` backups in the release directory. The textbook fill alone can be restored with `CDSS_MODIFICATION_TEXTBOOK_FILL=true` in the override (no rebuild). Container logs before the last three replacements are in `~/telemetry-archive/container-pre-{209779e,0eb6e91,885db27}-*.log.gz` on the host; the first replacement's log was not archived. Two temporary zram swap devices were used for the builds.
+
+**Left as is.**
+- **中医诊断 and 诊断依据 did not move.** The composite rules renamed only 5 of 301; most 「证名窄于分析」 cases have the extra element outside the nature column, and the name-follows-analysis step inside the final rationale was not built.
+- **Rationale latency:** the revalidation only helps when the draft is stale with unchanged conclusions; the earlier start (from the TCM half) was not built.
+- **Sparse records** now often get zero or one modification (decision 2), which the reply to the customer explains.
+- **Herb–symptom mismatches** the fit check still lets through when the proposer does not flag them (嗳气 + 苍术 stayed once).
+- **制附子 in a ruptured ectopic pregnancy** (e05-17) is not caught by the pregnancy-caution rule: the label lookup does not resolve 制附子 to 附子.
+- **C046** (82 y, anticoagulant, hip fracture) is still a non-dose page.
+- **The reply to the customer** is drafted in `~/runlogs/r1018/work/r1068/甲方11.18批注回复.md`; the user sends it.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
