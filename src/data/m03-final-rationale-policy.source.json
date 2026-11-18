@@ -193,5 +193,6 @@
       }
     ]
   },
-  "inspectionUnavailable": "^(?:舌象|脉象)(?:难配合|无法配合|未能测得|无法测得)$"
+  "inspectionUnavailable": "^(?:舌象|脉象)(?:难配合|无法配合|未能测得|无法测得)$",
+  "genericSyndromeCategory": "^(?:表|里|虚|实|寒|热|阴|阳|表里|虚实|寒热|外感|内伤)证$"
 }

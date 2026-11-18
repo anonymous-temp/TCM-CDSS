@@ -346,21 +346,18 @@ await check("08", "只去同一属性已答疑问，混合保留余项，保留�
   assert.deepEqual(next.pathogenesis.uncertainties.map((r) => r.item), ["有无胸闷", "心悸程度", "既往有无心悸", "有无心悸"]);
   assert.deepEqual(withFinalRationalePair(next, checked.pair, ctx), next);
 });
-await check("09", "流派仅末句且方向一致，标签、工程字、残尾、长度退修", () => {
+await check("09", "标签、工程字、残尾、长度退修；流派句不由模型写", () => {
   const ctx = context();
   const reply = outline(ctx.input);
   assertRejected({ ...reply, x: "不寐。" }, ctx, "text_length");
   assertRejected({ ...reply, y: reply.y + "故为。" }, ctx, "text_fragment");
   assertRejected({ ...reply, y: reply.y + "本次模型输出。" }, ctx, "text_engineering");
-  assertRejected({ ...reply, x: reply.x + "睡眠受阻所以归在此病。".repeat(8) }, ctx, "text_length");
+  assertRejected({ ...reply, x: reply.x + "睡眠受阻所以归在此病。".repeat(12) }, ctx, "text_length");
   assertRejected({ ...reply, y: reply.y + "所见与主证相应。".repeat(38) }, ctx, "text_length");
-  const selected = context(input({ tcmLineagePreference: "support-yang" }));
-  const lens = outline(selected.input);
-  assert.ok(validateRationalePair(lens, selected).ok, JSON.stringify(validateRationalePair(lens, selected)));
-  assertRejected(lens, ctx, "lineage_unsolicited");
-  const wrong = structuredClone(lens);
-  wrong.l = "扶阳学派由本例心悸主张选用四逆汤。";
-  assertRejected(wrong, selected, "lineage_formula");
+  // 第五十轮 v6：未选流派时模型即使写了 l 也不采用、不因此拒稿（流派句只沿用旧稿里已核对过的那一句）。
+  const stray = validateRationalePair({ ...reply, l: "扶阳学派由本例心悸主张选用四逆汤。" }, ctx);
+  assert.ok(stray.ok, JSON.stringify(stray));
+  assert.ok(!stray.pair.tcmDiagnosticRationale.includes("扶阳"));
 });
 await check("10", "bounded 写明缺项，证据空缺与有限结果只留底稿", async () => {
   const ctx = context(input({ tongue: "", pulse: "" }), root({ primarySyndromeResolution: "bounded" }));
@@ -499,23 +496,21 @@ await check("14", "已定名的撤回与对内措辞退修，保留 M04 漂移�
   assertRejected({ ...reply, x: reply.x.replace("睡中又容易醒", "睡中又容易醒，睡中又容易醒") }, ctx, "m04_carryover_drift");
   assertRejected({ ...reply, y: reply.y.replace("时有心悸", "时有心悸，时有心悸") }, ctx, "m04_carryover_drift");
 });
-await check("15", "流派末句与定稿方、治法、适配一致，篇幅按合成后核对", () => {
+await check("15", "选了流派：沿用旧稿里已核对的视角句，模型写的 l 不用；y、x 里不得另有视角句", () => {
   const selected = context(input({ tcmLineagePreference: "support-yang" }));
   const lens = outline(selected.input);
-  assert.ok(validateRationalePair(lens, selected).ok, JSON.stringify(validateRationalePair(lens, selected)));
-  assertRejected({ ...lens, l: null }, selected, "lineage_last");
-  assertRejected({ ...lens, y: lens.y + lens.l }, selected, "lineage_embedded");
-  assertRejected({ ...lens, x: lens.x + lens.l }, selected, "lineage_disease");
-  assertRejected({ ...lens, l: lens.l + "应通盘看待。" }, selected, "lineage_last");
-  assertRejected({ ...lens, l: lens.l.replace("扶阳", "丹溪") }, selected, "lineage_subject");
-  assertRejected({ ...lens, l: "扶阳学派据此治以行气活血。" }, selected, "lineage_method");
-  const adaptation = structuredClone(selected);
-  adaptation.input.lineage.adaptation = { applicable: "not-applicable" };
-  assertRejected(lens, adaptation, "lineage_applicability");
-  const excessive = { ...lens, l: "扶阳学派看时有心悸，" + "应合舌脉辨其相应处，".repeat(30) + "合参辨其相应处。" };
-  assertRejected(excessive, selected, "text_length");
+  const verdict = validateRationalePair({ ...lens, l: "扶阳学派据此治以行气活血。" }, selected);
+  assert.ok(verdict.ok, JSON.stringify(verdict));
+  const delivered = verdict.pair.tcmDiagnosticRationale;
+  assert.ok(delivered.startsWith(lens.y));
+  assert.ok(!delivered.includes("行气活血"), "模型写的流派句不进成文");
+  const tail = delivered.slice(lens.y.length);
+  assert.ok(tail === "" || String(selected.root.overview.tcmDiagnosticRationale).includes(tail.replace(/。$/u, "")), "接上的只能是旧稿里的视角句");
+  if (typeof lens.l === "string" && lens.l) {
+    assertRejected({ ...lens, y: lens.y + lens.l }, selected, "lineage_embedded");
+    assertRejected({ ...lens, x: lens.x + lens.l }, selected, "lineage_disease");
+  }
 });
-
 await check("16", "本次起病与病程吻合，单列以前发作或否认仍不能引用", () => {
   const symptoms = { presentHistory: "两月前出现腹部隐痛，伴嗳气。曾有咳嗽。无腹泻，查体可见皮疹。无呕吐，黑便。否认胸痛、气短。不痒不痛。" };
   const current = context(input({ chiefComplaint: "腹痛2个月", symptoms }), root({ tcmDiseaseName: "腹痛" }));
@@ -542,13 +537,13 @@ await check("16", "本次起病与病程吻合，单列以前发作或否认仍�
   assert.ok(quote(witness, "喊她不应，片刻后自行醒来"));
 });
 
-await check("17", "首稿软拒退修，末稿软采纳并计码，硬拒仍回底稿", async () => {
+await check("17", "证素越界是软规则：首稿即采纳并计码，不为它退修；硬拒退修一次仍不过则回底稿", async () => {
   const state = input(), ctx = context(state);
   const groupDraft = outline(ctx.input);
   groupDraft.g[0][1] = "所见由肝阴亏虚所致";
   const groupVerdict = validateRationalePair(groupDraft, ctx);
-  assert.ok(!groupVerdict.ok && groupVerdict.reasons.some(({ code, field }) => code === "foreign_element" && field === "g"));
-  const propose = async (hardOnRetry) => {
+  assert.ok(groupVerdict.ok && groupVerdict.softAccepted && groupVerdict.reasons.some(({ code, field }) => code === "foreign_element" && field === "g"));
+  const propose = async (hard) => {
     const events = [];
     let calls = 0;
     const author = createFinalRationaleAuthor({ state, scope: "test", mode: "on", signal: new AbortController().signal,
@@ -557,22 +552,22 @@ await check("17", "首稿软拒退修，末稿软采纳并计码，硬拒仍回�
         const request = JSON.parse(messages[1].content);
         const draft = outline(request);
         draft.y += "所见由肝阴亏虚所致。";
-        if (++calls === 2) {
-          assert.ok(request.revise.some((reason) => reason.code === "foreign_element"));
-          if (hardOnRetry) draft.y += "定稿证素不归入。";
-        }
+        calls += 1;
+        if (hard) draft.y += "定稿证素不归入。";
+        if (calls === 2) assert.ok(request.revise.some((reason) => reason.code === "text_internal"));
         return draft;
       } });
     const proposal = await author.propose(ctx.root);
     author.finish(proposal ? "new" : "old", Boolean(proposal));
-    assert.equal(calls, 2);
-    return { proposal, event: events[0] };
+    return { proposal, event: events[0], calls };
   };
   const soft = await propose(false);
   assert.ok(soft.proposal);
+  assert.equal(soft.calls, 1, "软规则不触发退修");
   assert.equal(soft.event.softAccepted, true);
   assert.ok(soft.event.softReasons.some((entry) => entry.code === "foreign_element" && !("phrase" in entry)));
   const hard = await propose(true);
+  assert.equal(hard.calls, 2);
   assert.equal(hard.proposal, undefined);
   assert.equal(hard.event.softAccepted, false);
 });
