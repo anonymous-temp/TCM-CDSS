@@ -9,7 +9,7 @@ import { checkFinalRationaleClaims, type RationaleClaimCheck } from "./m03-final
 import { validateRationalePair, type RationalePair } from "./m03-final-rationale-validation.server";
 
 export const FINAL_RATIONALE_TIMEOUT_MS = 8000;
-const FINAL_RATIONALE_MAX_TOKENS = 700;
+const FINAL_RATIONALE_MAX_TOKENS = 900; // 700 时真链路约 5% 的回复被截断成非法 JSON
 const SIGNING_RESERVE_MS = 250;
 const MIN_START_MS = 1000;
 const MIN_REVISION_MS = 4000;

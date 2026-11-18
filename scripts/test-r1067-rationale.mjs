@@ -149,7 +149,7 @@ async function wire({ mode = "on", parallel = false, route = false, twoPass = fa
     if (request.messages[0].content === FINAL_RATIONALE_SYSTEM) {
       assert.equal(request.model, "deepseek-flash");
       assert.equal(request.temperature, 0);
-      assert.equal(request.max_tokens, 700);
+      assert.equal(request.max_tokens, 900);
       assert.equal(request.response_format.type, "json_object");
       assert.equal(request.thinking?.type, "disabled");
       const snapshot = JSON.parse(last);
