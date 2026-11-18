@@ -33,7 +33,7 @@ type RationaleEvent = {
   bounded?: boolean; lineage?: boolean; secondaries?: number;
   eligible: boolean; launched: boolean; requests: number; physicalCalls: number; validReplies: number;
   verified: boolean; signed: boolean; adopted: boolean; delivery: Delivery; prefetch: "none" | "hit" | "stale" | "cancelled";
-  retried: boolean; reasons: RationaleRejection[]; skip?: SkipReason;
+  retried: boolean; reasons: Pick<RationaleRejection, "code" | "field">[]; skip?: SkipReason;
   promptTokens: number; completionTokens: number; modelMs: number; validationMs: number; waitMs: number;
 };
 
@@ -174,7 +174,7 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
       };
       let result = validate();
       if (!result.ok) {
-        event.reasons.push(...result.reasons);
+        event.reasons.push(...result.reasons.map(({ code, field }) => ({ code, field })));
         if (result.reasons.some((item) => item.code === "evidence_gap")) return undefined;
         const retry = start(context, result.reasons);
         if (!retry) return undefined;
@@ -183,7 +183,10 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
         if (options.signal.aborted || finished || retry.controller.signal.aborted) return undefined;
         if (raw === undefined) { reason("no_reply"); return undefined; }
         result = validate();
-        if (!result.ok) { event.reasons.push(...result.reasons); return undefined; }
+        if (!result.ok) {
+          for (const { code, field } of result.reasons) event.reasons.push({ code, field });
+          return undefined;
+        }
       }
       event.verified = true;
       return { pair: result.pair, context, adopt: mode === "on" };

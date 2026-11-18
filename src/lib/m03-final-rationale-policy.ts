@@ -1,5 +1,5 @@
 /** Bump when the prompt, outline or acceptance policy changes. */
-export const FINAL_RATIONALE_VERSION = "r1067-2";
+export const FINAL_RATIONALE_VERSION = "r1067-2.1";
 export type FinalRationaleMode = "off" | "shadow" | "on";
 
 export function finalRationaleMode(): FinalRationaleMode {
