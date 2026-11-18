@@ -1,3 +1,6 @@
+import { isEvidenceDiseaseSubtype } from "./m03-evidence-disease-subtypes";
+import { diseaseRefinementEnabled } from "./m03-disease-evidence";
+import { diseaseNeutralPolicy, supportedDiseaseNeutralName } from "./m03-disease-neutral-policy";
 import syndromeLexicon from "../data/tcm-syndrome-lexicon.json" with { type: "json" };
 import textbookSyndromes from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import textbookSupplement from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
@@ -306,7 +309,7 @@ export function canonicalTcmDiseaseName(
 ): string | undefined {
   // 按部位分节的病写到具体一型（「血证（鼻衄）」，交付面 delivered-surface 写的，第三十七轮）：病名与分型都在分型表里时原样保留，不归一回「血证」。
   const subtype = typeof value === "string" ? value.trim().match(/^(.+?)（([^）]+)）$/u) : null;
-  if (subtype && TEXTBOOK_DISEASE_SUBTYPES[subtype[1]]?.[subtype[2]]) return value as string;
+  if (subtype && (TEXTBOOK_DISEASE_SUBTYPES[subtype[1]]?.[subtype[2]] || (diseaseRefinementEnabled() && isEvidenceDiseaseSubtype(subtype[1], subtype[2])))) return value as string;
   const textbook = textbookTcmDiseaseName(value);
   if (textbook) return textbookSectionDeliveryName(textbook);
   const byWesternEquivalent = TEXTBOOK_WESTERN_TCM_NAME.get(typeof value === "string" ? value.trim() : "");
@@ -452,7 +455,9 @@ export function governedSyndromeReplacement(name: string, natures: readonly stri
  * 只换动词，不添病性、病位，不选别的证。
  */
 const STAGNATION_VERBS = ["滞", "阻", "困", "蕴", "郁"];
-export function governedSyndromeFromMechanismPhrases(name: string): string | undefined {
+export function governedSyndromeFromMechanismPhrases(name: string, disease = "", recordText = ""): string | undefined {
+  const policy = diseaseNeutralPolicy(disease);
+  const supported = policy ? supportedDiseaseNeutralName(disease, recordText, true) : undefined;
   const raw = String(name || "").trim();
   const inner = (raw.match(/[（(]([^）)]+)[）)]/u)?.[1] || raw).replace(/证$/u, "");
   const phrases = inner.split(/[、，,；;]|和|及|与|兼/u).map((phrase) => phrase.trim()).filter((phrase) => phrase.length >= 3 && phrase.length <= 6);
@@ -461,7 +466,8 @@ export function governedSyndromeFromMechanismPhrases(name: string): string | und
       ? STAGNATION_VERBS.filter((verb) => verb !== char).map((verb) => phrase.slice(0, index) + verb + phrase.slice(index + 1)) : [])];
     for (const variant of variants) {
       const named = `${variant}证`;
-      if (governedSyndromeName(named)) return named;
+      if (!governedSyndromeName(named)) continue;
+      return supported || named;
     }
   }
   return undefined;

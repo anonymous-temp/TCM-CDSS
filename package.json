@@ -420,7 +420,8 @@
     "test:r1066-safety": "node --max-old-space-size=1280 scripts/test-r1066-safety.mjs",
     "test:r1066-mods": "node --max-old-space-size=1280 scripts/test-r1066-mods.mjs",
     "test:r1066-elements": "node --max-old-space-size=1280 scripts/test-r1066-elements.mjs",
-    "test:r1066-columns": "node --max-old-space-size=1280 scripts/test-r1066-columns.mjs"
+    "test:r1066-columns": "node --max-old-space-size=1280 scripts/test-r1066-columns.mjs",
+    "test:r1067-disease": "node --max-old-space-size=1280 scripts/test-r1067-disease.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

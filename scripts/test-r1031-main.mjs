@@ -167,7 +167,8 @@ await check("3.4 教材候选段：病名必须能解释本次就诊原因写在
 
 await check("3.5 辨证路由接上核对与重抽：核对与其余收口并行，不解释时按就诊原因重抽中医半、再走一遍收口", () => {
   const route = fs.readFileSync("src/app/api/diagnosis/diagnose/route.ts", "utf8");
-  assert.match(route, /checkDiseaseExplainsVisitReason\(\{ \.\.\.visitReasonInput, disease, picks: textbookDiseasePicks \}/);
+  // 第五十轮把权威病历槽位一并传给就诊原因核对，用于核实本病的当前并发或危重表现。
+  assert.match(route, /checkDiseaseExplainsVisitReason\(\{ \.\.\.visitReasonInput, disease, picks: textbookDiseasePicks, diseaseRecord \}/);
   assert.match(route, /Promise\.all\(\[\s*checkDiseaseExplainsVisitReason[\s\S]*?finishTcmHalf\(tcmContent\)/);
   assert.match(route, /await redraw\(visitReasonRedrawInstruction\(disease, visit\)\)/);
   assert.match(route, /adopted && redrawn \? finishTcmHalf\(redrawn\) : finished/);

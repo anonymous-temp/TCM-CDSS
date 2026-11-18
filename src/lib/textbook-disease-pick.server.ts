@@ -9,6 +9,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { knowledgeGapPreferredDiseases, textbookDiseaseNamesForCase, textbookDiseaseWesternEquivalents } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { diseaseRecordContext, textbookDiseaseRefinementMatches } from "./tcm-disease-defining-findings";
 import { historyStatedDiseasesForCase, withHistoryStatedDiseaseFirst } from "./history-stated-textbook-disease";
 
 /**
@@ -103,6 +104,7 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
   const names = textbookDiseaseNamesForCase({ sex: caseState.patient?.sex, ageYears });
   if (names.length === 0) return undefined;
   const allowed = new Set(names);
+  const refinements = textbookDiseaseRefinementMatches(diseaseRecordContext(caseState), names);
   const messages = [
     {
       role: "system" as const,
@@ -115,6 +117,7 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
         `3. 最多 ${MAX_PICKS} 个，最可能的排在最前；只有一个明确归属时只给一个；清单里确实没有合适的就返回空数组。`,
         "4. 清单里的西医病名与中医病名都可以选，优先选中医病名；westernEquivalents 给出部分中医病名对应的西医病名，病历用西医说法写的表现（如扁桃体肿大）据此对到中医病名。",
         "5. 「反复感冒、容易感冒」而本次没有恶寒发热、鼻塞流涕等外感表现的，说的是体质虚弱，选虚劳，不选感冒。",
+        ...(refinements.length ? ["有已印证的细分候选时，按其原病历短引文与本次就诊原因比较同部位的相近病。"] : []),
         "只输出 JSON：{\"diseases\":[\"病名\"]}，不要解释。",
       ].join("\n"),
     },
@@ -126,6 +129,9 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
         textbookDiseaseNames: names,
         // 清单里部分病名在教材里写明的西医对应病名，只作对照（病历用西医说法写的表现据此对到中医病名）；输出仍只写清单里的病名。
         westernEquivalents: textbookDiseaseWesternEquivalents(names),
+        ...(refinements.length ? { supportedRefinements: refinements.map((item) => ({
+          name: item.section, definition: item.definition, evidence: item.evidence.map(sanitizeFreeTextForModel),
+        })) } : {}),
       }),
     },
   ];
@@ -139,7 +145,9 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
 export async function pickTextbookDiseasesForCase(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {
   const picks = withHistoryStatedDiseaseFirst(await pickTextbookDiseasesByModel(caseState, signal), historyStatedDiseasesForCase(caseState));
   const gaps = knowledgeGapPreferredDiseases({ chiefComplaint: caseState.chiefComplaint, recordText: trustedInputText(caseState) });
-  const retrieved = [...gaps, ...picks.filter((name) => !gaps.includes(name))].slice(0, MAX_PICKS);
+  const context = diseaseRecordContext(caseState);
+  const refined = textbookDiseaseRefinementMatches(context, textbookDiseaseNamesForCase({ sex: caseState.patient?.sex, ageYears: context.ageYears }));
+  const retrieved = [...new Set([...refined.map((item) => item.section), ...gaps, ...picks])].slice(0, MAX_PICKS);
   return withEmergencyDiseasesFirst(withTrueHeartPainFirst(retrieved, trueHeartPainSignal(trustedInputText(caseState), (caseState.safetyGate || evaluateSafetyGate(caseState)).redFlags || [])), emergencyTextbookCandidates(caseState));
 }
 

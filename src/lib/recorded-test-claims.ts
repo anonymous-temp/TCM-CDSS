@@ -4,7 +4,7 @@ import { recordCourseDays } from "./western-record-course";
 import certaintyPolicy from "../data/western-certainty-policy.source.json";
 import testNameGroupsJson from "../data/clinical-test-name-groups.source.json" with { type: "json" };
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
-import westernAbbreviations from "../data/western-diagnosis-abbreviations.source.json" with { type: "json" };
+import { westernDiagnosisAbbreviations } from "./western-diagnosis-aliases";
 import { recordMentionPolarityAt } from "./diagnosis-safety";
 import { settleWesternRecurrenceQualifier } from "./western-recurrence-qualifier";
 
@@ -222,7 +222,7 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
   const cleaned = withoutMissingClaimsForRecordedTests(basis, recordText);
   const treated = recordStatesTreatedHypertension(core, recordText);
   // 原词写在主诉（如“经期腹泻2月”）只证明症状被记录；既往/明确诊断语境才可免去首次确诊要求。
-  const aliases = [core, ...westernAbbreviations.entries.filter((row) => row.fullName.replace(/症$/u, "") === core.replace(/症$/u, "")).map((row) => row.abbreviation),
+  const aliases = [core, ...westernDiagnosisAbbreviations().filter((row) => row.fullName.replace(/症$/u, "") === core.replace(/症$/u, "")).map((row) => row.abbreviation),
     ...(textConsistency.treatedHypertension.names.includes(core) ? textConsistency.treatedHypertension.names : [])];
   const diagnosedContext = aliases.some((alias) => (alias.length >= 3 ? recordStatesWesternDiagnosis(alias, recordText) :
     recordStatesWesternDiagnosis(core, recordText.split(alias).join(core))) &&

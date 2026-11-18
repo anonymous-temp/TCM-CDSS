@@ -1,3 +1,4 @@
+import { isEvidenceDiseaseSubtype } from "./m03-evidence-disease-subtypes";
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import { recordCourseDays, courseSpans } from "./western-record-course";
 import { withResolvedAxisEvidenceConfidence, isGenericClinicalDescription } from "./diagnosis-visible-summary";
@@ -61,9 +62,10 @@ import { selfTakenMedicationMentions, recordedMedicationMentions, drugNamesInAll
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, retainModificationFindings, modificationIsTextbookFill, fillTextbookModificationConditions, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
 import { modificationDoseWithinPharmacopoeia, canonicalTcmHerbIdentity, herbAdditionPopulationConflict } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { textbookDiseaseTypicalManifestation, textbookDefinitionSuitableForDisplay, textbookDifferentialTextWithoutNumber, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable } from "./tcm-textbook-syndromes";
+import { textbookDiseaseTypicalManifestation, textbookDefinitionSuitableForDisplay, textbookDifferentialTextWithoutNumber, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable, settledTextbookSyndromeName, withTextbookSubtypeSyndromeNames, textbookDiseaseIdentity } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
-import { withDiseaseDefiningFindingCaveat } from "./tcm-disease-defining-findings";
+import { diseaseNeutralCategoryName } from "./m03-disease-neutral-policy";
+import { diseaseRecordContext, textbookDiseaseRefinementMatches, withDiseaseDefiningFindingCaveat } from "./tcm-disease-defining-findings";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { boundaryRuleShown, followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, herbFunctionKnowledgeForDisplay, isExternalUseEfficacyClause, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -1465,17 +1467,22 @@ export function recordedAccountConflict(recordText: string | undefined): string 
 }
 
 /** 只规范已经选定的证名；同步解释中的整名，患者引文与证素栏保持原样。 */
-export function withGovernedSyndromeNames(reasoning: Json): Array<{ from: string; to: string }> {
+export function withGovernedSyndromeNames(reasoning: Json, recordText = ""): Array<{ from: string; to: string }> {
   const overview = record(reasoning.overview);
   if (!overview) return [];
+  Object.assign(overview, withTextbookSubtypeSyndromeNames(overview, recordText));
   const pathogenesis = record(reasoning.pathogenesis);
   const nature = record(pathogenesis?.natureDifferentiation);
   const natures = [nature?.items, nature?.rootDeficiency, nature?.branchExcess].flatMap((value) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
   const analysis = [overview.tcmDiagnosticRationale, overview.overallPathogenesis].filter((value) => typeof value === "string").join("；");
   const renames: Array<{ from: string; to: string }> = [];
+  const disease = String(overview.tcmDiseaseName || "");
   const rename = (name: string, field: string): string => {
-    if (!name.trim() || name === "无" || governedSyndromeName(name)) return name;
-    const to = governedSyndromeReplacement(name, natures, analysis) || governedSyndromeFromMechanismPhrases(name);
+    if (!name.trim() || name === "无") return name;
+    const neutral = field === "primarySyndrome" && recordText && diseaseNeutralCategoryName(name) ? settledTextbookSyndromeName(disease, name, recordText) : name;
+    if (neutral !== name) return neutral;
+    if (governedSyndromeName(name)) return name;
+    const to = governedSyndromeReplacement(name, natures, analysis) || governedSyndromeFromMechanismPhrases(name, field === "primarySyndrome" && recordText ? disease : "", recordText);
     if (to) { renames.push({ from: name, to }); return to; }
     // 不打印病历和未治理原词，只给字段与固定原因；不增加公开接口字段。
     console.info("[tcm-cdss:telemetry] syndrome_name_ungoverned", { field, reason: "no_equivalent_governed_name" });
@@ -1576,7 +1583,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
     compositeSyndromeRename(reasoning, options.recordText);
   }
   if (!readOnlyConclusions && !isLimitedDiagnose(reasoning)) {
-    withGovernedSyndromeNames(reasoning);
+    withGovernedSyndromeNames(reasoning, options?.recordText);
   }
   // 辨证依据末尾「不另立兼证」「未立兼证」「无兼证可立」（被改成「未诉兼证可立」）是讲辨证规则的话（第四十一轮 r1054 回顾 13 份）：去掉这一小句，
   // 前面「属主证可解释的伴随表现」照留。
@@ -1693,17 +1700,21 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
   // 按部位分节的病写到具体一型：「血证（鼻衄）」，鉴别病只留讲到这一型的（第三十七轮甲方 11.05 病历8；tcm-textbook-disease-subtypes）。
   if (overview && typeof overview.tcmDiseaseName === "string" && options?.recordText && !isLimitedDiagnose(reasoning)) {
     // 模型把分型名单写成病名（「鼻衄」）时按所属的病（血证）写全（diseaseNameWithRecordSubtype，与补写鉴别的小任务同一个函数）。
-    const subtyped = diseaseNameWithRecordSubtype(overview.tcmDiseaseName, options.recordText);
+    const context = options.caseState?.patient ? diseaseRecordContext(options.caseState as CaseState) : { recordText: options.recordText };
+    const section = textbookDiseaseIdentity(overview.tcmDiseaseName, context.ageYears);
+    const refinement = textbookDiseaseRefinementMatches(context, [section])[0];
+    const subtypeRecord = context.pastHistory ? `${options.recordText}\n既往史：${context.pastHistory}` : options.recordText;
+    const subtyped = diseaseNameWithRecordSubtype(refinement?.display || overview.tcmDiseaseName, subtypeRecord);
     const split = splitTextbookDiseaseSubtype(subtyped);
     const subtype = split.subtype;
+    overview.tcmDiseaseName = subtyped;
     if (subtype) {
-      overview.tcmDiseaseName = subtyped;
       if (Array.isArray(overview.tcmDiseaseDifferentials)) {
         overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials)
           .filter((item) => textbookDifferentialFitsSubtype(split.disease, subtype, String(item.diseaseName || "")));
       }
     }
-    withDiseaseDefiningFindingCaveat(overview, options.recordText);
+    withDiseaseDefiningFindingCaveat(overview, options.recordText, pathogenesis);
   }
   // 中医鉴别诊断每例必出（甲方 10.12 测评 2.3「中医鉴别诊断未生成」），且至少两项（甲方验收「鉴别诊断覆盖率」，2026-10-19）：
   // 模型没写、写的病名被归一丢掉、或只剩一项而补写小任务也没补上时，用教材【鉴别诊断】对该病列出的病证补齐，要点是教材原文。
@@ -1713,7 +1724,11 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
     // 同一个病的两种写法只列一次（「痫证」「痫病」按受治理病名归一；教材扫描误字「大行赤眼」即天行赤眼），与本病同名的不列
     //（第四十一轮独立新病历 m40、m38：鉴别列了「痫证」「痫病」两项、「大行赤眼」与「天行赤眼」两项）。
     const ocrName = (name: string) => name.replace(/大行赤眼/gu, "天行赤眼");
-    const canonical = (name: string) => resolveTcmDiseaseName(ocrName(name))?.canonical || ocrName(name).replace(/(?:病|证)$/u, "");
+    const canonical = (name: string) => {
+      const split = splitTextbookDiseaseSubtype(name);
+      const base = split.subtype && isEvidenceDiseaseSubtype(split.disease, split.subtype) ? split.disease : name;
+      return resolveTcmDiseaseName(ocrName(base))?.canonical || ocrName(base).replace(/(?:病|证)$/u, "");
+    };
     const own = typeof overview.tcmDiseaseName === "string" ? canonical(overview.tcmDiseaseName) : "";
     const seenNames = new Set<string>();
     overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials)

@@ -1,6 +1,6 @@
 import { textbookNamesTheseAsEmperors } from "./formula-textbook-commentary";
 import conditionalDirectionSigns from "../data/tcm-conditional-direction-signs.source.json";
-import { conditionalModificationWithoutTextbook, textbookModificationMatch, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { conditionalModificationWithoutTextbook, textbookModificationMatch, textbookRowForSyndrome, textbookSubtypeSyndromeDisplay } from "./tcm-textbook-syndromes";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { textbookPregnancyRestricted } from "./herb-textbook-identity";
 import { liquidHerbDoseMl, liquidHerbDoseRule, liquidHerbDoseWithinRange } from "./herb-liquid-dose";
@@ -35,6 +35,7 @@ type M03ReasoningLike = {
   overview?: {
     tcmDiseaseName?: unknown;
     primarySyndrome?: unknown;
+    secondarySyndromes?: unknown;
     primarySyndromeResolution?: unknown;
     primarySyndromeBasis?: unknown;
     primarySyndromeResolutionReason?: unknown;
@@ -1628,6 +1629,10 @@ function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext
   //  · 解析不到、且括注里也解析不到 ⇒ 驳回,交由修复轮改写为规范证候名。
   // 为什么不直接改写而是驳回:主证是签名结论的核心,服务端擅自改写等于替医生下诊断;
   // 让模型在修复轮按规范重述,结论仍归模型、仍可追溯。
+  if (syndromeResolution !== "unresolved" && [syndrome, ...nonEmptyStringList(overview?.secondarySyndromes)].some((name) =>
+    name && textbookSubtypeSyndromeDisplay(String(overview?.tcmDiseaseName || ""), name, ""))) {
+    return "primary_syndrome_name_nonstandard";
+  }
   if (syndromeResolution !== "unresolved" && syndrome && !governedSyndromeNameAcceptable(syndrome)) {
     return "primary_syndrome_name_nonstandard";
   }

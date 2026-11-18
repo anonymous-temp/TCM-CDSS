@@ -2,7 +2,8 @@ import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./d
 /** Observation only; original clinical transforms and their return values are unchanged. */
 export const FORMULA_PROVENANCE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.provenance, leaves: ["renamedDiseaseMentions","replaceSelfDevisedFormulaClaims","replaceFormulaIdentityClaims","withDeterministicFormulaReferences"] as const });
 import { activeBloodMovingMethodItem, bloodMovingWithoutHemostasis, methodForActiveBleeding } from "./active-bleeding-treatment";
-import { settledTextbookSyndromeName, textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
+import { supportedDiseaseNeutralName } from "./m03-disease-neutral-policy";
+import { withTextbookSubtypeSyndromeNames, settledTextbookSyndromeName, textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { jingfangPatternForSignedSyndrome } from "./jingfang-patterns";
 import { textbookSectionDeliveryName } from "./clinical-terminology";
@@ -1631,10 +1632,12 @@ function textbookAnchoredFormulaDirection(reasoning: ClinicalReasoningResultV2, 
  */
 function withTextbookSyndromeName(input: ClinicalReasoningResultV2, recordText = ""): ClinicalReasoningResultV2 {
   const diseaseName = String(input.overview?.tcmDiseaseName || "");
-  const normalize = (name: string) => settledTextbookSyndromeName(diseaseName, name, recordText, String(input.overview?.recommendedFormulaDirection || ""));
-  const reasoning = { ...input, overview: { ...input.overview,
-    primarySyndrome: normalize(String(input.overview?.primarySyndrome || "")),
-    secondarySyndromes: [...new Set((input.overview?.secondarySyndromes || []).map(normalize))].filter((name) => name !== normalize(String(input.overview?.primarySyndrome || ""))),
+  const naming = withTextbookSubtypeSyndromeNames(input.overview, recordText);
+  const normalize = (name: string, useNeutralPolicy = true) => settledTextbookSyndromeName(diseaseName, name, recordText, String(naming.recommendedFormulaDirection || ""), useNeutralPolicy);
+  const primary = normalize(String(naming.primarySyndrome || ""));
+  const reasoning = { ...input, overview: { ...naming,
+    primarySyndrome: primary,
+    secondarySyndromes: [...new Set((naming.secondarySyndromes || []).map((name) => normalize(name, false)))].filter((name) => name !== primary),
   } };
   const overview = reasoning.overview;
   const disease = String(overview?.tcmDiseaseName || "");
@@ -1666,6 +1669,7 @@ function withTextbookSyndromeName(input: ClinicalReasoningResultV2, recordText =
   // 证名与方向正是经方方证表里的一项（太阳中风证 + 桂枝汤加减）：这是方证辨证的写法，不是教材行的近义写法，不改名
   //（2026-10-19，第八轮 WP-A；否则「营卫不和证」「寒热错杂证」这类会被拉到字面最近的教材行，再把治法与方一并锚到那一行）。
   if (jingfangPatternForSignedSyndrome(syndrome, String(overview.recommendedFormulaDirection || ""))) return reasoning;
+  if (supportedDiseaseNeutralName(disease, recordText) === syndrome) return reasoning;
   const evidence = [
     ...(Array.isArray(overview.primarySyndromeBasis) ? overview.primarySyndromeBasis : []),
     ...(reasoning.pathogenesis?.chain || []).flatMap((node) => [node.patientFact, node.syndromeEvidence]),

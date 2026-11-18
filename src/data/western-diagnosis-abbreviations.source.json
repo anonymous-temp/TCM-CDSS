@@ -1,6 +1,6 @@
 {
   "schemaVersion": "western-diagnosis-abbreviations-v1",
-  "note": "临床常用西医病名简称 → 全称（2026-09-29）。只用于把误写进「中医病名鉴别」栏的西医病名先还原成全称，再按 tcm-western-disease-crosswalk.json（教材原句）归一到中医病名；不参与西医诊断本身。均为国内临床与教材通行简称，全称取《内科学》（人民卫生出版社）章节名写法。",
+  "note": "临床常用西医病名简称 → 全称。用于术语、检查原文与既往确诊病的有限词表匹配。病历原文位置保留用于极性判断。",
   "entries": [
     {
       "abbreviation": "流感",
@@ -37,6 +37,41 @@
     {
       "abbreviation": "前列腺增生症",
       "fullName": "前列腺增生"
+    },
+    {
+      "abbreviation": "COPD",
+      "fullName": "慢性阻塞性肺疾病",
+      "diseaseRefinement": true
+    },
+    {
+      "abbreviation": "慢性阻塞性肺病",
+      "fullName": "慢性阻塞性肺疾病",
+      "diseaseRefinement": true
+    },
+    {
+      "abbreviation": "房颤",
+      "fullName": "心房颤动",
+      "diseaseRefinement": true
+    },
+    {
+      "abbreviation": "肩周炎",
+      "fullName": "肩关节周围炎",
+      "diseaseRefinement": true
+    },
+    {
+      "abbreviation": "膝OA",
+      "fullName": "膝骨关节炎",
+      "diseaseRefinement": true
+    },
+    {
+      "abbreviation": "膝骨性关节炎",
+      "fullName": "膝骨关节炎",
+      "diseaseRefinement": true
+    },
+    {
+      "abbreviation": "膝关节骨性关节炎",
+      "fullName": "膝骨关节炎",
+      "diseaseRefinement": true
     }
   ]
 }
