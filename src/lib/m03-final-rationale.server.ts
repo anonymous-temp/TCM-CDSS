@@ -66,7 +66,8 @@ export function rationalePairFrom(root: ClinicalReasoningResultV2 | undefined): 
 
 /** Stable comparison after normalization and signing. Metadata is bound after authoring. */
 export function finalRationaleDeliveryHash(root: ClinicalReasoningResultV2) {
-  const content = { ...root };
+  // 按 JSON 视图比较：一侧来自内存对象（可能带显式 undefined 键，如 guidelineReferences），另一侧来自解析回来的交付内容。
+  const content = JSON.parse(JSON.stringify(root)) as ClinicalReasoningResultV2;
   delete content.clinicalReview;
   delete content.contractSignature;
   delete content.contractSignatureVersion;
@@ -181,6 +182,8 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
       if (!result.ok) {
         event.reasons.push(...result.reasons.map(({ code, field }) => ({ code, field })));
         if (result.reasons.some((item) => item.code === "evidence_gap")) return undefined;
+        // 第五十轮实测：退修把 M03 的九成位多拖 4–5 秒，换来约 15 个百分点的采纳率；缺省不退修，首稿不合格即沿用旧两段。
+        if (process.env.CDSS_M03_FINAL_RATIONALE_RETRY !== "true") return undefined;
         const retry = start(context, result.reasons);
         if (!retry) return undefined;
         event.retried = true;
@@ -230,9 +233,9 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
     (options.observe || log)({ ...event, reasons: [...event.reasons], softReasons: [...event.softReasons] });
   };
 
-  const rejectTransaction = () => {
+  const rejectTransaction = (detail?: string) => {
     event.verified = false;
-    reason("transaction_rejected");
+    reason(detail ? `transaction_${detail}` : "transaction_rejected");
   };
   return { enabled: mode !== "off", prefetch, propose, finish, reason, rejectTransaction };
 }

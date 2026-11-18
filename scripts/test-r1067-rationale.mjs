@@ -373,6 +373,11 @@ await check("10", "bounded 写明缺项，证据空缺与有限结果只留底�
 });
 await check("11", "父取消、异常和两次拒稿整体回退，带拒因且最多两次", async () => {
   const old = await wire({ mode: "off" });
+  // 缺省不退修（第五十轮时延取舍）：首稿硬拒只调用一次、整体回退。
+  const single = await wire({ author: (request) => ({ ...outline(request), y: outline(request).y + "故为。" }) });
+  assert.deepEqual(single.content, old.content);
+  assert.equal(single.calls.length, 1);
+  process.env.CDSS_M03_FINAL_RATIONALE_RETRY = "true";
   const bad = await wire({ author: (request) => ({ ...outline(request), y: outline(request).y + "故为。" }) });
   assert.deepEqual(bad.content, old.content);
   assert.equal(bad.calls.length, 2);
@@ -384,6 +389,7 @@ await check("11", "父取消、异常和两次拒稿整体回退，带拒因且�
   const recovered = await wire({ author: (request, _opts, call) => call === 1 ? "{" : outline(request) });
   assert.equal(recovered.events[0].signed, true, JSON.stringify(recovered.events));
   assert.equal(recovered.events[0].retried, true);
+  delete process.env.CDSS_M03_FINAL_RATIONALE_RETRY;
   const transportError = await wire({ author: () => { throw new Error("synthetic failure"); } });
   assert.equal(transportError.content, old.content);
   const unavailable = await wire({ route: true, parallel: true, author: () => new Response(null, { status: 503 }) });
@@ -401,6 +407,14 @@ await check("11", "父取消、异常和两次拒稿整体回退，带拒因且�
   assert.equal(child.aborted, true);
   assert.equal(await pending, undefined);
   runner.finish("none");
+});
+await check("11b", "交付哈希按 JSON 视图比较：显式 undefined 键不算差异（真链路曾因此把通过验收的两段退回）", async () => {
+  const { finalRationaleDeliveryHash } = await jiti.import("../src/lib/m03-final-rationale.server");
+  const base = root();
+  const withUndefined = { ...base, westernDiagnosis: { ...base.westernDiagnosis, primary: { ...base.westernDiagnosis?.primary, guidelineReferences: undefined } } };
+  assert.equal(finalRationaleDeliveryHash(withUndefined), finalRationaleDeliveryHash(JSON.parse(JSON.stringify(withUndefined))));
+  const changed = { ...base, overview: { ...base.overview, tcmDiagnosticRationale: `${base.overview.tcmDiagnosticRationale}改` } };
+  assert.notEqual(finalRationaleDeliveryHash(changed), finalRationaleDeliveryHash(base));
 });
 await check("12", "off 字节一致，新字节渲染并签名，处方工作副本继承", async () => {
   const off = await wire({ mode: "off", author: () => assert.fail("off called author") });
@@ -567,9 +581,15 @@ await check("17", "证素越界是软规则：首稿即采纳并计码，不为�
   assert.equal(soft.event.softAccepted, true);
   assert.ok(soft.event.softReasons.some((entry) => entry.code === "foreign_element" && !("phrase" in entry)));
   const hard = await propose(true);
-  assert.equal(hard.calls, 2);
+  assert.equal(hard.calls, 1, "缺省不退修：首稿硬拒即回底稿");
   assert.equal(hard.proposal, undefined);
   assert.equal(hard.event.softAccepted, false);
+  process.env.CDSS_M03_FINAL_RATIONALE_RETRY = "true";
+  try {
+    const retried = await propose(true);
+    assert.equal(retried.calls, 2, "开关打开时带拒因退修一次");
+    assert.equal(retried.proposal, undefined);
+  } finally { delete process.env.CDSS_M03_FINAL_RATIONALE_RETRY; }
 });
 await check("18", "只核两段，编造表现作最小删除，病历仅否认的字面可删", async () => {
   const field = "tcmDiseaseRationale";

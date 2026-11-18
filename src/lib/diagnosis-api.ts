@@ -5825,9 +5825,25 @@ async function callPrimaryTextModelStream(
                     authoredRationaleHash = expectedHash;
                     if (rebound) clinicalReviewRebindCount += 1;
                   }
-                } else rationaleAuthor.rejectTransaction();
+                } else {
+                  if (checked && finalRationaleDeliveryHash(checked) !== expectedHash) {
+                    const a = authored as unknown as Record<string, Record<string, unknown> | undefined>;
+                    const c = checked as unknown as Record<string, Record<string, unknown> | undefined>;
+                    const paths: string[] = [];
+                    for (const top of new Set([...Object.keys(a), ...Object.keys(c)])) {
+                      if (JSON.stringify(a[top]) === JSON.stringify(c[top])) continue;
+                      const left = a[top] && typeof a[top] === "object" ? a[top]! : {}, right = c[top] && typeof c[top] === "object" ? c[top]! : {};
+                      const inner = [...new Set([...Object.keys(left), ...Object.keys(right)])].filter((key) => JSON.stringify(left[key]) !== JSON.stringify(right[key]));
+                      paths.push(inner.length ? `${top}.${inner.slice(0, 4).join("|")}` : top);
+                    }
+                    console.warn("[tcm-cdss:telemetry] m03_final_rationale_normalized", { paths: paths.slice(0, 8) });
+                  }
+                  rationaleAuthor.rejectTransaction(!checked ? "contract" : !grounded ? "ungrounded"
+                  : finalRationaleDeliveryHash(checked) !== expectedHash ? "normalized"
+                    : JSON.stringify(rationalePairFrom(grounded)) !== JSON.stringify(proposal.pair) ? "sanitized" : "attestation");
+                }
               } catch {
-                rationaleAuthor.rejectTransaction();
+                rationaleAuthor.rejectTransaction("threw");
               }
             }
           }
