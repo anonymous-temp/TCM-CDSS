@@ -398,6 +398,16 @@ await check("L27", "缓存指纹随闭合版本和单项开关而变，终验位
   assert.match(api, /if \(!checkM03ElementsBeforeSign\(reasoning\)\)[\s\S]*?applyDiagnoseContractSignature\(attested/);
   assert.match(api, /if \(finalM03 && checkM03ElementsBeforeSign\(finalM03\)\) \{\s+signedContent = applyDiagnoseContractSignature/);
 });
+await check("L28", "证素闭合有残留不作废整页：交付闸、签名前、发射处三处都只记遥测（真模型 254 份里曾有 7 份完整结果被换成有限结论页）", () => {
+  const api = fs.readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+  assert.ok(api.includes("m03_element_closure_unsettled"), "残留要有遥测");
+  assert.equal((api.match(/m03_element_closure_unsettled/gu) || []).length, 2, "签名前与发射处各一处");
+  assert.doesNotMatch(api, /enforceElementClosure\.inspect\([^)]*\)\.length\) return false/u, "交付闸不得因闭合残留否决");
+  assert.doesNotMatch(api, /if \(!checkM03ElementsBeforeSign\(reasoning\)\) \{\s*markStageGenerationNonReusable\(\);\s*return opts\.truncateFallback/u, "签名前不得换成兜底页");
+  const emission = api.slice(api.indexOf("const beforeClosure = emissionContent;"));
+  assert.ok(emission.startsWith("const beforeClosure"), "发射处先留闭合前内容");
+  assert.match(emission.slice(0, 900), /emissionContent = beforeClosure;/u, "合同不过时退回闭合前内容");
+});
 await check("L28", "独立行级许可的湿能回填，未经许可的湿在治法写入者处被挡", () => {
   const root = make("无教材病", "气虚证", "气虚乏力，湿困中焦", "健脾渗湿");
   const ctx = context("现病史：经期大便溏泄，肢体困重，腹胀。\n舌象：苔白腻。");

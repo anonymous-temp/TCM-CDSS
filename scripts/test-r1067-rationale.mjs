@@ -283,7 +283,9 @@ await check("04", "逐字保留病名分型，病段无证名，主症允许自�
   const ctx = context(input(), root({ tcmDiseaseName: "不寐（入睡型）" }));
   const reply = outline(ctx.input);
   assert.ok(validateRationalePair(reply, ctx).ok);
-  assertRejected({ ...reply, x: reply.x.replace("（入睡型）", "") }, ctx, "disease_name");
+  // 第五十轮真模型：模型常写病名本体而省掉括号分型，分型在病名栏里，辨病段写出本体即可；换成别的病名仍拒。
+  assert.ok(validateRationalePair({ ...reply, x: reply.x.replace("（入睡型）", "") }, ctx).ok);
+  assertRejected({ ...reply, x: reply.x.replace("不寐（入睡型）", "郁证") }, ctx, "disease_name");
   assertRejected({ ...reply, x: reply.x + "亦见心血虚证。" }, ctx, "disease_element");
   const sameMeaning = { ...reply, x: reply.x.replace("入睡困难", "难以入睡") };
   assert.ok(validateRationalePair(sameMeaning, ctx).ok);
@@ -415,6 +417,20 @@ await check("11b", "交付哈希按 JSON 视图比较：显式 undefined 键不�
   assert.equal(finalRationaleDeliveryHash(withUndefined), finalRationaleDeliveryHash(JSON.parse(JSON.stringify(withUndefined))));
   const changed = { ...base, overview: { ...base.overview, tcmDiagnosticRationale: `${base.overview.tcmDiagnosticRationale}改` } };
   assert.notEqual(finalRationaleDeliveryHash(changed), finalRationaleDeliveryHash(base));
+});
+await check("11c", "真模型上误拒过的四种写法放行：八纲类别词、无「舌」字的苔句、九十余字的辨病段、省括号分型的病名", () => {
+  const ctx = context();
+  const reply = outline(ctx.input);
+  const generic = validateRationalePair({ ...reply, x: reply.x.replace(/。$/u, "，病属内伤虚证。") }, ctx);
+  assert.ok(generic.ok || !generic.reasons.some((r) => r.code === "disease_element"), JSON.stringify(generic));
+  assertRejected({ ...reply, x: reply.x.replace(/。$/u, `，属${ctx.input.conclusion.names[0]}。`) }, ctx, "disease_element");
+  const split = validateRationalePair({ ...reply, y: reply.y.replace("舌淡白、苔薄白，舌质与血少相应。", "舌淡白，为血少不荣之象；苔薄白，未见寒热偏盛。") }, ctx);
+  assert.ok(split.ok, JSON.stringify(split));
+  assertRejected({ ...reply, y: reply.y.replace("舌淡白、苔薄白，舌质与血少相应。", "") }, ctx, "inspection_recorded");
+  const longX = reply.x.replace(/。$/u, "；其所苦始终落在睡眠本身，既有入睡之难，又有睡后易醒，二者同属睡眠不得安稳这一类病证的范围，而不以他处之痛楚或寒热为主，故仍归此病。");
+  assert.ok([...longX].length > 90 && [...longX].length <= 120, String([...longX].length));
+  const long = validateRationalePair({ ...reply, x: longX }, ctx);
+  assert.ok(long.ok || !long.reasons.some((r) => r.code === "text_length"), JSON.stringify(long));
 });
 await check("12", "off 字节一致，新字节渲染并签名，处方工作副本继承", async () => {
   const off = await wire({ mode: "off", author: () => assert.fail("off called author") });

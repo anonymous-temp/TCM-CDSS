@@ -151,7 +151,8 @@ export function validateRationaleProse(prose: RationaleProse, context: FinalRati
   const { disease, names } = context.input.conclusion;
   const reasons: RationaleRejection[] = [];
   const reject: Reject = (code, field, phrase) => reasons.push({ code, field, ...(phrase ? { phrase } : {}) });
-  if (!x.includes(disease)) reject("disease_name", "x");
+  // 病名带括号分型时（泄泻（暴泻）、血证（鼻衄）），辨病段写出病名本体即可；分型在病名栏里。
+  if (!x.includes(disease) && !x.includes(disease.replace(/（[^）]*）$/u, ""))) reject("disease_name", "x");
   const diseaseSyndrome = hasForeignSyndrome(x, [disease], true);
   // 「表证」「虚证」这类八纲类别词是在讲病的归属，不是证名（真模型首稿 8 例因此被拒）。
   if (diseaseSyndrome && !new RegExp(rules.genericSyndromeCategory, "u").test(diseaseSyndrome)) reject("disease_element", "x", diseaseSyndrome);
