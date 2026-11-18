@@ -409,6 +409,42 @@ function withoutRepeatedExcerpt(value: string, quotes: Quotes): string {
   return value;
 }
 
+const hanOnly = (value: string) => value.replace(/[^\p{Script=Han}]/gu, "");
+function hanSubsequence(part: string, whole: string): boolean {
+  let at = 0;
+  for (const ch of part) { at = whole.indexOf(ch, at); if (at < 0) return false; at += 1; }
+  return true;
+}
+/** 舌、脉字段常写成「舌淡红，苔薄，苔白」「脉浮，脉紧」；成文里写成「舌淡红、苔薄白」「脉浮紧」（只并同一字头，不改字）。 */
+export function compactInspectionQuote(text: string): string {
+  const parts = text.split(/[，,、；;\s]+/u).map((part) => part.trim()).filter(Boolean);
+  const merged: string[] = [];
+  for (const part of parts) {
+    const prior = merged[merged.length - 1];
+    if (prior && prior[0] === part[0] && part.length > 1 && /[舌苔脉]/u.test(part[0])) merged[merged.length - 1] = prior + part.slice(1);
+    else merged.push(part);
+  }
+  return merged.join("、");
+}
+const restatementLead = new RegExp(`^([，、]?)([^，。；;{}]{2,24}?)(?=${rules.restatementLead})`, "u");
+/** 占位符换成原话；占位符后面紧跟着把原话再说一遍的那几个字去掉（「{{q4}}，舌淡苔白为寒象」→「舌淡苔白为寒象」）。 */
+function expandWithoutRestatement(value: string, quotes: Quotes, context: FinalRationaleContext): string {
+  let out = "";
+  let last = 0;
+  for (const match of value.matchAll(placeholder)) {
+    const quote = quotes[match[1]];
+    if (!quote) continue;
+    out += value.slice(last, match.index);
+    const line = context.lines.find((entry) => entry.id === quote.line);
+    const text = line?.inspection ? compactInspectionQuote(quote.text) : quote.text;
+    out += text;
+    last = match.index + match[0].length;
+    const restated = restatementLead.exec(value.slice(last));
+    if (restated && hanOnly(restated[2]).length >= 2 && hanSubsequence(hanOnly(restated[2]), hanOnly(text))) last += restated[0].length;
+  }
+  return out + value.slice(last);
+}
+
 export function validateRationalePair(raw: unknown, context: FinalRationaleContext, options: ValidationOptions = {}): RationaleVerdict {
   const parsed = parseRationaleOutline(options.legacyLayout ? normalizeLegacyUnexplained(raw, context) : raw);
   if ("reasons" in parsed) {
@@ -481,7 +517,7 @@ export function validateRationalePair(raw: unknown, context: FinalRationaleConte
     }
     for (const hit of unsupportedRationaleElements(mechanism, context.elements, context.recordText)) reject("foreign_element", "g", hit.phrase);
   }
-  const expand = (value: string) => value.replace(placeholder, (_, id: string) => quotes[id].text);
+  const expand = (value: string) => expandWithoutRestatement(value, quotes, context);
   const x = expand(outline.x);
   const y = expand(outline.y);
   const l = outline.l ? expand(outline.l) : "";
@@ -493,8 +529,8 @@ export function validateRationalePair(raw: unknown, context: FinalRationaleConte
     const quote = quotes[id];
     if (!unexplained.some((prior) => sameOccurrence(prior, quote))) unexplained.push(quote);
   }
-  const additional = unexplained.length ? `另有${unexplained.map(({ text }) => text).join("、")}，本证难以概括，是否另有兼夹尚待核实。` : "";
-  if (additional && internalRationale.test(additional)) reject("text_internal", "u");
+  // 第五十轮 v5：解释不了的表现不写进成文（盲评把「是否另有兼夹尚待核实」判为对内用语）。
+  const additional = "";
   const pair = { tcmDiseaseRationale: x, tcmDiagnosticRationale: y + additional + l };
   if (reasons.every(isSoftRationaleRejection)) {
     const candidate = withFinalRationalePair(context.root, pair, context);
@@ -503,7 +539,8 @@ export function validateRationalePair(raw: unknown, context: FinalRationaleConte
     if (carried.overview.tcmDiagnosticRationale !== pair.tcmDiagnosticRationale) reject("m04_carryover_drift", "y", changedClause(pair.tcmDiagnosticRationale, carried.overview.tcmDiagnosticRationale ?? ""));
   }
   if (!reasons.length) return { ok: true, pair };
-  if (options.revision && reasons.every(isSoftRationaleRejection)) return { ok: true, pair, softAccepted: true, reasons };
+  // 软规则：只有证素越界值得为它多等一次退修；其余软规则首稿即采纳（盲评：退修主要换来时延）。
+  if (reasons.every(isSoftRationaleRejection) && (options.revision || !reasons.some(({ code }) => code === "foreign_element"))) return { ok: true, pair, softAccepted: true, reasons };
   return { ok: false, reasons };
 }
 
