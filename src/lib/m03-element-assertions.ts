@@ -12,7 +12,9 @@ export type ElementClosurePolicy = { mode: "off" | "observe" | "enforce"; disabl
 export const elementClosurePolicy = (): ElementClosurePolicy => {
   const mode = process.env.CDSS_M03_ELEMENT_CLOSURE_V2;
   return {
-    mode: mode === "off" || mode === "observe" ? mode : "enforce",
+    // 缺省 observe（第五十轮发布决定）：真模型对照里 enforce 把 254 份中的 7 份完整结果变成了有限结论页，
+    // 另有过度撤回；合称优先（心脾两虚证、脾虚湿困证）不依赖 enforce。要强制执行须显式设 enforce。
+    mode: mode === "off" || mode === "enforce" ? mode : "observe",
     disabled: new Set((process.env.CDSS_M03_ELEMENT_CLOSURE_V2_DISABLE || "").toLowerCase().split(",").map((value) => value.trim()).filter(Boolean)),
   };
 };

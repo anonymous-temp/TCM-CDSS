@@ -1,4 +1,6 @@
 // 合成病历与注入判据。所有检查在本机运行。
+// 套件其余检查验证的是 enforce 引擎本身；缺省模式已改 observe，这里显式设 enforce（L27 自己管理该变量）。
+process.env.CDSS_M03_ELEMENT_CLOSURE_V2 ??= "enforce";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createJiti } from "jiti";
@@ -371,9 +373,13 @@ await check("L27", "缓存指纹随闭合版本和单项开关而变，终验位
   try {
     delete process.env.CDSS_M03_ELEMENT_CLOSURE_V2;
     delete process.env.CDSS_M03_ELEMENT_CLOSURE_V2_DISABLE;
-    assert.equal(a.elementClosurePolicy().mode, "enforce");
+    assert.equal(a.elementClosurePolicy().mode, "observe", "缺省只观察（第五十轮发布决定）");
     const key = () => cache.stageRequestFingerprint("diagnose", {}, {});
+    const observed = key();
+    process.env.CDSS_M03_ELEMENT_CLOSURE_V2 = "enforce";
+    assert.equal(a.elementClosurePolicy().mode, "enforce");
     const enforced = key();
+    assert.notEqual(enforced, observed);
     process.env.CDSS_M03_ELEMENT_CLOSURE_V2 = "observe";
     assert.notEqual(key(), enforced);
     process.env.CDSS_M03_ELEMENT_CLOSURE_V2 = "off";

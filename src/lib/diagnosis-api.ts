@@ -2907,10 +2907,9 @@ async function callPrimaryTextModelStream(
       const signFinalDelivery = (content: string): string => {
         const reasoning = structuredReasoningFromContent(content);
         if (!reasoning) return content;
-        if (!checkM03ElementsBeforeSign(reasoning)) {
-          markStageGenerationNonReusable();
-          return opts.truncateFallback || "";
-        }
+        // 第五十轮真模型实测：这里失败时把完整结果换成有限结论页（254 份里 7 份）。证素闭合是质量类检查，
+        // 不拦截交付（检测不拦截的总口径）：残留只记遥测，内容照常签名。
+        if (!checkM03ElementsBeforeSign(reasoning)) console.warn("[tcm-cdss:telemetry] m03_element_closure_unsettled", { stage: opts.structuredStage, at: "sign" });
         enterVerificationPhase();
         const old = reasoning.clinicalReview;
         const attestation = old ? rebindClinicalReviewAttestation(old, reasoning) : clinicalReviewNotPerformedAttestation(reasoning);
@@ -2928,8 +2927,7 @@ async function callPrimaryTextModelStream(
         accept: content => {
           const reasoning = structuredReasoningFromContent(content);
           if (!reasoning || reasoningV2SchemaIssueCode(reasoning)) return false;
-          if (enforceElementClosure && !enforceElementClosure.guarded() && reasoning.stage === "diagnose"
-            && enforceElementClosure.inspect(reasoning as unknown as Record<string, unknown>).length) return false;
+          // 证素闭合有残留不再否决交付（第五十轮实测：这里返回 false 会把完整结果换成有限结论页）；残留在签名处记遥测。
           // The pre-display contract already accepted this EXACT deterministic projection.
           // Display labels (e.g. the self-devised formula label) are not generator identities.
           // Any gate edit changes this hash and must pass the original safety floor again.
@@ -5791,15 +5789,15 @@ async function callPrimaryTextModelStream(
             }
           }
           if (enforceElementClosure && !truncated && transformed.ok) {
+            const beforeClosure = emissionContent;
             emissionContent = closeM03Elements(emissionContent, false);
             const closed = m03ReasoningFromStructuredContent(emissionContent);
             if (!closed || reasoningV2SchemaIssueCode(closed)
               || m03SafetyContractIssue(closed, opts.structuredClinicalContext || "", isSafetyRejection)) {
-              markStageGenerationNonReusable();
-              transformed = transformTruncateFallback();
-              emissionContent = transformed.content;
-              emissionM03Attestation = undefined;
-              truncated = true;
+              // 闭合后的内容过不了合同时退回闭合前的内容，不把整页作废（同上）。
+              console.warn("[tcm-cdss:telemetry] m03_element_closure_unsettled", { stage: opts.structuredStage, at: "emission",
+                issue: !closed ? "unparseable" : reasoningV2SchemaIssueCode(closed) || "contract" });
+              emissionContent = beforeClosure;
             } else if (emissionM03Attestation) {
               emissionM03Attestation = rebindClinicalReviewAttestation(emissionM03Attestation, closed);
             }
