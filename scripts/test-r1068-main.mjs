@@ -83,6 +83,7 @@ await check("3.2", "依据写「诊断待客观依据确立」「尚未排除…
   assert.equal(claims.settleWesternDiagnosisBasis("重症肌无力", "波动性眼睑下垂伴复视、疲劳试验阳性，符合神经肌肉接头病变；新斯的明试验、抗体未做，诊断待客观依据确立。", record).name, "重症肌无力待查");
   const panic = "主诉：突发心悸10分钟\n现病史：伴濒死感，10分钟内自行缓解，发作间期正常。";
   assert.equal(claims.settleWesternDiagnosisBasis("惊恐障碍", "突发心悸伴濒死恐惧，10分钟内缓解，符合惊恐发作特征；但尚未排除心律失常、甲亢、低血糖等器质性病因。", panic).name, "惊恐障碍待查");
+  assert.equal(claims.settleWesternDiagnosisBasis("惊恐障碍", "突发心悸伴濒死恐惧，符合惊恐发作特征；但尚未排除心律失常、甲亢等器质病因，需先完成急诊评估。", panic).name, "惊恐障碍待查", "「器质病因」同样算");
   assert.equal(claims.settleWesternDiagnosisBasis("惊恐障碍", "反复突发心悸伴濒死恐惧，心电图、甲功、血糖均正常，符合惊恐障碍诊断标准。", panic).name, "惊恐障碍", "反证：已排除器质性病因的不加待查");
 });
 
