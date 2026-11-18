@@ -848,8 +848,14 @@ export function textbookDefinitionKeyManifestation(definition: string): string {
   // 「以A为主要病机，以B为主要临床表现」取后一个；捕获里不跨「以」，不把病机段并进来。
   const featured = [...source.matchAll(/以([^。以]{2,80}?)(?:等症|等)?为(?:主要|主)?(?:临床)?(?:特征|症状|表现|主症)/gu)].map((match) => clean(match[1]));
   if (featured.length) return featured[featured.length - 1].length >= 2 && featured[featured.length - 1].length <= 60 ? featured[featured.length - 1] : "";
-  const pointed = /(?:是指|系指)([^。]{4,80}?)(?:的(?:一种|一类)?(?:病证|疾病|病症|证候|病)|。|$)/u.exec(source);
-  if (pointed) return ok(clean(pointed[1].replace(/^以/u, "")));
+  const pointedAt = source.search(/是指|系指/u);
+  if (pointedAt >= 0) {
+    // 「是指A，前者称为……，由于……，是……的月经病」只取 A：截到交代名称、因由或归类的分句之前。
+    const clause = source.slice(pointedAt + 2).split("。")[0]
+      .split(/[，,](?=前者|后者|由于|因而|故|又称|亦称|俗称|简称|是|为|属)/u)[0]
+      .replace(/的(?:一种|一类)?(?:病证|疾病|病症|证候|病)$/u, "");
+    return ok(clean(clause.replace(/^以/u, "")));
+  }
   const called = /^([^。]{4,60}?)[，,](?:中医)?(?:称为|称之为|名为)/u.exec(source);
   if (called) return ok(clean(called[1]));
   return "";

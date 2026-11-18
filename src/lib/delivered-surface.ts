@@ -2029,6 +2029,8 @@ export function compositeSyndromeRename(reasoning: Json, recordText: string, req
   const groundedFindings = (basis: unknown) => String(basis || "").split(/[、，,；;。]/u).map((item) => item.trim()).filter((item) => item.length >= 2 && recordText.includes(item) && recordedFindingReading(recordText, item) === "affirmed");
   for (const rule of COMPOSITE_SYNDROME_RULES) {
     if (!rule.primary.includes(primary)) continue;
+    // 气阴、气血两虚这类证素合称（addMethod）在证素闭合的命名预读里（requireGrouped）不用：闭合按自己的严格成组判据晋升（第五十一轮）。
+    if (requireGrouped && rule.addMethod) continue;
     // A previously verified secondary can supply the other component. Further
     // secondaries may be absorbed only if each denotes a governed component.
     const canonical = (name: string) => resolveNationalStandardTcmSyndromeTerm(name)?.standardTerm || name;

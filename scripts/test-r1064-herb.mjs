@@ -92,10 +92,10 @@ await check('2.8 本方批任务与适配并行；补写候选同样在既有复
   assert.match(block,/Promise\.all\([\s\S]*prepareM04CandidateContent[\s\S]*checkHerbCautions/);assert.match(block,/applyHerbCautionHits\(prepared, cautionHits\)/);
   const fit=fs.readFileSync('src/lib/m04-modification-fit.server.ts','utf8');assert.match(fit,/filterProposals: async[\s\S]*checkHerbCautions/);
 });
-await check('3.1 教材独有孕妇慎用药不作君臣，佐位不新增拦截',()=>{
+await check('3.1 教材独有孕妇慎用药不作君臣；第五十一轮起佐使也不用',()=>{
   assert.equal(contract.m04GenerationSpecialPopulationIssue([{name:'伸筋草',role:'君'}],'患者性别：女\n患者年龄：28岁\n婚育史：妊娠12周。'),'herb_0_special_population_high_risk_pregnancy');
   assert.equal(contract.m04GenerationSpecialPopulationIssue([{name:'伸筋草',role:'臣'}],'患者性别：女\n患者年龄：28岁\n婚育史：可能妊娠。'),'herb_0_special_population_high_risk_pregnancy');
-  assert.equal(contract.m04GenerationSpecialPopulationIssue([{name:'伸筋草',role:'佐'}],'患者性别：女\n患者年龄：28岁\n婚育史：妊娠12周。'),undefined);
+  assert.equal(contract.m04GenerationSpecialPopulationIssue([{name:'伸筋草',role:'佐'}],'患者性别：女\n患者年龄：28岁\n婚育史：妊娠12周。'),'herb_0_special_population_high_risk_pregnancy','第五十一轮（用户 11/18）：不分君臣佐使');
 });
 await check('3.2 否认、未记录和他人孕史不触发教材角色限制；别名不漏',()=>{
   for(const context of ['患者性别：男\n现病史：伸筋疼痛。','患者性别：女\n婚育史：明确未孕。','患者性别：女\n家族史：母亲妊娠期间曾腿痛。'])assert.equal(contract.m04GenerationSpecialPopulationIssue([{name:'伸筋草',role:'君'}],context),undefined,context);

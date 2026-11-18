@@ -29,7 +29,9 @@ await check("1.2 崩漏不补白带病，按概念接受经血与阴道流血；
  assert.equal(tb.textbookDifferentialSharesChiefComplaint("崩漏", chief("阴道不规则流血20天")), true);
  assert.equal(tb.textbookDifferentialSharesChiefComplaint("崩漏", chief("白带明显增多2周")), false);
  const raw = JSON.parse(fs.readFileSync("src/data/tcm-textbook-syndrome-formula-table.json", "utf8"));
- assert.equal(tb.textbookDiseaseTypicalManifestation("崩漏"), raw.diseases.find(row => row.disease === "崩漏").definition);
+ // 第五十一轮：典型表现取教材定义里的主症，不贴整段定义（评审判「大段抄定义」）。
+ assert.ok(raw.diseases.find(row => row.disease === "崩漏").definition.startsWith("崩漏是指经血非时暴下不止或淋沥不尽"));
+ assert.equal(tb.textbookDiseaseTypicalManifestation("崩漏"), "经血非时暴下不止或淋沥不尽");
  // 第四十七轮总指挥订正：模型写的不相干鉴别只在去掉后仍够两项时去掉（甲方要求至少两个鉴别）；服务端补入的仍严格过滤。
  const out = surface.projectDeliveredReasoning(dx("崩漏", "血瘀证", "桃红四物汤", { tcmDiseaseDifferentials: [differential("带下过多"), differential("经间期出血"), differential("胎漏")] }), { recordText: chief("阴道不规则流血20天"), patientSex: "女" });
  assert.ok(!out.overview.tcmDiseaseDifferentials.some(x => /带下|白带/.test(x.diseaseName)), JSON.stringify(out.overview.tcmDiseaseDifferentials.map(x => x.diseaseName)));
@@ -37,11 +39,12 @@ await check("1.2 崩漏不补白带病，按概念接受经血与阴道流血；
  const kept = surface.projectDeliveredReasoning(dx("崩漏", "血瘀证", "桃红四物汤", { tcmDiseaseDifferentials: [differential("带下过多"), differential("月经过多")] }), { recordText: chief("阴道不规则流血20天"), patientSex: "女" });
  assert.equal(kept.overview.tcmDiseaseDifferentials.length, 2, "去掉后不够两项时保留模型写的");
 });
-await check("1.3 乳癖典型表现逐字取定义，覆盖模型的乳核表现并幂等", () => {
+await check("1.3 乳癖典型表现取教材定义的主症部分（定义只讲病理归类时留空），覆盖模型的乳核表现并幂等", () => {
  const out = surface.projectDeliveredReasoning(dx("乳核", "肝郁痰凝证", "", { tcmDiseaseDifferentials: [differential("乳癖")] }), { recordText: chief("乳房肿块3月") });
  const row = out.overview.tcmDiseaseDifferentials.find(x => x.diseaseName === "乳癖");
  assert.equal(row?.typicalManifestation, tb.textbookDiseaseTypicalManifestation("乳癖"));
- assert.match(row?.typicalManifestation || "", /乳腺组织/);
+ // 第五十一轮：乳癖的教材定义只讲病理（「乳腺组织的……良性增生性疾病」），不是本病的表现，不作典型表现交付。
+ assert.equal(row?.typicalManifestation, "");
  assert.deepEqual(surface.projectDeliveredReasoning(out, { recordText: chief("乳房肿块3月") }), out);
  // 教材子型没有独立 definition 时留空，不能继续展示模型编的典型表现。
  assert.equal(tb.textbookDiseaseTypicalManifestation("吐血"), "");
