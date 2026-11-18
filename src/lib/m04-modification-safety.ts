@@ -421,7 +421,6 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
         if (emperorsLeft <= 1) return true;
         emperorsLeft -= 1;
       }
-      const code = issue.replace(/^herb_\d+_special_population_high_risk_/u, "");
       removed.push({ name, reason: specialPopulationConflictLabel(issue) });
       return false;
     });

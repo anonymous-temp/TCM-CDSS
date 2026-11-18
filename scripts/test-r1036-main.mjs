@@ -31,6 +31,8 @@ const bleedingRules = await jiti.import("../src/lib/active-bleeding-treatment.ts
 
 const BLEEDING = "患者年龄：30岁\n患者性别：女\n孕38周，持续剧烈腹痛6小时，阴道流血，色暗红，量中。";
 const QUIET = "患者年龄：30岁\n患者性别：女\n小腹刺痛半年，经期加重，经色暗有血块。";
+// 第五十一轮：已记录在孕时孕妇慎用药（三七、蒲黄、川芎…）不分君臣都拦；只核出血这一条的检查用不在孕的出血病例。
+const BLEEDING_NOT_PREGNANT = "患者年龄：50岁\n患者性别：男\n今日呕血2次，色鲜红，量约200ml，伴黑便。";
 
 // ---------- 1 功效分类按书名查得到 ----------
 await check("1.1 功效分类表的每个键都查得到（延胡索、土鳖虫、益智仁、刺蒺藜、扁蓄……此前换成药典名后查不到）；药典名、别名、炮制名同样查得到", () => {
@@ -48,7 +50,8 @@ await check("1.1 功效分类表的每个键都查得到（延胡索、土鳖虫
 // ---------- 2 本例不宜的药 ----------
 await check("2.1 活动性出血时延胡索、川芎、五灵脂对本例不宜，三七、蒲黄不算；没有出血时都不算", () => {
   for (const herb of ["延胡索", "延胡索（元胡）", "川芎", "五灵脂"]) assert.equal(contract.herbBarredForCase(herb, BLEEDING), true, herb);
-  for (const herb of ["三七", "蒲黄", "当归"]) assert.equal(contract.herbBarredForCase(herb, BLEEDING), false, herb);
+  for (const herb of ["三七", "蒲黄", "当归"]) assert.equal(contract.herbBarredForCase(herb, BLEEDING_NOT_PREGNANT), false, herb);
+  for (const herb of ["三七", "蒲黄"]) assert.equal(contract.herbBarredForCase(herb, BLEEDING), true, `${herb}：在孕时药典孕妇慎用（第五十一轮）`);
   for (const herb of ["延胡索", "川芎"]) assert.equal(contract.herbBarredForCase(herb, QUIET), false, herb);
 });
 
@@ -64,7 +67,7 @@ const declassified = {
 };
 
 await check("2.2 锁定方组成里有本例不宜的药：列出药、所在方与原因；没有出血时为空", () => {
-  const list = barred.formulaBaseHerbsBarredForCase(prior(["少腹逐瘀汤"]), BLEEDING);
+  const list = barred.formulaBaseHerbsBarredForCase(prior(["少腹逐瘀汤"]), BLEEDING_NOT_PREGNANT);
   const names = list.map((item) => item.herb);
   // 目录写的是炮制名（醋延胡索、醋没药、炒五灵脂）。
   for (const herb of ["川芎", "没药", "五灵脂", "延胡索"]) assert.ok(names.some((name) => name.includes(herb)), `${herb} ∈ ${names.join("、")}`);

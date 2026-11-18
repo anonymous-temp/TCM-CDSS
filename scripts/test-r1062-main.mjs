@@ -300,10 +300,10 @@ await check("14.1 出处写成教材的换原书或「现代经验方」", () =>
   assert.equal(provenance.deliveredFormulaSource("银翘散", "《温病条辨》"), "《温病条辨》");
 });
 
-await check("15.1 在孕时药典孕妇慎用药不作君臣；佐使照用；未孕不受此限", () => {
+await check("15.1 在孕时药典孕妇慎用药不作君臣；第五十一轮起佐使也不用；未孕不受此限", () => {
   const pregnant = "患者性别：女\n患者年龄：28岁\n孕12周，腰酸咽痛";
   assert.match(contract.m04GenerationSpecialPopulationIssue([{ name: "牛膝", role: "臣" }], pregnant) || "", /pregnancy/u);
-  assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "牛膝", role: "佐" }], pregnant), undefined);
+  assert.match(contract.m04GenerationSpecialPopulationIssue([{ name: "牛膝", role: "佐" }], pregnant) || "", /pregnancy/u, "第五十一轮（用户 11/18）：不分君臣佐使");
   assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "牛膝", role: "臣" }], "患者性别：男\n患者年龄：40岁\n腰痛1月"), undefined);
 });
 

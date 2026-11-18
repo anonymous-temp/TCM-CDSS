@@ -5,7 +5,6 @@ import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 const c = await jiti.import("../src/lib/m04-proposal-compiler.ts");
-const safe = await jiti.import("../src/lib/diagnosis-safety.ts");
 const types = await jiti.import("../src/lib/diagnosis-types.ts");
 const columns = await jiti.import("../src/lib/pathogenesis-columns.ts");
 const claims = await jiti.import("../src/lib/recorded-test-claims.ts");

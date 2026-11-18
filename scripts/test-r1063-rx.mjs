@@ -330,10 +330,10 @@ await check("2.10 血钾偏高：注意事项写少吃含钾高的食物，饮�
   assert.ok(!/蜂蜜/u.test(sweet.nonPharma.diet) && /橘红/u.test(sweet.nonPharma.diet), sweet.nonPharma.diet);
 });
 
-await check("3.1 可疑妊娠（不能排除妊娠）时药典孕妇慎用药不作君臣，与在孕同一判据；妊娠状态未记录的育龄女性不在此列（只避禁用药）", () => {
+await check("3.1 可疑妊娠（不能排除妊娠）时药典孕妇慎用药不用（第五十一轮起不分君臣佐使），与在孕同一判据；妊娠状态未记录的育龄女性不在此列（只避禁用药）", () => {
   const possible = "患者年龄：30岁\n患者性别：女\n不能排除妊娠，晨起恶心。";
   assert.match(contract.m04GenerationSpecialPopulationIssue([{ name: "枳壳", role: "臣" }], possible) || "", /pregnancy/u);
-  assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "枳壳", role: "佐" }], possible), undefined, "佐使照用");
+  assert.match(contract.m04GenerationSpecialPopulationIssue([{ name: "枳壳", role: "佐" }], possible) || "", /pregnancy/u, "第五十一轮：佐使也不用");
   assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "枳壳", role: "臣" }], "患者年龄：30岁\n患者性别：女\n晨起恶心，妊娠可能性尚待核实。"), undefined, "妊娠状态未记录");
 });
 

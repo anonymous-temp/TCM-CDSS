@@ -150,7 +150,8 @@ await check("2.1b D4：闸门的出血红旗按接地正文登记后，开方核
   assert.equal(safety.activeBleedingInGroundingText(text), false, "不是出血类红旗不登记");
   safety.registerActiveBleedingRedFlags([text], ["妊娠期腹痛或阴道出血伴血压88/56mmHg，需立即急诊排除异位妊娠破裂或流产大出血"]);
   assert.equal(safety.activeBleedingInGroundingText(text), true);
-  assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "熟地黄" }, { name: "川芎" }], text), "herb_1_special_population_high_risk_bleeding_anticoagulation");
+  // 第五十一轮起在孕时孕妇慎用/教材妊娠禁慎的药（川芎）先按妊娠拦；这里核出血登记，用不在妊娠清单里的活血化瘀药（丹参）。
+  assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "熟地黄" }, { name: "丹参" }], text), "herb_1_special_population_high_risk_bleeding_anticoagulation");
   const route = fs.readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   assert.match(route, /registerActiveBleedingRedFlags\(\[groundingText, structuredClinicalContext, clinicalGroundingText\(gated\)\], gated\.safetyGate\?\.redFlags/);
 });
