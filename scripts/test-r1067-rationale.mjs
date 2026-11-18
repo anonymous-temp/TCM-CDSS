@@ -424,7 +424,7 @@ await check("11c", "真模型上误拒过的四种写法放行：八纲类别词
   const generic = validateRationalePair({ ...reply, x: reply.x.replace(/。$/u, "，病属内伤虚证。") }, ctx);
   assert.ok(generic.ok || !generic.reasons.some((r) => r.code === "disease_element"), JSON.stringify(generic));
   assertRejected({ ...reply, x: reply.x.replace(/。$/u, `，属${ctx.input.conclusion.names[0]}。`) }, ctx, "disease_element");
-  const split = validateRationalePair({ ...reply, y: reply.y.replace("舌淡白、苔薄白，舌质与血少相应。", "舌淡白，为血少不荣之象；苔薄白，未见寒热偏盛。") }, ctx);
+  const split = validateRationalePair({ ...reply, y: reply.y.replace("舌淡白、苔薄白，舌质与血少相应。", "舌质偏淡，为血少不荣之象；苔薄白，未见寒热偏盛。") }, ctx);
   assert.ok(split.ok, JSON.stringify(split));
   assertRejected({ ...reply, y: reply.y.replace("舌淡白、苔薄白，舌质与血少相应。", "") }, ctx, "inspection_recorded");
   const longX = reply.x.replace(/。$/u, "；其所苦始终落在睡眠本身，既有入睡之难，又有睡后易醒，二者同属睡眠不得安稳这一类病证的范围，而不以他处之痛楚或寒热为主，故仍归此病。");
