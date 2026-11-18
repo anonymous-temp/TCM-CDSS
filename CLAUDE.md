@@ -3710,7 +3710,7 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 - **Latency: the rationale step costs M03 about 3–3.5 s on eligible records, and nothing else in this round costs time.** Local attribution with real model calls on six standard cases, run one after another: production code before this round 15.2 s median; this round's code with the rationale off 15.3 s (closure observe and the disease layer add nothing); everything on 18.2–19.1 s. The prefetch starts at the 「prepared」 checkpoint, after which nothing else runs, so the call's 3.2–3.5 s is almost all waited for (production: prefetch hit 30, stale 11; wait 2.4–4.7 s).
 - **Disease layer on the customer's records:** rt-258816 and e05-14 → 膝痹·肝肾亏损证; e05-03 / rt-082816 → 心脾两虚证; e05-10 / rt-509632 → 脾虚湿困证; no limited page in any observe arm.
 - **On arm n5 neither P0 line was reached pooled** (中医诊断 85.4 → 88.4, 诊断依据 88.4 → 89.4); the final arm is below.
-- **P0 audit on the final code (n8, 301):** 300 dosed (the other is the child of unknown age); dose over ChP, over 2×, 十八反十九畏 incl. 加减, pregnancy-prohibited, child-toxic, organ, anticoagulant blood movers all 0; no limited page; fewer than two TCM disease differentials 4.
+- **P0 audit on the final code (n8, 301):** 300 dosed (the other is C046, an 82-year-old on an anticoagulant with a fracture formula whose chief herbs are blood movers; it is a non-dose page in the baseline arm too); dose over ChP, over 2×, 十八反十九畏 incl. 加减, pregnancy-prohibited, child-toxic, organ, anticoagulant blood movers all 0; no limited page; fewer than two TCM disease differentials 4.
 
 **Final acceptance arm (n8 = the deployed code, all 301, same judge).**
 | Item (line) | Base | n8 |
