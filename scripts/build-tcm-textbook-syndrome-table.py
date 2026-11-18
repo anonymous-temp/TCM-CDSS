@@ -1336,6 +1336,7 @@ class BookParser:
             return
         # 栏目：manif → (analysis) → therapy → formula → (comp/mods/usage) → 正文尾段
         fields: dict[str, list[str]] = {"manif": [self.marker.match(vl[manif_index].text).group(2)]}
+        analysis_line = None
         current = "manif"
         tail: list[str] = []
         tail_open = False
@@ -1367,6 +1368,7 @@ class BookParser:
                     break
                 if role == "analysis":
                     fields["analysis"] = [content]
+                    analysis_line = vl[index].no
                     current = role
                     tail_open = False
                     index += 1
@@ -1461,6 +1463,7 @@ class BookParser:
             "syndrome": name,
             "manifestations": manifestations,
             "therapy": therapy_clean,
+            "_element_analysis": {"line": analysis_line, "text": joiner(fields["analysis"])} if analysis_line else None,
             "_formula_field": formula_field,
             "_comp_field": comp_field,
             "_mods_field": mods_field,
@@ -2289,6 +2292,8 @@ def finalize_rows(parsers: list[BookParser], lexicon: set[str], stats: dict, kno
                 "modifications": modifications,
                 "notes": "；".join(dict.fromkeys(notes)),
             }
+            if raw.get("_element_analysis"):
+                row["elementAnalysis"] = raw["_element_analysis"]
             row["_span"] = key
             book_rows.append(row)
             counts[key] = counts.get(key, 0) + 1

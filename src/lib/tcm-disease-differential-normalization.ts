@@ -1,5 +1,5 @@
 import crosswalkJson from "../data/tcm-western-disease-crosswalk.json" with { type: "json" };
-import abbreviationsJson from "../data/western-diagnosis-abbreviations.source.json" with { type: "json" };
+import { westernDiagnosisAbbreviationFullName } from "./western-diagnosis-aliases";
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import icd10IndexJson from "../data/icd10-diagnosis-index.json" with { type: "json" };
 import { governedTcmDiseaseCode, resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
@@ -29,9 +29,6 @@ for (const row of (crosswalkJson as { entries: CrosswalkRow[] }).entries) {
   if (!list.includes(row.tcmDisease)) list.push(row.tcmDisease);
   CROSSWALK.set(row.westernName, list);
 }
-const ABBREVIATIONS = new Map((abbreviationsJson as { entries: Array<{ abbreviation: string; fullName: string }> }).entries
-  .map((entry) => [entry.abbreviation, entry.fullName] as const));
-
 function governedCanonical(value: string): string {
   const resolved = resolveTcmDiseaseName(value);
   return resolved && resolved.status !== "unverified" && !resolved.temporary ? resolved.canonical : "";
@@ -57,7 +54,7 @@ const TCM_DIFFERENTIAL_NAME_FORM = /^[\u4e00-\u9fff]{1,3}[痛疮痹汗衄证痨]
 /** 教材句子里的描述性短语（「与内科其他疾病中的虚证鉴别」），不是病名。 */
 const DESCRIPTIVE_PHRASE = /其他|疾病|各种|一般|之/u;
 function textbookListedTcmDifferential(name: string, currentDisease: string): boolean {
-  if (!currentDisease || CROSSWALK.has(name) || ABBREVIATIONS.has(name) || WESTERN_DISEASE_FORM.test(name) || DESCRIPTIVE_PHRASE.test(name)) return false;
+  if (!currentDisease || CROSSWALK.has(name) || westernDiagnosisAbbreviationFullName(name) || WESTERN_DISEASE_FORM.test(name) || DESCRIPTIVE_PHRASE.test(name)) return false;
   if (!TCM_DIFFERENTIAL_NAME_FORM.test(name)) return false;
   return textbookDifferentialsForDisease(currentDisease).some((item) => item.name === name);
 }
@@ -161,7 +158,7 @@ export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseas
     return { action: "rename", name: direct, from: name };
   }
   const stripped = name.replace(/（[^（）]*）|\([^()]*\)/g, "").replace(/(?:可能|待排|待排除|待鉴别)$/, "").trim();
-  const expanded = [name, stripped, ABBREVIATIONS.get(stripped) || "", ABBREVIATIONS.get(name) || ""].filter(Boolean);
+  const expanded = [name, stripped, westernDiagnosisAbbreviationFullName(stripped) || "", westernDiagnosisAbbreviationFullName(name) || ""].filter(Boolean);
   // 教材写「慢性荨麻疹」「急性胃炎」，模型常写不带病程前缀的「荨麻疹」「胃炎」：前缀不改变归属。
   const withCourse = [...CROSSWALK.keys()].filter((key) =>
     expanded.some((value) => key !== value && key.replace(/^(?:急慢性|急性|慢性)/, "") === value));

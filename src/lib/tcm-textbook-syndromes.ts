@@ -1,5 +1,9 @@
+import { evidenceDiseaseSubtype, evidenceSubtypeParent, evidenceSubtypeRowGroup, isEvidenceDiseaseSubtype } from "./m03-evidence-disease-subtypes";
+import { diseaseEvidenceGroups, diseaseRecordChief, diseaseRefinementEnabled } from "./m03-disease-evidence";
+import { diseaseNeutralCategoryName, diseaseNeutralPrompt, supportedDiseaseNeutralName } from "./m03-disease-neutral-policy";
 import subtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" with { type: "json" };
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
+import elementClosureSource from "../data/m03-element-closure-v2.source.json" with { type: "json" };
 import elementPromotionSource from "../data/tcm-syndrome-element-promotion.source.json" with { type: "json" };
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
@@ -87,6 +91,7 @@ interface TextbookDisease {
 
 type RawRow = {
   referenceOnly?: boolean;
+  elementAnalysis?: { line: number; text: string };
   formulaBooks?: Record<string, string>;
   candidateChief?: string[];
   precondition?: TextbookFormulaStageRow["precondition"]; preconditionNotice?: string; formulaStage?: string; formulaSequence?: TextbookFormulaStageRow["formulaSequence"]; runtimePolicy?: TextbookFormulaStageRow["runtimePolicy"]; evidence?: unknown[];
@@ -370,8 +375,14 @@ function buildDiseases(): TextbookDisease[] {
 }
 
 const DISEASES = buildDiseases();
+const DISEASE_SECTION_NAMES = new Set(DISEASES.map((item) => item.disease));
 const ROW_BY_ID = new Map(DISEASES.flatMap((disease) => disease.rows.map((row) => [row.id, row] as const)));
 
+const ROW_ELEMENT_ANALYSIS = new Map(RAW_ROWS.flatMap(row => row.elementAnalysis
+  ? [[text(row.id), row.elementAnalysis] as const] : []));
+export function textbookRowElementAnalysis(row: Pick<TextbookSyndromeRow, "id">) {
+  return ROW_ELEMENT_ANALYSIS.get(row.id);
+}
 export function textbookRowById(id: string): TextbookSyndromeRow | undefined { return ROW_BY_ID.get(id); }
 
 /** 主治覆盖核对用，包含教材正式病名、别名与明确的西医对应名。 */
@@ -412,6 +423,7 @@ export interface TextbookCaseInput {
   recordText?: string;
   chiefComplaint?: string;
   presentHistory?: string;
+  pastHistory?: string;
   tongue?: string;
   pulse?: string;
   sex?: string;
@@ -551,10 +563,13 @@ export function textbookCandidatesForCase(
     }
     const preferredIndex = wanted ? -1 : preferred.indexOf(disease.disease);
     const nameHit = wanted ? 12 : preferredIndex >= 0 ? 0 : diseaseNameHit(disease, chief, affirmed);
-    const subtype = textbookDiseaseSubtype(disease.disease, input.chiefComplaint || "", input.recordText || input.presentHistory || "");
+    const subtype = textbookDiseaseSubtype(disease.disease, input.chiefComplaint || "", input.recordText || input.presentHistory || "", input.ageYears);
     const rowNames = subtype ? SUBTYPE_ROW_NAMES[disease.disease]?.[subtype] : undefined;
+    const group = evidenceSubtypeRowGroup(disease.disease, subtype);
+    const restrictGroup = group && disease.rows.some((row) => row.group === group);
     const lead = chiefComplaintPhrase(input.chiefComplaint || "").split(/[（(]|伴|兼|合并/u)[0];
     const rows = disease.rows.filter((row) => (!rowNames || rowNames.includes(row.syndromeName)) &&
+      (!restrictGroup || row.group === group) &&
       (!row.candidateChief || Boolean(affirmedTextbookTerm(lead, row.candidateChief))))
       .map((row) => ({ ...row, score: rowScore(row, affirmed, rawNarrative, tonguePulse) }))
       .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id));
@@ -649,7 +664,7 @@ function textbookDiagnosisGist(disease: string, book: string): string[] {
 }
 
 /** 追问、辨证提示词里的候选段。没有候选时返回空串（提示词里的规则会退回自行辨证）。 */
-export function buildTextbookCandidateContext(input: TextbookCaseInput): string {
+export function buildTextbookCandidateContext(input: TextbookCaseInput, includeDiseaseNeutralPolicy = false): string {
   // 闭集选择点了名时多给一个病、每个病的证型给全（教材一个病至多十来个证）：模型比字面重合度更会对口语化的症状。
   const candidates = textbookCandidatesForCase(input, input.preferredDiseases?.length
     ? { maxDiseases: 4, maxRowsPerDisease: 12 }
@@ -658,24 +673,34 @@ export function buildTextbookCandidateContext(input: TextbookCaseInput): string 
   // 鉴别病名与鉴别要点也按本例性别取（与补写鉴别、交付兜底同一判据 tcmDifferentialDiseaseFitsPatient）：男性肠痈的辨病依据曾写
   //「与异位妊娠的停经出血相区分」（第二十八轮页面形状 C015）。
   // 按部位分节的病（血证）只列讲到本例那一型的鉴别病（鼻衄不列血淋，第三十七轮甲方 11.05 病历8）。
-  const subtypeOf = (disease: string) => textbookDiseaseSubtype(disease, input.chiefComplaint || "", input.recordText || input.presentHistory || "");
-  const fittingDifferentials = (names: readonly string[], disease = "") => names.filter((name) => tcmDifferentialDiseaseFitsPatient(name, { sex: input.sex }) &&
-    textbookDifferentialSharesChiefComplaint(name, `主诉：${input.chiefComplaint || ""}`) &&
-    textbookDifferentialFitsSubtype(disease, subtypeOf(disease), name));
-  const lines = candidates.flatMap((item) => [
-    `◆ ${item.disease}（《${item.book}》）${fittingDifferentials(item.differentials, item.disease).length > 0 ? `｜教材鉴别病名：${fittingDifferentials(item.differentials, item.disease).slice(0, 4).join("、")}` : ""}`,
-    // 教材给的鉴别要点原文（去重、截短）：辨病依据与中医鉴别里的区分点照它写（2026-10-19 甲方标准病历 6：腰痛与背痛、尻痛教材按部位区分，
-    // 模型两次写成「未诉放射痛」）。
-    ...textbookDifferentialGist(item.disease, item.book, fittingDifferentials(item.differentials, item.disease).slice(0, 4)),
-    ...textbookDiagnosisGist(item.disease, item.book),
-    ...item.rows.map((row) => {
-      const decision = evaluateTextbookFormulaUse(row, input.recordText || input.presentHistory)!;
-      return `  - ${row.syndromeName}｜主症：${cut(row.manifestations, 90)}｜治法：${decision.row.therapy || "按当前病情重新辨证"}｜当前参考方：${decision.formulas.length ? formulaLabel(decision.row) : row.referenceOnly ? "暂无可核验原方，结合本例另行辨证" : "先完成前置处置并重新辨证"}${decision.notice ? `｜${decision.notice}` : ""}`;
-    }),
-  ]);
+  const recordText = [input.recordText || input.presentHistory, input.pastHistory ? `既往史：${input.pastHistory}` : ""].filter(Boolean).join("\n");
+  const lines = candidates.flatMap((item) => {
+    const subtype = textbookDiseaseSubtype(item.disease, input.chiefComplaint || "", recordText, input.ageYears);
+    const subtypeNote = subtype && isEvidenceDiseaseSubtype(item.disease, subtype) ? `｜本例表现支持的分型：${subtype}` : "";
+    const differentials = item.differentials.filter((name) => tcmDifferentialDiseaseFitsPatient(name, { sex: input.sex }) &&
+      textbookDifferentialSharesChiefComplaint(name, `主诉：${input.chiefComplaint || ""}`) &&
+      textbookDifferentialFitsSubtype(item.disease, subtype, name)).slice(0, 4);
+    return [
+      `◆ ${item.disease}（《${item.book}》）${subtypeNote}${differentials.length ? `｜教材鉴别病名：${differentials.join("、")}` : ""}`,
+      // 教材给的鉴别要点原文（去重、截短）：辨病依据与中医鉴别里的区分点照它写（2026-10-19 甲方标准病历 6：腰痛与背痛、尻痛教材按部位区分，
+      // 模型两次写成「未诉放射痛」）。
+      ...textbookDifferentialGist(item.disease, item.book, differentials),
+      ...textbookDiagnosisGist(item.disease, item.book),
+      ...item.rows.map((row) => {
+        const decision = evaluateTextbookFormulaUse(row, input.recordText || input.presentHistory)!;
+        const display = textbookSubtypeRowDisplayName(row, recordText);
+        const typeNote = subtypeSyndromeNamesEnabled() && SUBTYPE_SYNDROME_DISPLAYS[row.id]
+          ? display ? `｜本例可用证名：${display}（${row.syndromeName}为病名分型）` : "｜此为病名分型，证名须按本例另辨"
+          : "";
+        return `  - ${row.syndromeName}${typeNote}｜主症：${cut(row.manifestations, 90)}｜治法：${decision.row.therapy || "按当前病情重新辨证"}｜当前参考方：${decision.formulas.length ? formulaLabel(decision.row) : row.referenceOnly ? "暂无可核验原方，结合本例另行辨证" : "先完成前置处置并重新辨证"}${decision.notice ? `｜${decision.notice}` : ""}`;
+      }),
+    ];
+  });
+  const neutralContext = includeDiseaseNeutralPolicy ? diseaseNeutralPrompt(candidates.map((item) => item.disease), recordText) : "";
   return [
     "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。候选里有两个以上的病时先定病名：病名必须能解释本次就诊原因——主诉写在最前面的主要不适，或主诉点名要处理的病；只对应伴随症状（「伴」之后、括号里补充的）、自幼或多年的宿疾、已基本痊愈或偶然发现的问题的病，不作本次病名，它的表现可在辨证依据里兼顾。几个候选病都能解释就诊原因时，再对照各病下的「教材定义」「教材诊断依据」，逐病找出其下与本例最贴合的一行证型，比较各病的最贴合行——主症逐项对得上的越多（特别是能把证型分开的表现）、该病的诊断依据越符合，越应归入该病；主诉的主症（头晕、咳嗽、头痛这类）常是几个病共有的，这时不能单凭它在这几个病之间选；教材写明的必备表现而病历已明确否认的，不算符合；西医诊断与检查结果只作旁证，不直接决定中医病名；各病的先后只是检索时的初排，不表示哪个更可能。节名合写两个病名的（如“胎漏、胎动不安”“堕胎、小产”），病名按该节「教材定义」只写与本例相符的那一个。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证。同一病下各证型按教材顺序排列，先后不表示可能性大小。「贴合」指该行主症里能把它与同病其他证型分开的表现——寒热、虚实、诱因、伴随症状或舌脉——至少有一项已见于本例记录；本例只记录了本病主症本身时，没有哪一行贴合。同一病性涉及两脏、两脏各有自身成组的表现（每脏至少两条相互印证）而候选只有单脏证型时，证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，方用两行代表方合用或加减。辨病依据与中医鉴别写本病与相近病的区分点时，以各病下「教材鉴别要点」写的区分依据为准（部位、病程、主症、病势等），不另立教材没有的区分点）",
     ...lines,
+    ...(neutralContext ? [neutralContext] : []),
   ].join("\n");
 }
 
@@ -697,6 +722,16 @@ function bookOrderFor(ageYears?: number): string[] {
 export function textbookDiseaseNamesForCase(input: Pick<TextbookCaseInput, "sex" | "ageYears">): string[] {
   return [...new Set(DISEASES.filter((disease) => departmentFits(disease, input)).map((disease) => disease.disease))]
     .sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
+}
+
+/** 本病、正式分型、交付别名和节名共用的身份键；不按包含关系猜病名。 */
+export function textbookDiseaseIdentity(name: string, ageYears?: number): string {
+  const split = splitTextbookDiseaseSubtype(name);
+  const parent = split.subtype ? split.disease : subtypeParentDisease(name);
+  const key = compact(parent || name).replace(/类病$/u, "");
+  if (DISEASE_SECTION_NAMES.has(key)) return key;
+  const exact = diseasesNamed(parent || name, ageYears).find((item) => [item.disease, ...item.aliases].some((alias) => compact(alias) === key));
+  return exact?.disease || (resolveTcmDiseaseName(key)?.canonical || key);
 }
 
 function diseasesNamed(diseaseName: string, ageYears?: number): TextbookDisease[] {
@@ -877,9 +912,12 @@ export function diseaseCategorySyndromeName(name: string): string | undefined {
   return undefined;
 }
 
-export function settledTextbookSyndromeName(disease: string, name: string, evidence = "", formulaDirection = ""): string {
+export function settledTextbookSyndromeName(disease: string, name: string, evidence = "", formulaDirection = "", useNeutralPolicy = true): string {
   const category = diseaseCategorySyndromeName(name);
-  if (!category) return name;
+  if (!category) return useNeutralPolicy && diseaseNeutralCategoryName(name) && !diseasesNamed(disease).some((entry) =>
+    entry.rows.some((row) => syndromeCore(row.syndromeName) === syndromeCore(name)))
+    ? supportedDiseaseNeutralName(disease, evidence, true) || name
+    : name;
   const rows = diseasesNamed(disease || category).flatMap((entry) => entry.rows).filter((row) => !diseaseCategorySyndromeName(row.syndromeName));
   const exact = rows.filter((row) => syndromeCore(row.syndromeName) === syndromeCore(name));
   if (exact.length === 1) return exact[0].syndromeName;
@@ -888,7 +926,8 @@ export function settledTextbookSyndromeName(disease: string, name: string, evide
     textbookManifestationTerms(row).some((term) => term !== category && !commonFindings.includes(term) &&
       evidence.includes(term) && recordMentionPolarityAt(evidence, evidence.indexOf(term)) === "affirmed"));
   if (fitting.length === 1) return fitting[0].syndromeName;
-  return (categorySource.neutralByDisease as Record<string, string>)[category] || categorySource.defaultNeutral;
+  return (useNeutralPolicy && supportedDiseaseNeutralName(disease || category, evidence, true)) ||
+    (categorySource.neutralByDisease as Record<string, string>)[category] || categorySource.defaultNeutral;
 }
 
 /**
@@ -903,6 +942,43 @@ export function textbookDiseaseDiagnosisPoints(diseaseName: string, ageYears?: n
 
 const syndromeCore = (value: string) => compact(value).replace(/(?:证候|证型|证|型)$/u, "");
 
+type SubtypeSyndromeBranch = { displaySyndrome: string; groups: string[][] };
+const SUBTYPE_SYNDROME_DISPLAYS: Record<string, SubtypeSyndromeBranch[]> = subtypeSource.syndromeDisplays;
+const subtypeSyndromeNamesEnabled = () => process.env.CDSS_M03_SUBTYPE_SYNDROME_NAMES !== "false";
+
+function textbookSubtypeRowDisplayName(row: TextbookSyndromeRow, recordText: string): string | undefined {
+  if (!subtypeSyndromeNamesEnabled()) return undefined;
+  const matches = (SUBTYPE_SYNDROME_DISPLAYS[row.id] || []).filter((branch) => diseaseEvidenceGroups(recordText, branch.groups));
+  if (matches.length === 1) return matches[0].displaySyndrome;
+}
+
+/** 只有本病的已登记分型占证名栏时进入；原行身份继续供方源查询。 */
+export function textbookSubtypeSyndromeDisplay(disease: string, syndrome: string, recordText: string, ageYears?: number): { display?: string } | undefined {
+  if (!subtypeSyndromeNamesEnabled()) return undefined;
+  const split = splitTextbookDiseaseSubtype(disease);
+  const base = split.subtype ? split.disease : subtypeParentDisease(disease) || disease;
+  const subtype = split.subtype || (base !== disease ? disease : textbookDiseaseSubtype(base, diseaseRecordChief(recordText), recordText, ageYears));
+  const coreName = syndromeCore(syndrome);
+  const row = diseasesNamed(base, ageYears).filter((item) => item.disease === base).flatMap((item) => item.rows)
+    .find((item) => SUBTYPE_SYNDROME_DISPLAYS[item.id] && syndromeCore(item.syndromeName) === coreName);
+  if (!row) return isEvidenceDiseaseSubtype(base, coreName) ? {} : undefined;
+  return { display: (!subtype || subtype === row.syndromeName) ? textbookSubtypeRowDisplayName(row, recordText) : undefined };
+}
+
+export function withTextbookSubtypeSyndromeNames<T extends { tcmDiseaseName?: unknown; primarySyndrome?: unknown; secondarySyndromes?: unknown }>(
+  overview: T, recordText: string, ageYears?: number,
+): T {
+  if (typeof overview.tcmDiseaseName !== "string" || !recordText || !subtypeSyndromeNamesEnabled()) return overview;
+  const disease = overview.tcmDiseaseName;
+  const convert = (value: unknown): unknown => typeof value === "string"
+    ? textbookSubtypeSyndromeDisplay(disease, value, recordText, ageYears)?.display || value
+    : value;
+  const primary = convert(overview.primarySyndrome);
+  const secondaries = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.map(convert) : undefined;
+  if (primary === overview.primarySyndrome && !secondaries?.some((name, index) => name !== (overview.secondarySyndromes as unknown[])[index])) return overview;
+  return { ...overview, primarySyndrome: primary, ...(secondaries ? { secondarySyndromes: [...new Set(secondaries.filter((name) => name !== primary))] } : {}) };
+}
+
 /** 已定病名与证名对应的教材行；对不上返回 undefined。证名比较忽略末尾的「证/型」。任何一本教材里该病有这个证名都算对上。 */
 export function textbookRowForSyndrome(diseaseName: string, syndromeName: string, input: TextbookCaseInput = {}): TextbookSyndromeRow | undefined {
   const split = splitTextbookDiseaseSubtype(diseaseName);
@@ -910,6 +986,13 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
   const rowNames = subtype ? SUBTYPE_ROW_NAMES[split.subtype ? split.disease : subtypeParentDisease(diseaseName)!]?.[subtype] : undefined;
   // 六淋是教材本身的辨治行。已明确分型时不再借另一型（石淋借热淋会换成八正散）。
   if (rowNames) return textbookFormulaRowsForDisease(diseaseName).find((row) => rowNames.includes(row.syndromeName));
+  if (subtypeSyndromeNamesEnabled()) {
+    const named = diseasesNamed(diseaseName, input.ageYears).filter((entry) => entry.disease === split.disease);
+    const displayRows = named.flatMap((entry) => entry.rows).filter((row) =>
+      SUBTYPE_SYNDROME_DISPLAYS[row.id]?.some((branch) => syndromeCore(branch.displaySyndrome) === syndromeCore(syndromeName)));
+    const fitting = displayRows.filter((row) => textbookSubtypeRowDisplayName(row, input.recordText || "") === syndromeName);
+    if (fitting.length === 1) return fitting[0];
+  }
   const target = syndromeCore(syndromeName);
   if (target.length < 2) {
     // 去掉「证」只剩一个字的证名（吐酸的「热证」「寒证」）：只在已定的病里按全名找，不做跨病的反查。
@@ -934,6 +1017,11 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
       const original = disease.rows.find((row) => rule.primary.some((name) => syndromeCore(name) === syndromeCore(row.syndromeName) || syndromeCore(name) === syndromeCore(row.syndrome)));
       if (original) return original;
     }
+  }
+  const qualified = elementClosureSource.qualifiedComposites.find(rule => syndromeCore(rule.to) === target);
+  if (qualified) {
+    const original = named.flatMap(disease => disease.rows).find(row => syndromeCore(row.syndromeName) === syndromeCore(qualified.from));
+    if (original) return original;
   }
   // 病名本身是教材某病下的一型（「石淋」是淋证的一型，不是一节）、表里没有以它为名的节：用那一行（2026-10-19 Claude 评审留出例 S067：
   // 模型写「石淋·湿热蕴结证」，查不到行，选方落到外科同名证的五神汤；上一轮写「淋证·石淋」时是石韦散）。只认内科类（优先级≤1）、
@@ -1524,13 +1612,13 @@ function differentialSectionsFor(disease: string, differentialName: string): str
 /** 单写的分型名（「鼻衄」）所属的病（血证）；不是分型名返回 undefined。 */
 export function subtypeParentDisease(name: string): string | undefined {
   const trimmed = String(name || "").trim();
-  return Object.entries(DISEASE_SUBTYPES).find(([, groups]) => Object.prototype.hasOwnProperty.call(groups, trimmed))?.[0];
+  return Object.entries(DISEASE_SUBTYPES).find(([, groups]) => Object.prototype.hasOwnProperty.call(groups, trimmed))?.[0] || (diseaseRefinementEnabled() ? evidenceSubtypeParent(trimmed) : undefined);
 }
 
 /** 「血证（鼻衄）」→ { disease: 血证, subtype: 鼻衄 }；没写分型返回原名。 */
 export function splitTextbookDiseaseSubtype(name: string): { disease: string; subtype?: string } {
   const match = String(name || "").trim().match(/^(.+?)[（(]([^）)]+)[）)]$/u);
-  if (match && DISEASE_SUBTYPES[match[1]]?.[match[2]]) return { disease: match[1], subtype: match[2] };
+  if (match && (DISEASE_SUBTYPES[match[1]]?.[match[2]] || (diseaseRefinementEnabled() && isEvidenceDiseaseSubtype(match[1], match[2])))) return { disease: match[1], subtype: match[2] };
   return { disease: String(name || "").trim() };
 }
 
@@ -1543,8 +1631,11 @@ export function diseaseNameWithRecordSubtype(diseaseName: string, recordText: st
   if (!name) return name;
   const parent = subtypeParentDisease(name);
   const split = parent ? { disease: parent, subtype: name } : splitTextbookDiseaseSubtype(name);
-  const chief = /主诉[：:]\s*([^\n]+)/u.exec(recordText || "")?.[1] || "";
+  const chief = diseaseRecordChief(recordText);
   const inferred = textbookDiseaseSubtype(split.disease, chief, recordText || "");
+  if (recordText.trim() && diseaseRefinementEnabled() && isEvidenceDiseaseSubtype(split.disease)) {
+    return inferred ? `${split.disease}（${inferred}）` : split.disease;
+  }
   const subtype = SUBTYPE_ROW_NAMES[split.disease] ? inferred : split.subtype || inferred;
   return subtype ? `${split.disease}（${subtype}）` : name;
 }
@@ -1554,10 +1645,10 @@ export function diseaseNameWithRecordSubtype(diseaseName: string, recordText: st
  * 只认肯定的提及（「无鼻衄」「否认黑便」不算）；主诉里最先写到的那一型为准，主诉没有时看现病史，再看全文，同样取最先写到的
  * （第四十一轮，r1054 回顾：此前要求全文只命中一型，病历顺带否认别的出血就放弃分型，尿血、齿衄、便血三份新病历都只交付「血证」）。
  */
-export function textbookDiseaseSubtype(diseaseName: string, chiefComplaint: string, recordText = ""): string | undefined {
+export function textbookDiseaseSubtype(diseaseName: string, chiefComplaint: string, recordText = "", ageYears?: number): string | undefined {
   const base = splitTextbookDiseaseSubtype(diseaseName).disease;
   const groups = DISEASE_SUBTYPES[base];
-  if (!groups) return undefined;
+  if (!groups) return evidenceDiseaseSubtype(base, chiefComplaint || diseaseRecordChief(recordText), recordText, ageYears);
   const record = String(recordText || "");
   const chief = String(chiefComplaint || "") || /主诉[：:]\s*([^\n]+)/u.exec(record)?.[1] || "";
   const present = /现病史[：:]\s*([^\n]+)/u.exec(record)?.[1] || "";

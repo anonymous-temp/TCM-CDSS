@@ -73,14 +73,24 @@ await check('N13', '便后鲜血刺痛且无肯定痔核提名肛裂，闭集/�
   assert.equal(defining.textbookDiseaseRefinement('内痔', '现病史：排便后鲜红血，无肛门刺痛。', ['肛裂']), undefined);
   assert.equal(defining.textbookDiseaseRefinement('内痔', rec + '查体：见痔核。', ['肛裂']), undefined);
 });
-await check('N14', '重抽仍不成立保留病名、证名并补缺口；重复调用幂等', () => {
+// 第五十轮有意撤除辨病依据的固定尾句；缺项走病机待核实，明确否认无须再问。
+await check('N14', '重抽仍缺定义表现时保留原病名、证名、依据，明确否认不再追问', () => {
   const x = { tcmDiseaseName: '急惊风', tcmDiseaseRationale: '患儿高热嗜睡。', primarySyndrome: '暑热疫毒证' };
-  defining.withDiseaseDefiningFindingCaveat(x, '高热嗜睡，无抽搐。'); assert.match(x.tcmDiseaseRationale, /抽搐尚未见，病名待核实/u); assert.equal(x.tcmDiseaseName, '急惊风'); assert.equal(x.primarySyndrome, '暑热疫毒证');
-  const before = structuredClone(x); defining.withDiseaseDefiningFindingCaveat(x, '高热嗜睡，无抽搐。'); assert.deepEqual(x, before);
+  const before = structuredClone(x); const pathogenesis = { uncertainties: [] };
+  defining.withDiseaseDefiningFindingCaveat(x, '高热嗜睡，无抽搐。', pathogenesis);
+  assert.deepEqual(x, before);
+  assert.deepEqual(pathogenesis.uncertainties, []);
+  defining.withDiseaseDefiningFindingCaveat(x, '高热嗜睡。', pathogenesis);
+  assert.equal(pathogenesis.uncertainties.length, 1);
+  defining.withDiseaseDefiningFindingCaveat(x, '高热嗜睡。', pathogenesis);
+  assert.equal(pathogenesis.uncertainties.length, 1);
 });
-await check('N15', '交付面接入缺项提示，定义表现肯定时不加提示', () => {
-  const out = surface.projectDeliveredReasoning(root('眩晕', '头胀，属眩晕。'), { recordText: '主诉：头胀。' }); assert.match(out.overview.tcmDiseaseRationale, /目眩或头晕尚未见，病名待核实/u);
-  const ok = surface.projectDeliveredReasoning(root('眩晕', '本例头晕。'), { recordText: '主诉：头晕。' }); assert.doesNotMatch(ok.overview.tcmDiseaseRationale, /病名待核实/u);
+await check('N15', '交付面只在未明的定义表现处增加待核实项', () => {
+  const out = surface.projectDeliveredReasoning(root('眩晕', '头胀，属眩晕。'), { recordText: '主诉：头胀。' });
+  assert.equal(out.overview.tcmDiseaseRationale, '头胀，属眩晕。');
+  assert.ok(out.pathogenesis.uncertainties.some((row) => row.item === '目眩或头晕'));
+  const ok = surface.projectDeliveredReasoning(root('眩晕', '本例头晕。'), { recordText: '主诉：头晕。' });
+  assert.ok(!ok.pathogenesis.uncertainties?.some((row) => row.item === '目眩或头晕'));
 });
 await check('N16', '受治理旧名/西医标题归一，膝骨关节炎按膝部名交付', () => {
   for (const [old, name] of [['骨关节炎', '骨痹'], ['膝骨关节炎', '膝痹'], ['风热赤眼', '暴风客热'], ['葡萄疫', '紫癜']]) assert.equal(terms.canonicalTcmDiseaseName(old, { overview: {} }), name);

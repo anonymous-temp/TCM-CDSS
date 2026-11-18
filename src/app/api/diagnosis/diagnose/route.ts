@@ -18,6 +18,7 @@ import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { alignWesternPrimaryAndName } from "@/lib/western-primary-reselect.server";
 import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consistency.server";
+import { createM03ElementClosure } from "@/lib/m03-element-closure-v2.server";
 import { applyElementSupportDecision, decideElementSupport } from "@/lib/m03-syndrome-element-closure.server";
 import { promoteCriticalSecondarySyndrome } from "@/lib/m03-critical-syndrome";
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patientClaimRecordText } from "@/lib/m03-patient-claim-check.server";
@@ -36,8 +37,9 @@ import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server"
 import { pickJingfangPatternsForCase } from "@/lib/jingfang-pattern-pick.server";
 import { checkDiseaseExplainsVisitReason, tcmHalfDiseaseName, visitReasonRedrawInstruction } from "@/lib/m03-visit-reason-check.server";
 import { historyStatedDiseaseRedrawInstruction, historyStatedDiseasesForCase, uniqueHistoryStatedDisease, writtenDiseaseIsTextbookNeighbour } from "@/lib/history-stated-textbook-disease";
-import { checkDiseaseAgainstDiagnosisPoints, diseasePointsRedrawInstruction } from "@/lib/m03-disease-points-check.server";
-import { textbookDiseaseDifferentialNames } from "@/lib/tcm-textbook-syndromes";
+import { diseaseRecordContext } from "@/lib/tcm-disease-defining-findings";
+import { checkDiseaseAgainstDiagnosisPoints, diseaseRedrawHasSupportedDefinition, parseDiseaseRedrawDraft, redrawDiseasePointsTcmHalf } from "@/lib/m03-disease-points-check.server";
+import { textbookDiseaseDifferentialNames, textbookDiseaseNamesForCase, withTextbookSubtypeSyndromeNames } from "@/lib/tcm-textbook-syndromes";
 import { memoizedScopeText } from "@/lib/model-call-memo.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 import { checkLineageLensInContent, withLensFrom } from "@/lib/m03-lens-consistency.server";
@@ -313,10 +315,14 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
     similarCases: similarCases.cases.length,
     evidenceTruncated: boundedDiagnoseEvidence.truncated,
   });
+  const elementContext = { recordText: trustedInputText(safeState), caseState: safeState, gateRedFlags: gated.safetyGate?.redFlags || [] };
+  const elementClosure = createM03ElementClosure(elementContext);
+  const enforceElementClosure = elementClosure.policy.mode === "enforce";
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: signal,
     ...(m03TcmTwoPassPolicy().enabled ? { m03TcmTwoPass: { context: buildM03TcmRuntimeContext(safeState, textbookDiseasePicks, clinicalGroundingText(safeState)) } } : {}),
     structuredLimitedInformation: limitedInformation,
+    m03ElementClosure: elementClosure,
     initialVisiblePrefix: initialSafetyBanner || undefined,
     upstreamUnavailableFallback: `${cdssReasonCodeMarker("upstream_model_unavailable")}\n${signedLimitedDiagnosis(upstreamGate, "not_attempted_upstream_down")}`,
     // The Western half receives only its task, shared facts and relevant evidence. The TCM half
@@ -338,21 +344,31 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
           // 不够数的撤下并写进不确定项，落在兼证核对之后（那一步补上的兼证若已涵盖，就不撤）、本例说法核对之前。
           // 病名须解释本次就诊原因（m03-visit-reason-check.server.ts，与上面几件并行，只在病名不是选病第一个时发请求）：
           // 核对确认不解释、候选里有能解释的病时，中医半按就诊原因重抽一次，再把上面的收口在新稿上重走一遍（其余病例原样）。
-          m03AnalysisAlignment: (content: string, alignSignal: AbortSignal) => alignAnalysisWithConclusion(content, { recordText: clinicalGroundingText(safeState) }, alignSignal),
+          m03AnalysisAlignment: (content: string, alignSignal: AbortSignal) => alignAnalysisWithConclusion(content, { recordText: clinicalGroundingText(safeState), closure: enforceElementClosure ? elementClosure : undefined }, alignSignal),
           m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal, redraw?: (instruction: string) => Promise<string | undefined>) => {
+            const nameFromRecord = clinicalGroundingText(safeState);
             const finishTcmHalf = async (content: string) => {
+              const draft = parseDiseaseRedrawDraft(content);
+              if (draft?.overview) {
+                const named = withTextbookSubtypeSyndromeNames(draft.overview, nameFromRecord);
+                if (named !== draft.overview) content = JSON.stringify({ ...draft, overview: named });
+              }
               // 辨证依据漏讲已记录表现时先按病历重写这一段（m03-rationale-coverage.server.ts，只在漏两项以上时发请求），
               // 后面的兼证、证素、本例说法核对都在重写稿上做。
               const covered = await completeRationaleCoverage(content, { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState), chiefFindings: chiefComplaintFindings(safeState), keyFindings: recordedTonguePulse(safeState) }, transformSignal);
               const completed = await completeTcmDiseaseDifferentials(covered, differentialTopUpContext, transformSignal);
               // 流派视角句不另下诊断、不与病历相反；治法补上漏掉的成组主症（都是一个模型提名、另一厂商的模型复核才动）。与下面的核对互不相干，一起并行，不占关键路径。
-              const [reconciled, claimRemovals, elementDecision, lensChecked, methodCovered] = await Promise.all([
-                reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
+              const [secondary, claimRemovals, legacyDecision, lensChecked, methodCovered] = await Promise.all([
+                elementClosure.policy.mode === "off"
+                  ? reconcileSecondarySyndromes(completed, elementContext, transformSignal).then(content => ({ content, legacyDecision: undefined }))
+                  : elementClosure.collect(completed, transformSignal),
                 decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
-                decideElementSupport(completed, { recordText: trustedInputText(safeState), caseState: safeState, gateRedFlags: gated.safetyGate?.redFlags || [] }, transformSignal),
+                elementClosure.policy.mode === "off" ? decideElementSupport(completed, elementContext, transformSignal) : undefined,
                 checkLineageLensInContent(completed, { recordText: patientClaimRecord, lineage: safeState.tcmLineagePreference }, transformSignal),
                 completeMethodCoverage(completed, { recordText: patientClaimRecord, chiefComplaint: safeState.chiefComplaint || "" }, transformSignal),
               ]);
+              const { content: reconciled } = secondary;
+              const elementDecision = legacyDecision || secondary.legacyDecision;
               // 证素撤下、本例说法删片段之后，病历记录的舌脉只剩在「是否兼X尚待核实」那一句里或整段不见了时，按主证重写一次依据
               //（m03-rationale-coverage，其余病例不发请求）。
               const reattributed = await reattributeStrandedKeyFindings(
@@ -362,6 +378,11 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
               );
               // 脱证落在兼证栏时提为主证（m03-critical-syndrome，急则治标），在其余核对之后、教材锚定之前。
               // 并行治法补写/依据重写完成后再落一次同一决定，避免把已撤的名外证素补回。
+              if (enforceElementClosure) {
+                const lens = elementClosure.mergeContribution(reattributed, withLensFrom(reattributed, completed, lensChecked), true);
+                const method = elementClosure.mergeContribution(lens, withVerifiedMethodItemFrom(lens, methodCovered), false);
+                return promoteCriticalSecondarySyndrome(method, { preferredCollapseDisease: trueHeartPainSignal(elementContext.recordText, elementContext.gateRedFlags) ? TRUE_HEART_PAIN_DISEASE : undefined });
+              }
               return promoteCriticalSecondarySyndrome(applyElementSupportDecision(withVerifiedMethodItemFrom(withLensFrom(reattributed, completed, lensChecked), methodCovered), elementDecision),
                 { preferredCollapseDisease: trueHeartPainSignal(trustedInputText(safeState), gated.safetyGate?.redFlags || []) ? TRUE_HEART_PAIN_DISEASE : undefined });
             };
@@ -370,35 +391,36 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
             // 触发是确定性的（教材写明的西医对应 + 主诉主症 + 教材鉴别病名），不另发核对请求；与收口并行，不占关键路径。
             const historyRedraw = historyStatedUnique && redraw && writtenDiseaseIsTextbookNeighbour(disease, historyStatedUnique, textbookDiseaseDifferentialNames);
             // 定义性表现缺项/教材病名细分确定性触发，其余诊断要点仍用既有提名复核；全程至多重抽一次。
+            const diseaseRecord = diseaseRecordContext(safeState);
+            const pointsInput = {
+              ...diseaseRecord,
+              disease,
+              recordText: clinicalGroundingText(safeState),
+              chiefComplaint: visitReasonInput.chiefComplaint,
+              candidates: [...new Set([...textbookDiseasePicks, ...textbookDiseaseDifferentialNames(disease)])],
+              allowedDiseases: textbookDiseaseNamesForCase({ sex: safeState.patient.sex, ageYears: diseaseRecord.ageYears }),
+            };
             const [visit, finished, points] = await Promise.all([
-              checkDiseaseExplainsVisitReason({ ...visitReasonInput, disease, picks: textbookDiseasePicks }, transformSignal),
+              checkDiseaseExplainsVisitReason({ ...visitReasonInput, disease, picks: textbookDiseasePicks, diseaseRecord }, transformSignal),
               finishTcmHalf(tcmContent),
-              checkDiseaseAgainstDiagnosisPoints({
-                disease,
-                recordText: clinicalGroundingText(safeState),
-                chiefComplaint: visitReasonInput.chiefComplaint,
-                candidates: [...new Set([...textbookDiseasePicks, ...textbookDiseaseDifferentialNames(disease)])],
-                ageYears: visitReasonInput.ageYears,
-              }, transformSignal),
+              checkDiseaseAgainstDiagnosisPoints(pointsInput, transformSignal),
             ]);
-            if (visit.status !== "not_covered" && historyRedraw && historyStatedUnique && !(points.status === "mismatch" && points.kind === "defining_missing")) {
+            if (visit.status !== "not_covered" && historyRedraw && historyStatedUnique && !(points.status === "mismatch" && (points.kind === "defining_missing" || points.kind === "refinement"))) {
               const redrawn = await redraw!(historyStatedDiseaseRedrawInstruction(disease, historyStatedUnique));
               const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
-              const adopted = Boolean(redrawn && redrawnDisease === historyStatedUnique.disease);
+              const adopted = Boolean(redrawn && redrawnDisease === historyStatedUnique.disease && diseaseRedrawHasSupportedDefinition(redrawnDisease, nameFromRecord, pointsInput.ageYears));
               console.info("[tcm-cdss:telemetry] m03_history_stated_disease", { disease, stated: historyStatedUnique.disease, redrawnDisease: redrawnDisease || null, adopted });
               return adopted && redrawn ? finishTcmHalf(redrawn) : finished;
             }
             if (points.status === "mismatch" && redraw && (visit.status !== "not_covered" || points.kind === "defining_missing" || points.kind === "refinement")) {
-              const redrawn = await redraw(diseasePointsRedrawInstruction(disease, points));
-              const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
-              const adopted = Boolean(redrawn && redrawnDisease && redrawnDisease !== disease);
+              const { redrawn, redrawnDisease, adopted } = await redrawDiseasePointsTcmHalf(pointsInput, points, redraw);
               console.info("[tcm-cdss:telemetry] m03_disease_points_check", { disease, kind: points.kind, better: points.better, redrawnDisease: redrawnDisease || null, adopted });
               return adopted && redrawn ? finishTcmHalf(redrawn) : finished;
             }
             if (visit.status !== "not_covered" || !redraw) return finished;
             const redrawn = await redraw(visitReasonRedrawInstruction(disease, visit));
             const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
-            const adopted = Boolean(redrawn && redrawnDisease && redrawnDisease !== disease);
+            const adopted = Boolean(redrawn && redrawnDisease && redrawnDisease !== disease && diseaseRedrawHasSupportedDefinition(redrawnDisease, nameFromRecord, pointsInput.ageYears));
             console.info("[tcm-cdss:telemetry] m03_visit_reason_check", { disease, better: visit.better, redrawnDisease: redrawnDisease || null, adopted });
             return adopted && redrawn ? finishTcmHalf(redrawn) : finished;
           },

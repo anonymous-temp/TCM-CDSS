@@ -3,10 +3,11 @@ import "server-only";
 import { recordMentionPolarityAt, sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { proposeThenVerify } from "./cross-model-small-task.server";
 import { alignQuoteToSource } from "./source-quote-alignment";
-import { diseaseDefiningFindingStatus, textbookDiseaseRefinement } from "./tcm-disease-defining-findings";
+import { diseaseDefiningFindingEvidence, diseaseDefiningFindingStatus, missingDiseaseFindingTerms, textbookDiseaseRefinementMatches, type DiseaseRecordContext } from "./tcm-disease-defining-findings";
 import pointsCheckSource from "../data/tcm-disease-points-check.source.json" with { type: "json" };
-import { diseaseNameWithRecordSubtype, textbookDiseaseDefinition, textbookDiseaseDiagnosisPoints } from "./tcm-textbook-syndromes";
+import { diseaseNameWithRecordSubtype, textbookDiseaseDefinition, textbookDiseaseDiagnosisPoints, textbookDiseaseIdentity } from "./tcm-textbook-syndromes";
 import chiefConceptSource from "../data/tcm-differential-chief-concepts.source.json" with { type: "json" };
+import { diseaseEvidenceTerm, diseaseRefinementEnabled } from "./m03-disease-evidence";
 import { chiefComplaintPhrase } from "./rationale-findings-checklist";
 
 /**
@@ -35,16 +36,17 @@ const MISSING_SIGN_WORDS: readonly string[] = (pointsCheckSource as { signPointW
 const MISSING_SIGN_POINT = { test: (point: string) => MISSING_SIGN_WORDS.some((word) => point.includes(word)) };
 const sameDisease = (left: string, right: string) => compact(left).replace(/类病$/u, "") === compact(right).replace(/类病$/u, "");
 
-export type DiseasePointsInput = {
+export type DiseasePointsInput = DiseaseRecordContext & {
   disease: string;
   recordText: string;
   chiefComplaint: string;
   /** 闭集选病结果与本病的教材鉴别病名（去重后），更合适的病只能从这里选。 */
   candidates: readonly string[];
-  ageYears?: number;
+  allowedDiseases?: readonly string[];
 };
 
-export type DiseasePointsProposal = { kind: "contradicted" | "missing_sign" | "defining_missing" | "refinement"; point: string; recordQuote: string; better: string; reason: string };
+type SupportedDisease = { name: string; definition: string; evidence: string[] };
+export type DiseasePointsProposal = { alternatives?: SupportedDisease[]; denied?: string[]; unrecorded?: string[]; kind: "contradicted" | "missing_sign" | "defining_missing" | "refinement"; point: string; recordQuote: string; better: string; reason: string };
 export type DiseasePointsVerdict = { status: "fits" } | ({ status: "mismatch" } & DiseasePointsProposal);
 
 const PROPOSE_SYSTEM = [
@@ -69,21 +71,57 @@ export function diseasePointsCheckApplies(input: DiseasePointsInput): boolean {
   return Boolean(textbookDiseaseDiagnosisPoints(input.disease, input.ageYears));
 }
 
-/** 第四十九轮：定义缺项无需模型提名。候选只按同一张表的肯定表现推荐，表外病不算「已成立」。 */
+/** 先比较主诉的肯定主症，再以 picks、鉴别病名和科别闭集的顺序破同分。 */
 export function deterministicDiseasePointsVerdict(input: DiseasePointsInput): DiseasePointsVerdict {
   if (!compact(input.disease) || !compact(input.recordText)) return { status: "fits" };
-  const refined = textbookDiseaseRefinement(input.disease, input.recordText, input.candidates);
-  if (refined) return { status: "mismatch", kind: "refinement", point: "便时疼痛、出血、便秘", recordQuote: "", better: refined, reason: "教材局部病名细分需核对" };
+  const enabled = diseaseRefinementEnabled();
+  const allowed = input.allowedDiseases || input.candidates;
+  const pool = enabled ? [...input.candidates, ...allowed] : input.candidates;
+  const refinements = textbookDiseaseRefinementMatches(input, pool, input.disease);
+  const refined = refinements.length === 1 ? refinements[0] : undefined;
+  if (refined) return { status: "mismatch", kind: "refinement", point: refined.definition, recordQuote: refined.evidence.join("、"),
+    better: refined.section, reason: refined.reference, alternatives: [{ name: refined.display, definition: refined.definition, evidence: refined.evidence }] };
   const result = diseaseDefiningFindingStatus(input.disease, input.recordText);
   if (result.status !== "missing" || !result.rule) return { status: "fits" };
-  const explainsChief = (name: string) => {
-    const chief = chiefComplaintPhrase(input.chiefComplaint);
-    const definition = textbookDiseaseDefinition(name, input.ageYears) || "";
-    // 只比较病名定义，不借某一证型的兼见症（例如呕吐某型兼发热）替代本次主诉。
-    return chiefConceptSource.concepts.some((group) => group.forms.some((form) => chief.includes(form)) && group.forms.some((form) => definition.includes(form)));
-  };
-  const better = input.candidates.find((name) => !sameDisease(name, input.disease) && diseaseDefiningFindingStatus(name, input.recordText).status === "supported" && explainsChief(name)) || "";
-  return { status: "mismatch", kind: "defining_missing", point: result.rule.missing, recordQuote: "", better, reason: `${result.rule.sourceRef.book}:${result.rule.sourceRef.line}` };
+  const chief = chiefComplaintPhrase(input.chiefComplaint);
+  const concepts = chiefConceptSource.concepts.filter(({ forms }) => forms.some((form) => diseaseEvidenceTerm(chief, form)));
+  const identity = (name: string) => textbookDiseaseIdentity(name, input.ageYears);
+  const allowedIds = new Set(allowed.map(identity));
+  const seen = new Set([identity(input.disease)]);
+  const alternatives = pool.flatMap((name) => {
+    const key = identity(name);
+    if (!key || seen.has(key) || (enabled && !allowedIds.has(key))) return [];
+    seen.add(key);
+    const refinement = refinements.find((match) => identity(match.section) === key);
+    if (refinement) return [{ name, definition: refinement.definition, evidence: refinement.evidence, score: refinement.evidence.length + 1 }];
+    const candidate = diseaseDefiningFindingStatus(key, input.recordText);
+    if (candidate.status !== "supported" || !candidate.rule) return [];
+    const definition = textbookDiseaseDefinition(key, input.ageYears) || candidate.rule.sourceRef.quote;
+    const matching = concepts.filter(({ forms }) => forms.some((form) => definition.includes(form)));
+    if (!matching.length) return [];
+    const evidence = diseaseDefiningFindingEvidence(candidate.rule, input.recordText);
+    return evidence.length ? [{ name: key, definition, evidence, score: matching.length }] : [];
+  }).sort((left, right) => right.score - left.score).slice(0, enabled ? 3 : 1)
+    .map(({ name, definition, evidence }) => ({ name, definition, evidence }));
+  return { status: "mismatch", kind: "defining_missing", point: result.rule.missing, recordQuote: "", better: alternatives[0]?.name || "",
+    reason: `${result.rule.sourceRef.book}:${result.rule.sourceRef.line}`, alternatives, ...missingDiseaseFindingTerms(result.rule, input.recordText) };
+}
+
+export function diseaseRedrawHasSupportedDefinition(proposed: string, recordText: string, ageYears?: number): boolean {
+  return !diseaseRefinementEnabled() || diseaseDefiningFindingStatus(textbookDiseaseIdentity(proposed, ageYears), recordText).status !== "missing";
+}
+
+/** 未改名或未通过新病名的证据门槛时维持首稿。 */
+export function diseasePointsRedrawAcceptable(input: DiseasePointsInput, verdict: DiseasePointsProposal, proposed: string): boolean {
+  const name = textbookDiseaseIdentity(proposed, input.ageYears);
+  if (!name || name === textbookDiseaseIdentity(input.disease, input.ageYears)) return false;
+  if (!diseaseRefinementEnabled()) return true;
+  const definition = diseaseDefiningFindingStatus(name, input.recordText);
+  if (definition.status === "missing") return false;
+  if (verdict.kind === "defining_missing" || verdict.kind === "refinement") {
+    return (verdict.alternatives || []).some((item) => textbookDiseaseIdentity(item.name, input.ageYears) === name);
+  }
+  return true;
 }
 
 /** 模型提名 → 合格的提名：要点逐字出自教材要点，病历原文逐字出自病历且是本人的、问到了的记载，更合适的病在候选里。否则 undefined。 */
@@ -161,8 +199,11 @@ export async function checkDiseaseAgainstDiagnosisPoints(input: DiseasePointsInp
 export function diseasePointsRedrawInstruction(disease: string, verdict: Extract<DiseasePointsVerdict, { status: "mismatch" }>): string {
   if (verdict.kind === "defining_missing" || verdict.kind === "refinement") return [
     "【病名须符合教材定义性表现】",
-    verdict.kind === "defining_missing" ? `上一稿病名「${disease}」所需的「${verdict.point}」在病历中尚无肯定记载，不能把教材定义写成本例所见。` : `请核对「${disease}」与「${verdict.better}」的教材判别表现，只依据本例原文细分病名。`,
-    `在原有【教材病证候选】里重新选定病名${verdict.better ? `，优先核对「${verdict.better}」` : "，没有更合适的病则保留原名并写清待核实的定义性表现"}；根据病历重写本半，不补造症状、体征或检查。`,
+    verdict.kind === "defining_missing"
+      ? `上一稿病名「${disease}」需核对「${verdict.point}」。${verdict.denied?.length ? `病历明确否认：${verdict.denied.join("、")}。` : ""}${verdict.unrecorded?.length ? `病历未记：${verdict.unrecorded.join("、")}。` : ""}不能把教材定义写成本例所见。`
+      : `请按本例肯定事实比较「${disease}」和支持的细分病名。`,
+    ...(verdict.alternatives || []).map((item) => `- ${item.name}｜定义：${item.definition}｜本例肯定事实：${sanitizeFreeTextForModel(item.evidence.join("、"))}`),
+    "换名时从上述有本例肯定事实的病名中选，逐项核对定义及其与就诊原因的关系。无更合适病名时保留原名，仅把未记录的关键定义性表现列入待核实。依据按病历写实，不把否认项列作待问。",
   ].join("\n");
   const why = verdict.kind === "contradicted"
     ? `病历「${verdict.recordQuote}」与教材${disease}的诊断要点「${verdict.point}」相反`
@@ -172,4 +213,21 @@ export function diseasePointsRedrawInstruction(disease: string, verdict: Extract
     `上一稿把中医病名写成「${disease}」：${why}${verdict.reason ? `（${verdict.reason}）` : ""}，不作本次病名（可列入病名鉴别）。`,
     `请在【教材病证候选】里按病历另定病名${verdict.better ? `（如「${verdict.better}」）` : ""}，并据此重写本半全部内容：辨病依据、病名与证候鉴别、证候、病机与治法都按新的病名写。`,
   ].join("\n");
+}
+
+
+export function parseDiseaseRedrawDraft(content: string): { overview?: { tcmDiseaseName?: unknown; primarySyndrome?: unknown; secondarySyndromes?: unknown } } | undefined {
+  try { return JSON.parse(content) || undefined; } catch { return undefined; }
+}
+
+export async function redrawDiseasePointsTcmHalf(
+  input: DiseasePointsInput,
+  verdict: Extract<DiseasePointsVerdict, { status: "mismatch" }>,
+  redraw: (instruction: string) => Promise<string | undefined>,
+): Promise<{ redrawn?: string; redrawnDisease: string; adopted: boolean }> {
+  const redrawn = await redraw(diseasePointsRedrawInstruction(input.disease, verdict)).catch(() => undefined);
+  const name = redrawn && parseDiseaseRedrawDraft(redrawn)?.overview?.tcmDiseaseName;
+  const redrawnDisease = typeof name === "string" ? name.trim() : "";
+  const adopted = Boolean(redrawn && diseasePointsRedrawAcceptable(input, verdict, redrawnDisease));
+  return { redrawn, redrawnDisease, adopted };
 }

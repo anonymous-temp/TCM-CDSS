@@ -243,7 +243,7 @@ function collapseName(root: Json, context: ClosureContext): string | undefined {
 }
 
 /** 第十五/四十六轮同一判据任务的扩展触发；注入只供离线测试，不改变模型判据。 */
-export async function decideElementSupport(content: string, context: ClosureContext, signal?: AbortSignal, verify: CriteriaVerifier = verifySecondaryByCriteria): Promise<ClosureDecision | undefined> {
+export async function decideElementSupport(content: string, context: ClosureContext, signal?: AbortSignal, verify: CriteriaVerifier = verifySecondaryByCriteria, telemetry = true): Promise<ClosureDecision | undefined> {
   if (!elementSupportEnabled()) return undefined;
   let root: Json | undefined;
   try { root = object(JSON.parse(content)); } catch { return undefined; }
@@ -294,7 +294,7 @@ export async function decideElementSupport(content: string, context: ClosureCont
     }
     return { unit, verdict: organ };
   }));
-  console.info("[tcm-cdss:telemetry] m03_syndrome_element_closure", { protectedByPrimary, units: elements.map(({ unit, verdict }) => `${unit.type}/${unit.organs.join("")}:${verdict.verdict}:${Boolean(verdict.strict)}`), collapse: collapse || null });
+  if (telemetry) console.info("[tcm-cdss:telemetry] m03_syndrome_element_closure", { protectedByPrimary, units: elements.map(({ unit, verdict }) => `${unit.type}/${unit.organs.join("")}:${verdict.verdict}:${Boolean(verdict.strict)}`), collapse: collapse || null });
   return { elements, context, protectedByPrimary, ...(collapse ? { collapse } : {}) };
 }
 
@@ -346,7 +346,7 @@ function promote(root: Json, unit: LedgerElement, verdict: CriteriaVerdict): boo
 }
 
 /** 撤断言、保留病历表现；不写“需核实X”。不按功效删除方药。 */
-function withdraw(root: Json, unit: LedgerElement): boolean {
+function withdraw(root: Json, unit: LedgerElement, appendExtractedFindings = true): boolean {
   const overview = object(root.overview)!;
   const path = object(root.pathogenesis);
   if (!path || covered(unit, entailedElements(names(root)))) return false;
@@ -369,7 +369,7 @@ function withdraw(root: Json, unit: LedgerElement): boolean {
       return true;
     });
     let next = withoutClauses(value, removals);
-    if (preserveFindings) {
+    if (preserveFindings && appendExtractedFindings) {
       const kept = removals.flatMap((clause) => {
         if (!isDeficiency(unit.type)) {
           const prefix = findingsBeforeAttribution(clause, new Set<DeficiencyType>(), entailedDeficiencies(names(root)));
@@ -435,7 +435,7 @@ function withdraw(root: Json, unit: LedgerElement): boolean {
   return true;
 }
 
-export function applyElementSupportDecision(content: string, decision: ClosureDecision | undefined): string {
+export function applyElementSupportDecision(content: string, decision: ClosureDecision | undefined, appendExtractedFindings = true): string {
   if (!decision) return content;
   let root: Json | undefined;
   try { root = object(JSON.parse(content)); } catch { return content; }
@@ -453,7 +453,7 @@ export function applyElementSupportDecision(content: string, decision: ClosureDe
     changed = true;
   }
   for (const { unit, verdict } of decision.elements) {
-    if (verdict.verdict === "fail") changed = withdraw(root, unit) || changed;
+    if (verdict.verdict === "fail") changed = withdraw(root, unit, appendExtractedFindings) || changed;
     else if (verdict.verdict === "pass") changed = promote(root, unit, verdict) || changed;
   }
   // 沿用七条已核对合称（包括其兼证吸收规则），教材方与治法保持原行。
@@ -464,4 +464,13 @@ export function applyElementSupportDecision(content: string, decision: ClosureDe
     path.uncertainties = records(path.uncertainties).filter((row) => ![...typesIn(pendingElementText(text(row.item)), true)].some(([type, organs]) => covered({ type, organs }, entailed)));
   }
   return changed ? JSON.stringify(root) : content;
+}
+
+/** P1 keeps the legacy rationale cut as P2's fallback, without appending extracted findings. */
+export function withdrawM03RationaleFallback(root: Json, units: readonly LedgerElement[]): void {
+  const source = object(root.overview);
+  if (!source || typeof source.tcmDiagnosticRationale !== "string") return;
+  const draft = { overview: { ...source }, pathogenesis: {} };
+  for (const unit of units) withdraw(draft, unit, false);
+  source.tcmDiagnosticRationale = draft.overview.tcmDiagnosticRationale;
 }

@@ -1,4 +1,6 @@
-import { recordMentionPolarityAt } from "./diagnosis-safety";
+import { chiefComplaintLeadSegment } from "./m03-disease-evidence";
+export { chiefComplaintLeadSegment } from "./m03-disease-evidence";
+import { affirmedWesternHistoryDiagnosis } from "./western-diagnosis-aliases";
 import { textbookDiseaseHistoryCrosswalk, textbookDiseaseNamesForCase, type TextbookDiseaseCrosswalkEntry } from "./tcm-textbook-syndromes";
 
 /**
@@ -38,16 +40,6 @@ export interface HistoryStatedDiseaseInput {
 
 const compact = (value: string) => value.normalize("NFKC").replace(/\s+/g, "");
 
-/**
- * 主诉的主段：第一个「伴/伴有/兼/兼有/合并」或括号之前的部分（构词式闭集）。「发热2天，伴腹胀、纳差」→「发热2天，」；
- *「感冒后发热2周（伴自幼遗尿）」→「感冒后发热2周」；没有这些连接时是整条主诉。
- * 病名须解释就诊原因（m03-visit-reason-check）、西医病名就诊原因核对与这里共用这一处（第三十八轮前那两处各写一份）。
- */
-export function chiefComplaintLeadSegment(chiefComplaint: string): string {
-  const text = compact(chiefComplaint);
-  const at = text.search(/[（(]|伴有?|兼有?|合并/u);
-  return at > 0 ? text.slice(0, at) : text;
-}
 const chiefLead = chiefComplaintLeadSegment;
 
 /**
@@ -67,31 +59,8 @@ function chiefSymptomBigrams(lead: string): string[] {
   return [...new Set(out)];
 }
 
-/** 病名主体：去掉开头的「急性/慢性/急慢性」。主体至少 3 个字（「胃炎」「肺炎」这类两字主体太宽，不用）。 */
-function westernCore(name: string): string {
-  return compact(name).replace(/^(?:急慢性|急性|慢性)/u, "");
-}
-
-function clauseAround(text: string, index: number): string {
-  let start = index;
-  while (start > 0 && !/[，,。；;\n]/u.test(text[start - 1])) start -= 1;
-  let end = index;
-  while (end < text.length && !/[，,。；;\n]/u.test(text[end])) end += 1;
-  return text.slice(start, end).slice(0, 40);
-}
-
-/** 既往史里那一处肯定是患者本人已确诊的病：至少一处读成 affirmed。 */
-function affirmedHistoryMention(history: string, core: string): number {
-  let at = history.indexOf(core);
-  while (at >= 0) {
-    if (recordMentionPolarityAt(history, at + core.length - 1) === "affirmed") return at;
-    at = history.indexOf(core, at + core.length);
-  }
-  return -1;
-}
-
 export function historyStatedTextbookDiseases(input: HistoryStatedDiseaseInput): HistoryStatedTextbookDisease[] {
-  const history = compact(input.pastHistory || "");
+  const history = input.pastHistory || "";
   const lead = chiefLead(input.chiefComplaint || "");
   if (history.length < 3 || lead.length < 2) return [];
   const allowed = new Set(input.allowedDiseases);
@@ -111,11 +80,9 @@ export function historyStatedTextbookDiseases(input: HistoryStatedDiseaseInput):
     // 病历写的是全名的那个先用（「慢性扁桃体炎史」配慢性扁桃体炎，不配急性扁桃体炎）。
     const ordered = [...entry.westernEquivalents].sort((left, right) => Number(history.includes(compact(right))) - Number(history.includes(compact(left))));
     for (const western of ordered) {
-      const core = westernCore(western);
-      if (core.length < 3) continue;
-      const at = affirmedHistoryMention(history, core);
-      if (at < 0) continue;
-      found.push({ disease: entry.disease, western, quote: clauseAround(history, at), chiefSymptom });
+      const match = affirmedWesternHistoryDiagnosis(history, western);
+      if (!match) continue;
+      found.push({ disease: entry.disease, western, quote: match.quote, chiefSymptom });
       break;
     }
   }

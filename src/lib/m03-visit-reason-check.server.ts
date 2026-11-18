@@ -5,6 +5,8 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { textbookDiseaseDefinition } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { diseaseRefinementEnabled } from "./m03-disease-evidence";
+import { diseaseVisitComplicationMatch, type DiseaseRecordContext } from "./tcm-disease-defining-findings";
 import { chiefComplaintLeadSegment } from "./history-stated-textbook-disease";
 
 export { chiefComplaintLeadSegment };
@@ -66,6 +68,7 @@ export interface VisitReasonInput {
   /** 闭集选病的结果（按它给出的先后）。 */
   picks: readonly string[];
   ageYears?: number;
+  diseaseRecord?: DiseaseRecordContext;
 }
 
 /**
@@ -108,7 +111,7 @@ export function parseVisitReasonVerdict(content: unknown, input: VisitReasonInpu
 function messagesFor(input: VisitReasonInput, candidates: readonly string[]) {
   const describe = (name: string) => ({ name, definition: textbookDiseaseDefinition(name, input.ageYears) || null });
   return [
-    { role: "system" as const, content: SYSTEM },
+    { role: "system" as const, content: diseaseRefinementEnabled() ? `${SYSTEM}\n已由本例肯定事实支持的病，其当前并发或危重表现可解释主诉时，判 covered；仅有该病既往史、缺当前关联，仍按本次就诊原因判断。` : SYSTEM },
     {
       role: "user" as const,
       content: JSON.stringify({
@@ -153,12 +156,17 @@ async function askOnce(input: VisitReasonInput, candidates: readonly string[], s
  * 正反两种候选顺序各问一次（并行，约 0.7 秒）：两次都判不解释、给出的更合适病名一致时才返回 not_covered。
  * 其余情况（一次判解释、两次所指不同、任何一次失败）都当已解释或未知，保留原稿。
  */
-export async function checkDiseaseExplainsVisitReason(input: VisitReasonInput, signal?: AbortSignal): Promise<VisitReasonVerdict> {
+export async function checkDiseaseExplainsVisitReason(input: VisitReasonInput, signal?: AbortSignal, ask = askOnce): Promise<VisitReasonVerdict> {
   if (!enabled() || signal?.aborted || !visitReasonCheckApplies(input)) return { status: "covered" };
+  const related = input.diseaseRecord && diseaseVisitComplicationMatch(input.disease, {
+    ...input.diseaseRecord,
+    chiefComplaint: chiefComplaintLeadSegment(input.chiefComplaint),
+  });
+  if (related) return { status: "covered" };
   const candidates = input.picks.filter((pick) => !sameDisease(pick, input.disease));
   const [first, second] = await Promise.all([
-    askOnce(input, candidates, signal),
-    askOnce(input, [...candidates].reverse(), signal),
+    ask(input, candidates, signal),
+    ask(input, [...candidates].reverse(), signal),
   ]);
   if (first.status === "not_covered" && second.status === "not_covered" && sameDisease(first.better, second.better)) return first;
   if (first.status === "unknown" || second.status === "unknown") return { status: "unknown" };

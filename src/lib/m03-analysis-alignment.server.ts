@@ -12,6 +12,9 @@ import { foreignSyndromeNames } from "./m03-rationale-coverage.server";
 import { isLineageLensSentence } from "./tcm-lineages";
 import { sanitizeOptionalPathogenesisClassifications } from "./diagnosis-visible-summary";
 import { isStructurallyEmptyM03CoreText } from "./diagnosis-stage-contract";
+import { elementAssertionsInText, type ElementAssertion, type ElementClosurePolicy } from "./m03-element-assertions";
+
+type AlignmentClosure = { policy: ElementClosurePolicy; permits: (reasoning: Json, hit: ElementAssertion) => boolean };
 
 /**
  * 辨证分析与结论对齐（2026-11-14 第四十五轮，「先定结论、再写文字」的服务端一半）。
@@ -85,8 +88,9 @@ const isExcessElement = (id: string) => {
  * 交付时的证名（delivered-surface 的合称改名在交付面才做，这里按它将要写成的名字核）。交付面先按治法补齐病性栏的实邪
  *（withMethodImpliedNatureElements：健脾渗湿而病性只写气虚时补上湿），再判合称；这里同一顺序（第四十六轮）。
  */
-function deliveredPrimary(reasoning: Json, recordText: string): string {
+function deliveredPrimary(reasoning: Json, recordText: string, closure?: AlignmentClosure): string {
   const primary = text(record(reasoning.overview)?.primarySyndrome);
+  if (closure) return primary;
   try {
     const lookahead = structuredClone(reasoning);
     withMethodImpliedNatureElements(lookahead, recordText);
@@ -108,11 +112,11 @@ function conclusionElements(names: string, method: string): Set<string> {
 export type AnalysisMisalignment = { code: "syndrome_element_missing" | "nature_element_unnamed" | "deficiency_without_root" | "rationale_other_syndrome" | "uncertainty_asks_named_element"; detail: string };
 
 /** 分析与结论哪里对不上（纯函数，供测试）。 */
-export function analysisMisalignments(reasoning: Json, recordText: string): AnalysisMisalignment[] {
+export function analysisMisalignments(reasoning: Json, recordText: string, closure?: AlignmentClosure): AnalysisMisalignment[] {
   const overview = record(reasoning.overview);
   const pathogenesis = record(reasoning.pathogenesis);
   const nature = record(pathogenesis?.natureDifferentiation);
-  const primary = deliveredPrimary(reasoning, recordText);
+  const primary = deliveredPrimary(reasoning, recordText, closure);
   if (!overview || !pathogenesis || !nature || !primary) return [];
   const secondary = strings(overview.secondarySyndromes);
   const named = [primary, ...secondary].join("、");
@@ -121,13 +125,18 @@ export function analysisMisalignments(reasoning: Json, recordText: string): Anal
   const natureItems = [...new Set([...strings(nature.items), ...strings(nature.rootDeficiency), ...strings(nature.branchExcess)])];
   const natureElements = natureElementsIn(natureItems.join("、"));
   const issues: AnalysisMisalignment[] = [];
+  if (closure) for (const item of natureItems) {
+    if (elementAssertionsInText(item, "nature", closure.policy).some(hit => !closure.permits(reasoning, hit))) {
+      issues.push({ code: "nature_element_unnamed", detail: `病性栏的${item}，证名与所选教材行均未涵盖` });
+    }
+  }
   // 证名里的病邪、病理产物、瘀与滞，病性栏得有（痰火扰心证而病性只有内热）。
   for (const id of namedElements) {
     if (isExcessElement(id) && !natureElements.has(id)) issues.push({ code: "syndrome_element_missing", detail: `证名「${primary}」里的${LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical}，病性栏没有` });
   }
   // 病性栏的病邪、病理产物，证名（主证、兼证）与治法里都没有（气血虚弱证、益气养血而病性列血瘀）。
   for (const id of natureElements) {
-    if (isExcessElement(id) && !concludedElements.has(id)) issues.push({ code: "nature_element_unnamed", detail: `病性栏的${LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical}，证名里没有` });
+    if (!closure && isExcessElement(id) && !concludedElements.has(id)) issues.push({ code: "nature_element_unnamed", detail: `病性栏的${LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical}，证名里没有` });
   }
   // 证名是虚证，病性栏本虚为空（气厥虚证、心阳欲脱证而「本虚：无」）。
   if (DEFICIENCY_NAME.test(primary.replace(/证$/u, "")) && strings(nature.rootDeficiency).length === 0) issues.push({ code: "deficiency_without_root", detail: `证名「${primary}」是虚证，病性栏本虚为空` });
@@ -195,7 +204,7 @@ const compact = (value: string) => value.normalize("NFKC").replace(/[\s，,。�
  *  · 病性依据每段都逐字在病历里（去掉空白、标点比）；
  *  · 换上之后再查一遍，前面那几类对不上的都不再出现。
  */
-export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, recordText: string, rejection?: { reason: string }): Json | undefined {
+export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, recordText: string, rejection?: { reason: string }, closure?: AlignmentClosure): Json | undefined {
   const reject = (reason: string) => {
     if (rejection) rejection.reason = reason;
     return undefined;
@@ -204,7 +213,7 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
   const pathogenesis = record(reasoning.pathogenesis);
   const nature = record(pathogenesis?.natureDifferentiation);
   if (!overview || !pathogenesis || !nature) return reject("structure");
-  const primary = deliveredPrimary(reasoning, recordText);
+  const primary = deliveredPrimary(reasoning, recordText, closure);
   const secondary = strings(overview.secondarySyndromes);
   const rationale = rewrite.rationale.replace(/\s+/gu, "");
   if (rationale.length < 40 || rationale.length > 320) return reject("rationale_length");
@@ -219,7 +228,11 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
   const originalElements = natureElementsIn([...strings(nature.items), ...strings(nature.rootDeficiency), ...strings(nature.branchExcess)].join("、"));
   const allowed = new Set([...namedElements, ...originalElements]);
   const items = [...new Set(rewrite.natureItems)];
-  if (items.length === 0 || items.some((item) => [...natureElementsIn(item)].some((id) => !allowed.has(id)))) return reject("nature_outside_conclusion");
+  const unsupported = (value: string, source: "prose" | "mechanism" | "nature" | "pending") => closure
+    ? elementAssertionsInText(value, source, closure.policy).some(hit => !closure.permits(reasoning, hit)) : false;
+  if (items.length === 0 || items.some(item => closure ? unsupported(item, "nature") : [...natureElementsIn(item)].some(id => !allowed.has(id)))) return reject("nature_outside_conclusion");
+  if (unsupported(rationale, "prose") || unsupported(rewrite.overallPathogenesis, "mechanism") ||
+    rewrite.uncertainties.some(item => [item.item, item.reason, item.affects].some(value => unsupported(text(value), "pending")))) return reject("outside_element_closure");
   if ([...rewrite.rootDeficiency, ...rewrite.branchExcess].some((item) => !items.includes(item))) return reject("columns_outside_items");
   const record_ = compact(recordText);
   const segments = rewrite.natureBasis.split(/[；;]/u).map((segment) => segment.trim()).filter(Boolean);
@@ -242,8 +255,8 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
   // 问病历已写明的四诊属性的（舌苔厚薄而病历记苔薄）。剩下的才换上去。
   nextPathogenesis.uncertainties = rewrite.uncertainties;
   reconcileAnalysisUncertainties(next, recordText);
-  const remaining = analysisMisalignments(next, recordText)
-    .filter((issue) => issue.code !== "nature_element_unnamed" || ![...originalElements].some((id) => !namedElements.has(id) && issue.detail.includes(LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical || "\u0000")));
+  const remaining = analysisMisalignments(next, recordText, closure)
+    .filter((issue) => issue.code !== "nature_element_unnamed" || (!closure && ![...originalElements].some((id) => !namedElements.has(id) && issue.detail.includes(LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical || "\u0000"))));
   return remaining.length === 0 ? next : reject(`still:${remaining.map((issue) => issue.code).join("+")}`);
 }
 
@@ -336,7 +349,7 @@ function asSentences(value: string): string[] {
 const TIMEOUT_MS = 9_000;
 
 /** 对齐一份已合并的辨证结果（含哨兵的完整内容）。对得上、开关关着时原样返回；失败或不过核对时删除违规句/项。 */
-export async function alignAnalysisWithConclusion(content: string, context: { recordText: string }, signal?: AbortSignal, rewriteTask = primaryModelJsonTask): Promise<string> {
+export async function alignAnalysisWithConclusion(content: string, context: { recordText: string; closure?: AlignmentClosure }, signal?: AbortSignal, rewriteTask = primaryModelJsonTask): Promise<string> {
   if (!analysisAlignmentEnabled()) return content;
   const START = "<!-- DIAGNOSIS_JSON_START -->";
   const END = "<!-- DIAGNOSIS_JSON_END -->";
@@ -346,7 +359,7 @@ export async function alignAnalysisWithConclusion(content: string, context: { re
   let reasoning: Json | undefined;
   try { reasoning = record(JSON.parse(content.slice(start + START.length, end).trim())); } catch { return content; }
   if (!reasoning || reasoning.stage !== "diagnose") return content;
-  const issues = analysisMisalignments(reasoning, context.recordText);
+  const issues = analysisMisalignments(reasoning, context.recordText, context.closure);
   if (issues.length === 0) return content;
   const overview = record(reasoning.overview)!;
   const pathogenesis = record(reasoning.pathogenesis)!;
@@ -356,7 +369,7 @@ export async function alignAnalysisWithConclusion(content: string, context: { re
     { role: "user", content: JSON.stringify({
       record: context.recordText.slice(0, 3_000),
       disease: text(overview.tcmDiseaseName),
-      primary: deliveredPrimary(reasoning, context.recordText),
+      primary: deliveredPrimary(reasoning, context.recordText, context.closure),
       secondary: strings(overview.secondarySyndromes),
       method: text(record(reasoning.therapy)?.overallMethod),
       current: {
@@ -374,7 +387,7 @@ export async function alignAnalysisWithConclusion(content: string, context: { re
     const rewrite = await rewriteTask("m03_analysis_alignment", "diagnose", messages,
       { maxTokens: 900, timeoutMs: TIMEOUT_MS }, parse, signal).catch(() => undefined);
     const rejection = { reason: rewrite ? "" : "task_failed_or_invalid_json" };
-    accepted = rewrite ? acceptedAlignmentRewrite(reasoning, rewrite, context.recordText, rejection) : undefined;
+    accepted = rewrite ? acceptedAlignmentRewrite(reasoning, rewrite, context.recordText, rejection, context.closure) : undefined;
     console.info("[tcm-cdss:telemetry] m03_analysis_alignment", { issues: issues.map((issue) => issue.code), attempt, rewritten: Boolean(rewrite), accepted: Boolean(accepted), rejected: rejection.reason || null });
     if (accepted) break;
     messages.push({ role: "user", content: JSON.stringify({ rejected: rejection.reason, previousRewrite: rewrite, instruction: "上次稿件未通过同一核对。请修正拒绝原因，仍只重写同一组字段，遵守原结论和逐字病历依据要求。" }) });
