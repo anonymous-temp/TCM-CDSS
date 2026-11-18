@@ -866,7 +866,7 @@ export function textbookDefinitionKeyManifestation(definition: string): string {
  * 「相似」一栏（reason）又只写病类、病机（「同属胃气上逆」「同属老年脑神病证」「便秘常伴腹部不适，需区分主症」），没有一个本例已见的表现或部位。
  * 第五十一轮：n8 鉴别判错 24 份里 17 份是「与本例无相似处」；甲方 11/18 中医鉴别是唯一展示的鉴别。缺项由补写鉴别补足。
  * 不去掉：教材对本病列出的鉴别病；相似处写的是本例已见表现（「同有耳鸣听力下降」）或同一部位（胃痞—胃痛「部位相同易混」）。
- * 缺的必须是该病病名本身的主症（与病名共有两个字以上）；「本例无胸痛彻背」这类鉴别要点不算。
+ * 缺的必须是该病病名本身的主症（与病名共有两个字以上）；「本例无胸痛彻背」这类鉴别要点不算；教材主症与本例已见表现有交集的不算。
  */
 const DIFFERENTIAL_REASON_FILLER = /本例|患者|病人|需要|需与|鉴别|区分|同属|均属|均为|皆属|常与|常伴|可见|可致|病证|病症|相同|相近|相似|易混|混淆|主症|表现|症状|并见|属于|日久|容易|一般|多见|出现|伴有/gu;
 export function tcmDifferentialSelfDeclaredUnrelated(diseaseName: string, rowText: string, recordText: string, currentDisease = "", reasonText?: string): boolean {
@@ -891,7 +891,9 @@ export function tcmDifferentialSelfDeclaredUnrelated(diseaseName: string, rowTex
       }
     }
   }
-  return true;
+  // 教材主症与本例已见表现有交集的不去掉：补写小任务补入的鉴别（候选按这一条选）要点也常写「本例未诉X」，不能被这一条删回去
+  //（第五十一轮新臂：模型的无关鉴别删掉后补入一项，又在规范化出口被删，7 份只剩一个鉴别）。
+  return !textbookDifferentialSharesAffirmedFinding(name, recordText);
 }
 
 /** 有乱码或西医转述的整段不交付，不用换字规则猜测教材原句。 */

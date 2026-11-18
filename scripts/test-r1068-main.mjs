@@ -107,6 +107,14 @@ await check("4.2", "规范化出口按同一判据去掉无相似处的鉴别行
   assert.deepEqual(json.overview.tcmDiseaseDifferentials.map((row) => row.diseaseName), ["口疮"]);
 });
 
+await check("4.3", "教材主症与本例已见表现有交集的鉴别不按无相似处去掉（补写小任务补入的行常写「本例未诉X」）", () => {
+  const dizzy = "主诉：右侧肢体无力2天\n现病史：右侧肢体无力，言语謇涩，伴头晕。";
+  assert.equal(textbook.textbookDifferentialSharesAffirmedFinding("眩晕", dizzy), true);
+  assert.equal(textbook.tcmDifferentialSelfDeclaredUnrelated("眩晕", "同属脑病；本例未诉眩晕、视物旋转", dizzy, "中风", "同属脑病"), false);
+  const plain = "主诉：右侧肢体无力2天\n现病史：右侧肢体无力，言语謇涩。";
+  assert.equal(textbook.tcmDifferentialSelfDeclaredUnrelated("眩晕", "同属脑病；本例未诉眩晕、视物旋转", plain, "中风", "同属脑病"), true, "反证：没有交集时去掉");
+});
+
 await check("5.1", "鉴别典型表现取教材定义里的主症，不贴整段定义；定义只讲病因病类的留空", () => {
   assert.equal(textbook.textbookDefinitionKeyManifestation("胃痞，又称痞满，是指以自觉心下痞塞，胸膈胀满，触之无形，按之柔软，压之无痛为主要症状的病证。"), "自觉心下痞塞，胸膈胀满，触之无形，按之柔软，压之无痛");
   assert.equal(textbook.textbookDefinitionKeyManifestation("心悸，是指病人自觉心中悸动，惊惕不安，甚则不能自主的一种病证。"), "病人自觉心中悸动，惊惕不安，甚则不能自主");
