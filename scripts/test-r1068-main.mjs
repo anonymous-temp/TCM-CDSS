@@ -203,3 +203,16 @@ await check("12.1", "依据定稿预取稿：病名证名病历舌脉流派都�
   assert.equal(rationale.finalRationaleConclusionUnchanged(ctx(["心脾两虚证"], "主诉：心悸1月"), ctx(["心脾两虚证"])), false);
   assert.equal(rationale.finalRationaleConclusionUnchanged(ctx(["心脾两虚证"], undefined, "心悸", { code: "support-yang" }), ctx(["心脾两虚证"])), false);
 });
+
+await check("1.2", "补位关时教材「主症甚」行（若见咳甚）也不补：病历只记了主症，没有记「甚」", () => {
+  const saved = process.env.CDSS_MODIFICATION_TEXTBOOK_FILL;
+  try {
+    delete process.env.CDSS_MODIFICATION_TEXTBOOK_FILL;
+    const st = types.normalizeCaseStateInput({ patient: { age: 30, sex: "男" }, chiefComplaint: "咳嗽3天", symptoms: { 现病史: "咳嗽，咯痰黄稠，咽痛，发热，舌红苔薄黄，脉浮数。" } });
+    const p = { stage: "diagnose", overview: { tcmDiseaseName: "咳嗽", primarySyndrome: "风热犯肺证", recommendedFormulaNames: ["桑菊饮"], primarySyndromeBasis: ["咳嗽，咯痰黄稠"] }, therapy: { overallMethod: "疏风清热，宣肺止咳" }, pathogenesis: { chain: [] } };
+    const rows = c.fillTextbookModificationConditions([], p, st, ["桑叶", "菊花", "苦杏仁", "连翘", "薄荷", "桔梗", "甘草", "芦根"]);
+    assert.ok(rows.every((row) => !/^若/u.test(String(row.trigger || ""))), JSON.stringify(rows.map((row) => row.trigger)));
+  } finally {
+    if (saved === undefined) delete process.env.CDSS_MODIFICATION_TEXTBOOK_FILL; else process.env.CDSS_MODIFICATION_TEXTBOOK_FILL = saved;
+  }
+});

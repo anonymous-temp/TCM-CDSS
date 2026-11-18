@@ -3037,7 +3037,9 @@ export function fillTextbookModificationConditions(rows: Record<string, unknown>
     // 沿用第四十八轮：已有加减已明确处理同一主症时，不再另写该主症加强行。
     const mainSymptom = mainPresent?.trigger.replace(/^本例已见/u, "");
     if (mainSymptom && kept.some((item) => String(item.reason || "").includes(mainSymptom))) continue;
-    if (!present && !main && (!modificationTextbookFillEnabled() || standbyModificationsDelivered())) continue;
+    // 补位关（第五十一轮缺省）时只补病历已见的条件；教材「主症甚」行（「若见咳甚」）条件写的是主症加重，病历没有记「甚」，同样不补
+    //（retest rt-171200 交付了「若见咳甚：加浙贝母」，甲方「条件不在病历里不应该推荐」）。
+    if (!present && (!modificationTextbookFillEnabled() || (!main && standbyModificationsDelivered()))) continue;
     // D1 补位只补与本例已记表现相关的变化（「若疼痛剧烈」对已记疼痛），不补按病泛列、与本例无关的分型或部位
     //（第四十九轮 r49a 甲方病历8 胁肋带状疱疹补了两条「若见发于头面」，评审判错；甲方 11.05 也点过「按疾病本身推荐」）。
     if (!present && !main && textbookFillSiteVariantAbsent(condition, recordText)) continue;

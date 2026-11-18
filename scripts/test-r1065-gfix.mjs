@@ -41,15 +41,11 @@ await check('1.3', '不恢复无教材依据的主症或备用若字条件', () 
   assert.equal(compiler.presentModificationCondition('若便溏', context.recordText, context), undefined);
   assert.equal(compiler.modificationTriggerNotFinding('未接受检查', context), 'normal_or_meta');
 });
-await check('1.4', '教材主症补足走剂量配伍核对，已有药和条件足额不再加', () => {
+await check('1.4', '第五十一轮：补位关时教材「主症甚」行不补（条件写主症加重而病历没记）；已有药和条件足额不再加', () => {
   const acid = { ...prior, pathogenesis: { chain: [{ nodeId: 'P1', patientFact: '反酸', pathogenesis: '肝火犯胃', therapyDirection: '清肝和胃' }] }, overview: { ...prior.overview, tcmDiseaseName: '吐酸', primarySyndrome: '热证', recommendedFormulaNames: ['左金丸'] }, therapy: { overallMethod: '清肝泻火，和胃降逆' } };
   const patient = { ...state, chiefComplaint: '反酸1月', symptoms: { 现病史: '反酸，烧心。' } };
   const result = compiler.topUpTextbookMainSymptom([], acid, patient, ['海螵蛸']);
-  assert.equal(result.length, 1);
-  assert.match(result[0].trigger, /^若见/u);
-  assert.equal(result[0].evidence.evidenceLevel, "kb_entry");
-  assert.match(result[0].evidence.source, /加减/u);
-  assert.ok(result[0].doseOrHandling);
+  assert.equal(result.length, 0, '第五十一轮（甲方 11/18「条件不在病历里不应该推荐」）：「若见反酸甚」不补');
   assert.equal(compiler.topUpTextbookMainSymptom([], acid, patient, ['海螵蛸', '煅瓦楞子']).length, 0);
   const full = [{ trigger: '腹胀', herbName: '厚朴' }, { trigger: '嗳气', herbName: '木香' }];
   assert.equal(compiler.topUpTextbookMainSymptom(full, acid, { ...patient, symptoms: { 现病史: '反酸，腹胀，嗳气。' } }).length, 2);
@@ -58,10 +54,14 @@ await check('1.4', '教材主症补足走剂量配伍核对，已有药和条件
 await check('1.5', '教材主症补足先核对功效，不将制酸药的止血功效混作本例目的', () => {
   const acid = { ...prior, pathogenesis: { chain: [{ nodeId: 'P1', patientFact: '反酸', pathogenesis: '肝火犯胃', therapyDirection: '清肝和胃' }] }, overview: { ...prior.overview, tcmDiseaseName: '吐酸', primarySyndrome: '热证', recommendedFormulaNames: ['左金丸'] }, therapy: { overallMethod: '清肝泻火，和胃降逆' } };
   const patient = { ...state, chiefComplaint: '反酸1月', symptoms: { 现病史: '反酸，烧心。' } };
-  const result = compiler.topUpTextbookMainSymptom([], acid, patient, ['海螵蛸']);
-  assert.equal(result.length, 1);
-  assert.equal(result[0].herbName, '煅瓦楞子');
-  assert.doesNotMatch(result[0].reason, /止血/u);
+  // 第五十一轮起主症甚行只在补位打开（CDSS_MODIFICATION_TEXTBOOK_FILL=true）时补；功效核对本身照钉。
+  process.env.CDSS_MODIFICATION_TEXTBOOK_FILL = 'true';
+  try {
+    const result = compiler.topUpTextbookMainSymptom([], acid, patient, ['海螵蛸']);
+    const shell = result.find((row) => row.herbName === '煅瓦楞子');
+    assert.ok(shell, JSON.stringify(result.map((row) => row.herbName)));
+    assert.doesNotMatch(shell.reason, /止血/u);
+  } finally { process.env.CDSS_MODIFICATION_TEXTBOOK_FILL = 'false'; }
 });
 await check('2.1', '易感因素和背景病不顶替本次问题；直接表现可关联', () => {
   assert.equal(encounter.establishedDiseaseExplainsEncounter('2型糖尿病', '尿频尿急再发5天'), false);
