@@ -1316,9 +1316,9 @@ export function modificationTriggerNotFinding(trigger: string, context: Modifica
   if ((red || focus || gate?.semanticTriage?.level === "priority_review") && modificationConditionSymptomTerms(body).some((term) => term.length >= 2 && quotes.some((quote) => quote.includes(term) || (quote.trim().length >= 3 && term.includes(quote.trim()))))) return "emergency_sign";
   const recordText = context.recordText || "";
   const chief = context.caseState?.chiefComplaint || new RegExp(triggerPolicy.chiefComplaintPattern, "u").exec(recordText)?.[1] || "";
-  // 主诉里「伴」之前列出的每一个主症都算（第五十一轮：「左眼剧痛、视物模糊」「对呼名反应弱、语言表达落后」的第二个主症曾被当作加减条件，
-  // 评审判「条件即主诉本身」）；「伴」之后的是伴随表现，照旧可作条件。
-  const chiefSegments = chief.split(/伴|兼/u)[0].split(/[，,、；;。及与和]/u).map((part) => part.replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim()).filter((part) => part.length >= 2);
+  // 主诉里列出的每一个症状都算主诉本身，「伴」之后的也算（第五十一轮：「左眼剧痛、视物模糊」「恶寒、发热伴鼻塞、流涕」的后几项曾被当作
+  // 加减条件，评审判「条件即主诉本身，主方已覆盖」）。病历其余部分记的伴随表现照旧可作条件。
+  const chiefSegments = chief.split(/[，,、；;。及与和]|伴有?|兼/u).map((part) => part.replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim()).filter((part) => part.length >= 2);
   const main = chiefSegments[0] || chief.split(/[，,、；;。伴及与和]/u)[0].replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim();
   const disease = context.prior?.overview?.tcmDiseaseName || "";
   const descriptors = triggerPolicy.mainSymptomDescriptors.filter((row) => row.diseases.includes(disease) || row.terms.some((term) => main.includes(term))).flatMap((row) => row.terms);

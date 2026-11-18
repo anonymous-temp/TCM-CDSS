@@ -8,6 +8,7 @@ import { westernDiagnosisAbbreviations } from "./western-diagnosis-aliases";
 import { recordMentionPolarityAt } from "./diagnosis-safety";
 import { settleWesternRecurrenceQualifier } from "./western-recurrence-qualifier";
 import westernNamePreferred from "../data/western-name-preferred.source.json" with { type: "json" };
+import establishmentWords from "../data/western-establishment-check.source.json" with { type: "json" };
 
 /**
  * 西医依据里说「尚缺/未查 X 检查」、而病历已经写了 X 的结果（第四十一轮，r1054 回顾 n12：病历「肌酸激酶正常，甲状腺功能正常，
@@ -264,11 +265,14 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
   // 两头一致：依据说未确立就待查，依据说可临床诊断就不待查（上感待查而依据说「临床可以诊断」的另一类错同样消失）。
   // 依据句明说未确立（须先排除另一严重病、需专科检查确立诊断、暂按此考虑、写待查）时，表里任何一类病都不去掉待查——
   // 第二轮配对盲评：有病程门槛的焦虑障碍、慢性疲劳综合征病程够了就去掉待查，依据却写「故写症状名待查」「暂按此考虑」。
-  const explicitlyNotEstablished = !known && !treated && new RegExp(certaintyPolicy.clinicalNotEstablishedPattern, "u").test(cleaned);
+  // 排除性诊断的依据还要排除器质性疾病时，病名未确立（第五十一轮：「原发性痛经」依据写「尚需盆腔超声排除子宫内膜异位症…等器质性疾病」）。
+  const exclusionName = [...establishmentWords.exclusionDiagnosisWords, ...((establishmentWords as { organicExclusionBasisNames?: string[] }).organicExclusionBasisNames || [])].some((word) => core.includes(word));
+  const organicStillToExclude = exclusionName && /(?:尚需|仍需|还需|需|尚未|未)[^。；;]{0,24}排除[^。；;]{0,30}器质/u.test(cleaned);
+  const explicitlyNotEstablished = !known && !treated && (new RegExp(certaintyPolicy.clinicalNotEstablishedPattern, "u").test(cleaned) || organicStillToExclude);
   const pending = criteria && !criteria.clinicalOnly ? criteria.pending || explicitlyNotEstablished
     : criteria?.clinicalOnly ? explicitlyNotEstablished ||
       (!known && !treated && basisSaysNameNotEstablished(cleaned.split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part)).join("。"), core))
-      : (!treated && (/待[查排]$/u.test(name) || (!known && basisSaysNameNotEstablished(cleaned, core))));
+      : (!treated && (/待[查排]$/u.test(name) || (!known && (basisSaysNameNotEstablished(cleaned, core) || organicStillToExclude))));
   const escaped = escapePattern(core);
   const established = new RegExp(`(?:${escaped})?诊断(?:${escaped})?(?:已|可)?(?:确立|成立|明确)|据此临床诊断${escaped}`, "u");
   const speculative = new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}`, "u");

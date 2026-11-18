@@ -84,6 +84,9 @@ await check("3.2", "依据写「诊断待客观依据确立」「尚未排除…
   const panic = "主诉：突发心悸10分钟\n现病史：伴濒死感，10分钟内自行缓解，发作间期正常。";
   assert.equal(claims.settleWesternDiagnosisBasis("惊恐障碍", "突发心悸伴濒死恐惧，10分钟内缓解，符合惊恐发作特征；但尚未排除心律失常、甲亢、低血糖等器质性病因。", panic).name, "惊恐障碍待查");
   assert.equal(claims.settleWesternDiagnosisBasis("惊恐障碍", "突发心悸伴濒死恐惧，符合惊恐发作特征；但尚未排除心律失常、甲亢等器质病因，需先完成急诊评估。", panic).name, "惊恐障碍待查", "「器质病因」同样算");
+  const pain = "患者性别：女\n患者年龄：24岁\n主诉：经期腹痛半年\n现病史：经行小腹疼痛，经后缓解。";
+  assert.equal(claims.settleWesternDiagnosisBasis("原发性痛经", "初潮后经期周期性下腹痛，经后缓解，符合原发性痛经表现；尚需盆腔超声排除子宫内膜异位症、子宫腺肌病等器质性疾病。", pain).name, "原发性痛经待查", "排除性诊断的依据还要排除器质性疾病");
+  assert.equal(claims.settleWesternDiagnosisBasis("原发性痛经", "初潮后即出现经期周期性下腹痛，盆腔超声未见异常，符合原发性痛经。", pain).name, "原发性痛经", "反证：已排除的不加待查");
   assert.equal(claims.settleWesternDiagnosisBasis("惊恐障碍", "反复突发心悸伴濒死恐惧，心电图、甲功、血糖均正常，符合惊恐障碍诊断标准。", panic).name, "惊恐障碍", "反证：已排除器质性病因的不加待查");
 });
 
@@ -172,11 +175,12 @@ const indication = await jiti.import("../src/lib/herb-indication.ts");
 const surface = await jiti.import("../src/lib/delivered-surface.ts");
 const rationale = await jiti.import("../src/lib/m03-final-rationale.server.ts");
 
-await check("10.1", "加减条件：主诉里「伴」之前的每个主症都算主诉本身；「伴」之后的伴随表现仍可作条件", () => {
+await check("10.1", "加减条件：主诉里列出的每个症状（含「伴」之后）都算主诉本身；主诉以外的伴随表现仍可作条件", () => {
   const ctx = (chiefComplaint) => ({ caseState: { chiefComplaint }, recordText: `主诉：${chiefComplaint}` });
   assert.equal(c.modificationTriggerNotFinding("视物模糊", ctx("左眼剧痛、视物模糊2天")), "main_symptom");
   assert.equal(c.modificationTriggerNotFinding("左眼剧痛", ctx("左眼剧痛、视物模糊2天")), "main_symptom");
-  assert.equal(c.modificationTriggerNotFinding("口干", ctx("胃脘疼痛3天，伴口干")), undefined, "反证：伴随表现不是主症");
+  assert.equal(c.modificationTriggerNotFinding("流涕", ctx("恶寒、发热伴鼻塞、流涕2天")), "main_symptom", "主诉里「伴」之后列的也是主诉本身");
+  assert.equal(c.modificationTriggerNotFinding("口干", ctx("胃脘疼痛3天")), undefined, "反证：主诉以外的伴随表现可作条件");
 });
 
 await check("10.2", "加减核对给模型看《中药学》主治范围（功效＋【应用】标题）；药症不对的行不再为凑条数保留", () => {
