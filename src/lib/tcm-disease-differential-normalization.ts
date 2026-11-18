@@ -4,7 +4,7 @@ import { westernDiagnosisAbbreviationFullName } from "./western-diagnosis-aliase
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import icd10IndexJson from "../data/icd10-diagnosis-index.json" with { type: "json" };
 import { governedTcmDiseaseCode, resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
-import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, subtypeParentDisease, subtypeTextbookDifferentialName, textbookDiseaseDefinitionText, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, subtypeParentDisease, subtypeTextbookDifferentialName, textbookDiseaseDefinitionText, textbookDifferentialsForDisease, tcmDifferentialSelfDeclaredUnrelated } from "./tcm-textbook-syndromes";
 
 /**
  * 中医病名鉴别栏只收中医病名（2026-09-29，甲方 9.24/9.27 测评 1.1：风寒感冒例的中医鉴别写了「流感」）。
@@ -223,6 +223,12 @@ export function normalizeM03TcmDiseaseDifferentialNames(content: string, recordT
         return [];
       }
       const finalName = resolution.name;
+      // 自己说本例没有这个病的主症、与本例已见表现也没有交集的鉴别病不留（第五十一轮；与补写鉴别计数同一判据）。
+      if (recordText && tcmDifferentialSelfDeclaredUnrelated(finalName, `${String(row.reason || "")}；${String(row.distinguishingPoints || "")}`, recordText, currentDisease, String(row.reason || ""))) {
+        changed = true;
+        console.info("[tcm-cdss:telemetry] tcm_disease_differential_normalized", { action: "drop_unrelated" });
+        return [];
+      }
       if (seen.has(finalName)) {
         changed = true;
         return [];

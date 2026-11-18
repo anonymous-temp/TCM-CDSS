@@ -826,9 +826,66 @@ export function textbookDiseaseDefinition(diseaseName: string, ageYears?: number
   return entry ? entry.definition.split(/(?<=。)/u)[0].trim().slice(0, 120) : "";
 }
 
-/** 鉴别病的典型表现直接取该病教材定义全文；不截成半句话，不让模型补定义。 */
+/**
+ * 鉴别病的典型表现取该病教材定义里的主症部分（「以……为主要表现」「是指……的病证」「……，称为X」），不贴整段定义。
+ * 第五十一轮：评审与甲方都判「只抄定义、不结合本例」（n8 鉴别判错 24 份里多份点名「大段抄定义」）；定义里没有主症写法的
+ *（「暑温是感受暑热病邪引起的一种急性外感热病」「虚劳…的总称」只讲病因、病类）不交付典型表现，留空。
+ */
 export function textbookDiseaseTypicalManifestation(diseaseName: string): string {
-  return differentialDefinitionEntries(diseaseName).map((entry) => text(entry.definition)).find(textbookDefinitionSuitableForDisplay) || "";
+  for (const definition of differentialDefinitionEntries(diseaseName).map((entry) => text(entry.definition)).filter(textbookDefinitionSuitableForDisplay)) {
+    const key = textbookDefinitionKeyManifestation(definition);
+    if (key) return key;
+  }
+  return "";
+}
+
+/** 教材定义句里的主症部分；取不出时为空。只截原文，不改写。 */
+export function textbookDefinitionKeyManifestation(definition: string): string {
+  const source = text(definition).split(/(?<=。)/u).slice(0, 2).join("");
+  const clean = (value: string) => value.replace(/[，,]?(?:又称|亦称|俗称|简称)[^。]*$/u, "").replace(/为(?:主要|主)?(?:临床)?(?:特征|症状|表现|主症)$/u, "")
+    .replace(/^[，,、\s]+|[，,、等\s]+$/gu, "").replace(/等症$/u, "").trim();
+  const ok = (value: string) => value.length >= 4 && value.length <= 60 ? value : "";
+  // 「以A为主要病机，以B为主要临床表现」取后一个；捕获里不跨「以」，不把病机段并进来。
+  const featured = [...source.matchAll(/以([^。以]{2,80}?)(?:等症|等)?为(?:主要|主)?(?:临床)?(?:特征|症状|表现|主症)/gu)].map((match) => clean(match[1]));
+  if (featured.length) return featured[featured.length - 1].length >= 2 && featured[featured.length - 1].length <= 60 ? featured[featured.length - 1] : "";
+  const pointed = /(?:是指|系指)([^。]{4,80}?)(?:的(?:一种|一类)?(?:病证|疾病|病症|证候|病)|。|$)/u.exec(source);
+  if (pointed) return ok(clean(pointed[1].replace(/^以/u, "")));
+  const called = /^([^。]{4,60}?)[，,](?:中医)?(?:称为|称之为|名为)/u.exec(source);
+  if (called) return ok(clean(called[1]));
+  return "";
+}
+
+/**
+ * 模型写的鉴别病与本例无相似处：自己写着本例没有这个病的主症（「头痛……未诉头痛」「眩晕……未诉头晕目眩」「腹痛……近期无明显腹痛」），
+ * 「相似」一栏（reason）又只写病类、病机（「同属胃气上逆」「同属老年脑神病证」「便秘常伴腹部不适，需区分主症」），没有一个本例已见的表现或部位。
+ * 第五十一轮：n8 鉴别判错 24 份里 17 份是「与本例无相似处」；甲方 11/18 中医鉴别是唯一展示的鉴别。缺项由补写鉴别补足。
+ * 不去掉：教材对本病列出的鉴别病；相似处写的是本例已见表现（「同有耳鸣听力下降」）或同一部位（胃痞—胃痛「部位相同易混」）。
+ * 缺的必须是该病病名本身的主症（与病名共有两个字以上）；「本例无胸痛彻背」这类鉴别要点不算。
+ */
+const DIFFERENTIAL_REASON_FILLER = /本例|患者|病人|需要|需与|鉴别|区分|同属|均属|均为|皆属|常与|常伴|可见|可致|病证|病症|相同|相近|相似|易混|混淆|主症|表现|症状|并见|属于|日久|容易|一般|多见|出现|伴有/gu;
+export function tcmDifferentialSelfDeclaredUnrelated(diseaseName: string, rowText: string, recordText: string, currentDisease = "", reasonText?: string): boolean {
+  const name = splitTextbookDiseaseSubtype(text(diseaseName)).disease;
+  if (name.length < 2 || !rowText || !recordText) return false;
+  // 教材对本病列出的鉴别病不按这一条去掉。
+  if (currentDisease && textbookDifferentialsForDisease(currentDisease, 50).some((item) => item.name === name || splitTextbookDiseaseSubtype(item.name).disease === name)) return false;
+  const nameChars = [...new Set([...name])];
+  const declared = [...rowText.matchAll(/(?:未诉|未见|未有|不伴|并无|无明显|无)([\u4e00-\u9fff]{2,10})/gu)].some((match) =>
+    nameChars.filter((ch) => match[1].includes(ch)).length >= Math.min(2, nameChars.length));
+  if (!declared) return false;
+  const reason = text(reasonText ?? rowText.split("；")[0]);
+  if (/部位|病位|同在|同居|同处/u.test(reason)) return false;
+  const residue = reason.replace(DIFFERENTIAL_REASON_FILLER, "，");
+  for (const run of residue.match(/[\u4e00-\u9fff]{2,}/gu) || []) {
+    for (let width = Math.min(4, run.length); width >= 2; width -= 1) {
+      for (let at = 0; at + width <= run.length; at += 1) {
+        const term = run.slice(at, at + width);
+        for (let index = recordText.indexOf(term); index >= 0; index = recordText.indexOf(term, index + 1)) {
+          if (recordMentionPolarityAt(recordText, index) === "affirmed") return false;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 /** 有乱码或西医转述的整段不交付，不用换字规则猜测教材原句。 */

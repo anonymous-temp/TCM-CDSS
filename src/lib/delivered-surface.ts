@@ -1988,7 +1988,7 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
   }
 }
 
-type CompositeSyndromeRule = { primary: string[]; addLocation?: string; requiresNature?: string[]; addNature?: string[]; natureSigns?: string[]; components: string[]; composite: string };
+type CompositeSyndromeRule = { primary: string[]; addLocation?: string; requiresNature?: string[]; addNature?: string[]; natureSigns?: string[]; components: string[]; composite: string; addMethod?: string };
 const COMPOSITE_SYNDROME_RULES = (compositeSyndromeSource as { rules: CompositeSyndromeRule[] }).rules;
 
 /** Apply the previously grounded rule to the current draft without copying the old analysis. */
@@ -2052,6 +2052,16 @@ export function compositeSyndromeRename(reasoning: Json, recordText: string, req
     }
     if (!resolveNationalStandardTcmSyndromeTerm(rule.composite)) continue;
     applyGovernedCompositeName(overview, primary, secondaries, rule.composite);
+    // 气阴两虚、气血两虚这类合称多出的证素要有对应治法（第五十一轮）：总治法里还没有这一项时补在末尾。
+    const therapy = record(reasoning.therapy);
+    if (rule.addMethod && therapy && typeof therapy.overallMethod === "string") {
+      // 同一治法的常见写法（补气＝益气，补血＝养血，滋阴＝养阴）都算已有。
+      const SAME_METHOD: Record<string, string[]> = { 益气: ["益气", "补气"], 养血: ["养血", "补血"], 养阴: ["养阴", "滋阴"] };
+      const head = rule.addMethod.slice(0, 2), tail = rule.addMethod.slice(2);
+      const method = therapy.overallMethod.trim();
+      const has = (part: string) => (SAME_METHOD[part] || [part]).some((form) => method.includes(form));
+      if (!(has(head) && has(tail))) therapy.overallMethod = method ? `${method.replace(/[，,；;。]+$/u, "")}，${rule.addMethod}` : rule.addMethod;
+    }
     return { from: [primary, ...secondaries].join("兼"), to: rule.composite };
   }
   return undefined;

@@ -1,11 +1,15 @@
 import constraints from "../data/rx-case-constraints.source.json";
 import { recordedFindingReading } from "./diagnosis-safety";
+import { assessPregnancyState, isPositiveOrPossibleClinicalState } from "./clinical-state";
 
 /** Only explicit label stop/contraindication instructions and affirmed current patient findings. */
 export function medicineLabelConflictsWithCase(label: { riskNote?: unknown; contraindication?: unknown; precaution?: unknown; indication?: unknown; functionIndication?: unknown }, caseText: string): boolean {
   if (!caseText) return false;
   const current = caseText.split("\n").filter((line) => !constraints.nonCurrentFindingFields.includes(line.match(/^\s*([^:：]+)[:：]/u)?.[1].trim() || "")).join("\n");
   const warning = [label.riskNote, label.contraindication, label.precaution].filter((value) => typeof value === "string").join("；");
+  // 病历记录在孕或可疑妊娠：说明书写孕妇禁用、忌用、慎用的中成药不推荐（第五十一轮，甲方 100 例 C097 孕 12 周推荐了说明书孕妇慎用的成药且未提示；
+  // 与饮片「已记录妊娠不用药典孕妇慎用药」同一口径）。
+  if (/(?:孕妇|妊娠期妇女|妊娠期|怀孕)[^。；;\n]{0,4}(?:禁用|忌用|慎用|忌服|慎服)/u.test(warning) && isPositiveOrPossibleClinicalState(assessPregnancyState(caseText))) return true;
   for (const clause of warning.split(/[。；;\n]/u)) {
     if (!/停[药用服]|禁用/u.test(clause)) continue;
     // Conditional adverse-event lists are bound to the stop instruction, not unrelated neighboring warnings.

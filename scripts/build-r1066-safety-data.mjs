@@ -9,6 +9,7 @@ const oldDrugFile='western-drug-condition-cautions.source.json';
 const herbs=read(herbFile), drug=read(drugFile), oldDrug=read(oldDrugFile);
 const ensure=(ok,message)=>{if(!ok)throw Error(message);};
 ensure(herbs.category==='活血化瘀药','herb category');
+ensure(!herbs.extraCategories||(Array.isArray(herbs.extraCategories)&&herbs.extraCategories.every(c=>c==='化瘀止血药')),'extra herb categories');
 ensure(Array.isArray(drug.medicationListLabels)&&drug.medicationListLabels.length>0,'medication list labels');
 for(const row of herbs.entries){
  ensure(row.name&&Array.isArray(row.aliases)&&['increase_bleeding','decrease_anticoagulation','conflicting_evidence'].includes(row.direction),`herb identity/direction ${row.name}`);

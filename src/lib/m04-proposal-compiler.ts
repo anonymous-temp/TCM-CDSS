@@ -1316,11 +1316,17 @@ export function modificationTriggerNotFinding(trigger: string, context: Modifica
   if ((red || focus || gate?.semanticTriage?.level === "priority_review") && modificationConditionSymptomTerms(body).some((term) => term.length >= 2 && quotes.some((quote) => quote.includes(term) || (quote.trim().length >= 3 && term.includes(quote.trim()))))) return "emergency_sign";
   const recordText = context.recordText || "";
   const chief = context.caseState?.chiefComplaint || new RegExp(triggerPolicy.chiefComplaintPattern, "u").exec(recordText)?.[1] || "";
-  const main = chief.split(/[，,、；;。伴及与和]/u)[0].replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim();
+  // 主诉里「伴」之前列出的每一个主症都算（第五十一轮：「左眼剧痛、视物模糊」「对呼名反应弱、语言表达落后」的第二个主症曾被当作加减条件，
+  // 评审判「条件即主诉本身」）；「伴」之后的是伴随表现，照旧可作条件。
+  const chiefSegments = chief.split(/伴|兼/u)[0].split(/[，,、；;。及与和]/u).map((part) => part.replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim()).filter((part) => part.length >= 2);
+  const main = chiefSegments[0] || chief.split(/[，,、；;。伴及与和]/u)[0].replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim();
   const disease = context.prior?.overview?.tcmDiseaseName || "";
   const descriptors = triggerPolicy.mainSymptomDescriptors.filter((row) => row.diseases.includes(disease) || row.terms.some((term) => main.includes(term))).flatMap((row) => row.terms);
   const terms = modificationConditionSymptomTerms(body.replace(new RegExp(triggerPolicy.durationPattern, "gu"), ""));
-  const mainForms = [...new Set([main, ...(MODIFICATION_RELEVANCE.equivalents[main] || []), ...negationGroundingEquivalents(main), ...descriptors])].filter((form) => form.length >= 2);
+  const mainForms = [...new Set([...(chiefSegments.length ? chiefSegments : [main]).flatMap((segment) => [segment, ...(MODIFICATION_RELEVANCE.equivalents[segment] || []), ...negationGroundingEquivalents(segment)]), ...descriptors])].filter((form) => form.length >= 2);
+  // 条件逐字就是主诉里的一个主症（「左眼剧痛」），程度词是主诉自带的，不算另记的特点。
+  const bodyCore = body.replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim();
+  if (chiefSegments.includes(bodyCore)) return "main_symptom";
   const characteristic = recordedMainSymptomCharacteristic(body, context);
   if (characteristic) return undefined;
   if (terms.length > 0 && mainForms.length > 0 && terms.every((term) => mainForms.some((form) => form.includes(term) || term === form))) return "main_symptom";
@@ -1376,8 +1382,12 @@ export function modificationIsTextbookFill(row: { trigger?: unknown; herbName?: 
   return Boolean(source && evidence.evidenceLevel === "kb_entry" && evidence.source === source.source);
 }
 
+/**
+ * 第四十九轮 D1（教材「若见X」行补位到两条）第五十一轮起缺省关：甲方 11/18 批注「不是没采纳就没问题，而是不应该推荐」——
+ * 条件不在病历里的加减行不交付（用户 11/18 决定）。`CDSS_MODIFICATION_TEXTBOOK_FILL=true` 恢复补位。
+ */
 export function modificationTextbookFillEnabled(): boolean {
-  return process.env.CDSS_MODIFICATION_TEXTBOOK_FILL !== "false";
+  return process.env.CDSS_MODIFICATION_TEXTBOOK_FILL === "true";
 }
 
 /** 本病本证教材的“主症甚”条目可以补一项；这里只认已见的主症，不声称病历记录了程度。 */
@@ -3015,7 +3025,7 @@ export function fillTextbookModificationConditions(rows: Record<string, unknown>
   const ageYears = authoritativePatientAgeYears(caseState);
   const fillDose = (limit: { min?: number | null; max?: number | null }) => ageYears !== undefined && ageYears >= 18 && limit.max && limit.min
     ? `${Math.max(limit.min, Math.round((limit.min + limit.max) / 2))}g` : `${limit.min}g`;
-  // 已记录的教材条件优先；D1 缺省开，false 时仍允许已记表现的教材加强。
+  // 已记录的教材条件优先；D1 缺省关（第五十一轮），关时只允许已记表现的教材加强。
   const entries = [...textbook.modifications].sort((left, right) => Number(!modificationConditionAlreadyPresent(left.condition, recordText)) - Number(!modificationConditionAlreadyPresent(right.condition, recordText)));
   for (const entry of entries) {
     if (distinctModificationConditions(kept) >= 2 || kept.length >= MAX_DELIVERED_MODIFICATION_ROWS) break;

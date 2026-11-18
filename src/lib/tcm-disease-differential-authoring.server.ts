@@ -5,7 +5,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { MIN_TCM_DIFFERENTIALS, WESTERN_DISEASE_FORM, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
-import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesAffirmedFinding, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesAffirmedFinding, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, tcmDifferentialSelfDeclaredUnrelated } from "./tcm-textbook-syndromes";
 
 /**
  * 中医鉴别（病名级、证候级）不足两项时，只补写缺的那几项（2026-10-14 起补写病名级为空的；2026-10-19 第九轮改为补到两项）。
@@ -128,7 +128,7 @@ const record = (value: unknown): Json | undefined => value && typeof value === "
  * 模型写的病名鉴别里能留在交付结果里的行：病名归一得了（不是西医病名）、不与本病同名，按归一后的病名去重。
  * 与 normalizeM03TcmDiseaseDifferentialNames 同一个判据，所以这里数出来的就是交付时留下的。
  */
-export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: string, patient?: { sex?: string }, recordText?: string): Array<{ row: Json; name: string }> {
+export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: string, patient?: { sex?: string }, recordText?: string, unrelatedCheckText?: string): Array<{ row: Json; name: string }> {
   const seen = new Set<string>();
   const out: Array<{ row: Json; name: string }> = [];
   for (const raw of Array.isArray(rows) ? rows : []) {
@@ -137,7 +137,8 @@ export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: st
     if (!row || !name) continue;
     const resolved = resolveTcmDiseaseDifferentialName(name, diseaseName);
     if (resolved.action === "drop" || seen.has(resolved.name) || !tcmDifferentialDiseaseFitsPatient(resolved.name, patient) ||
-      (recordText && !textbookDifferentialSharesChiefComplaint(resolved.name, recordText))) continue;
+      (recordText && !textbookDifferentialSharesChiefComplaint(resolved.name, recordText)) ||
+      (unrelatedCheckText && tcmDifferentialSelfDeclaredUnrelated(resolved.name, `${text(row.reason)}；${text(row.distinguishingPoints)}`, unrelatedCheckText, diseaseName, text(row.reason)))) continue;
     // 分型病只数讲到本型的（交付面同一个判据 textbookDifferentialFitsSubtype）：血证（鼻衄）不数紫斑段的温病发斑、丹毒。
     const { disease: base, subtype } = splitTextbookDiseaseSubtype(diseaseName);
     if (subtype && !textbookDifferentialFitsSubtype(base, subtype, resolved.name)) continue;
@@ -399,7 +400,7 @@ function planTopUp(overview: Json | undefined, context: TopUpContext): TopUpPlan
   const primary = text(overview.primarySyndrome);
   // 模型自己写的鉴别病不按「与主诉主症有交集」过滤（第四十七轮：那一条只管服务端补入的病；用在模型写的鉴别上，
   // 200 份回放里鉴别不足 2 个的从 4 份涨到 162 份，违背甲方「至少两个鉴别」）。
-  const diseaseRows = retainableDiseaseDifferentialRows(overview.tcmDiseaseDifferentials, diseaseName, context.patient);
+  const diseaseRows = retainableDiseaseDifferentialRows(overview.tcmDiseaseDifferentials, diseaseName, context.patient, undefined, context.recordText);
   const syndromeRows = retainableSyndromeDifferentialRows(overview.tcmDifferentials, primary);
   const needDisease = Math.max(0, MIN_TCM_DIFFERENTIALS - diseaseRows.length);
   // 证候鉴别：模型已经写了至少一项才补；整栏留空的（常伴「资料不足以鉴别」的说明）不替它改口。

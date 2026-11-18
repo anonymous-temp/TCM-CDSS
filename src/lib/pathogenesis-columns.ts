@@ -199,18 +199,43 @@ export function reconcileAnalysisUncertainties(reasoning: Json, recordText: stri
 }
 
 const methodItems = (value: string): string[] => [...new Set(value.split(/[，,、；;。]/u).map((item) => item.trim()).filter(Boolean))];
-/** The delivered overall method is the only phrase authority. A fallback copies a related existing item, never authors a method. */
+/**
+ * The delivered overall method is the phrase authority when a node's own direction or its mechanism corresponds to one of its items.
+ * 第五十一轮：没有对应项时保留模型原写的节点治法（四十九轮曾一律换成总治法第一项：「热邪伤津，肠道失润 → 疏风清热」，
+ * 272 条多节点链里 149 条两节点治法相同，同一份 subTherapies 仍写「清热生津，润肠通便」；甲方按接口原始数据看病机）。
+ * 节点治法改动后，以同一病机为目标的 subTherapies 同步改写。
+ */
 export function reconcileChainTherapy(reasoning: Json): void {
   const pathogenesis = object(reasoning.pathogenesis);
   const overall = methodItems(text(object(reasoning.therapy)?.overallMethod));
   if (!pathogenesis) return;
+  const used = new Set<string>();
+  const changed = new Map<string, string>();
   for (const node of rows(pathogenesis.chain)) {
-    const kept = methodItems(text(node.therapyDirection)).filter((item) => overall.some((method) => method.includes(item)));
-    if (kept.length) { node.therapyDirection = kept.join("，"); continue; }
-    const mechanism = text(node.pathogenesis);
-    const scores = overall.map((method, index) => ({ method, index, score: policy.therapyElements.reduce((sum, row) => sum + (row.pathogenesis.some((word) => mechanism.includes(word)) && row.method.some((word) => method.includes(word)) ? 1 : 0), 0) }));
-    scores.sort((a, b) => b.score - a.score || a.index - b.index);
-    node.therapyDirection = scores[0]?.method || "";
+    const original = text(node.therapyDirection);
+    const kept = methodItems(original).filter((item) => overall.some((method) => method.includes(item)));
+    let next = original;
+    // 整句照抄总治法（多节点时每个节点都一样）不算节点自己的治法，按病机重新对应。
+    const copiedOverall = rows(pathogenesis.chain).length > 1 && methodItems(original).length > 1 && methodItems(original).join("，") === overall.join("，");
+    if (kept.length && !copiedOverall) next = kept.join("，");
+    else if (original && !copiedOverall) next = original;
+    else {
+      const mechanism = text(node.pathogenesis);
+      const scores = overall.map((method, index) => ({ method, index, score: policy.therapyElements.reduce((sum, row) => sum + (row.pathogenesis.some((word) => mechanism.includes(word)) && row.method.some((word) => method.includes(word)) ? 1 : 0), 0) }))
+        .filter((row) => row.score > 0);
+      // 同分时先用前面节点还没用过的项，避免几个节点都落到同一项。
+      scores.sort((a, b) => b.score - a.score || Number(used.has(a.method)) - Number(used.has(b.method)) || a.index - b.index);
+      if (scores[0]) next = scores[0].method;
+    }
+    for (const item of methodItems(next)) used.add(item);
+    if (next !== original) { changed.set(text(node.pathogenesis), next); node.therapyDirection = next; }
+  }
+  const therapy = object(reasoning.therapy);
+  if (changed.size && therapy && Array.isArray(therapy.subTherapies)) {
+    for (const row of rows(therapy.subTherapies)) {
+      const replacement = changed.get(text(row.targetPathogenesis));
+      if (replacement) row.therapy = replacement;
+    }
   }
 }
 

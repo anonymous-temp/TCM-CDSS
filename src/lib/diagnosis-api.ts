@@ -4390,6 +4390,8 @@ async function callPrimaryTextModelStream(
             waivedIssueCodes: [...new Set([...(m04AcceptanceScope?.waivedIssueCodes || []), reason])],
             qualityAnnotationCodes: [...new Set([...(m04AcceptanceScope?.qualityAnnotationCodes || []), reason])],
           };
+          // 日志名里的「after repair」含零修复预算：T2 质量码（如 herb_N_function_ungrounded）不触发修复轮，这条只表示带批注受理。
+          // 第五十一轮曾据此误判「约一半处方白跑一轮修复」；真实修复轮看 [tcm-cdss:timing] structured_repair_round。
           console.warn("[tcm-cdss:model] M04 quality-tier acceptance after repair", {
             stage: "prescribe",
             reason,

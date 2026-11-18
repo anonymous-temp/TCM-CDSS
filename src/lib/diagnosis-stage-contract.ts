@@ -4115,7 +4115,7 @@ export function m04GenerationSpecialPopulationIssue(
 ): string | undefined {
   if (!clinicalContext.trim()) return undefined;
   // 病历记录在孕（妊娠阳性）：药典 2020 标注孕妇慎用的饮片不作君药、臣药（2026-11-14 第四十五轮，用户定：甲方 100 例 C097 孕 12 周腰酸，
-  // 牛膝、枳壳与川芎、延胡索作君臣行气活血）。佐使位的照常给并逐味标注；加减行不带君臣，不受这一条约束。修复轮把它换掉或降为佐使。
+  // 牛膝、枳壳与川芎、延胡索作君臣行气活血）。第五十一轮起不分君臣佐使（见下）；加减行同一判据（herbAdditionPopulationConflict）。
   // 第四十六轮（总指挥定）扩到可疑妊娠（「不能排除妊娠」「可能怀孕」）：与剂量一致化 D4 可疑妊娠给剂量、医生确认才可采纳同一口径。
   // 妊娠状态没有记录的育龄女性（pregnancy_unknown 档，第十七轮定）不在此列，那一档只避药典孕妇禁用药。
   if (isPositiveOrPossibleClinicalState(assessPregnancyState(clinicalContext))) {
@@ -4124,8 +4124,11 @@ export function m04GenerationSpecialPopulationIssue(
     const pregnancyEvidence = assessPregnancyState(normalizedContext).evidence || "";
     const patientPregnancy = Boolean(pregnancyEvidence) && [...normalizedContext.matchAll(new RegExp(pregnancyEvidence.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "gu"))]
       .some((match) => recordMentionPolarityAt(normalizedContext, match.index!) === "affirmed");
+    // 第五十一轮（用户 11/18 按建议定）：已记录在孕或可疑妊娠时，药典孕妇慎用饮片在任何位置都不用——甲方 P0「特殊人群禁忌 100%」，
+    // 评审判 C064 孕 20 周佐使位的牛膝、C097 孕 12 周的行气药为错。佐使位的由定稿逐味剔除（dropSafetyConflictingM04CandidateHerbs，
+    // 方义改写、notApplicable 写明），君药由修复轮换掉。
     for (const [herbIndex, herb] of herbs.entries()) {
-      if (/君|臣/u.test(String(herb.role || "")) && (chpPregnancyLabel(herb.name)?.level === "caution" || (patientPregnancy && textbookPregnancyRestricted(String(herb.name || ""))))) return `herb_${herbIndex}_special_population_high_risk_pregnancy`;
+      if (chpPregnancyLabel(herb.name)?.level === "caution" || (patientPregnancy && textbookPregnancyRestricted(String(herb.name || "")))) return `herb_${herbIndex}_special_population_high_risk_pregnancy`;
     }
   }
   // 儿童禁用药味（药典 2020、十三五教材、国家药监部门通告；数据 tcm-pediatric-dose-rule.source.json）：与知识库里

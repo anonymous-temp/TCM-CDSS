@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createJiti} from 'jiti';
+// 第五十一轮起 D1 补位缺省关；本套件钉补位本身的行为，显式打开。
+process.env.CDSS_MODIFICATION_TEXTBOOK_FILL='true';
 const jiti=createJiti(import.meta.url,{alias:{'@':`${process.cwd()}/src`,'server-only':`${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`}});
 const c=await jiti.import('../src/lib/m04-proposal-compiler.ts');
 const s=await jiti.import('../src/lib/delivered-surface.ts');
@@ -51,7 +53,7 @@ await check('05','D1 缺省开启、补到两条件且逐字有教材证据',()=
  assert.deepEqual(fill(rows),rows);
 });
 await check('06','D1 开关关闭时不补未知表现，已有两条件时不追加',()=>{
- process.env.CDSS_MODIFICATION_TEXTBOOK_FILL='false';try{assert.equal(fill().length,0);}finally{delete process.env.CDSS_MODIFICATION_TEXTBOOK_FILL;}
+ process.env.CDSS_MODIFICATION_TEXTBOOK_FILL='false';try{assert.equal(fill().length,0);}finally{process.env.CDSS_MODIFICATION_TEXTBOOK_FILL='true';}
  const rows=[{trigger:'本例已见恶寒',herbName:'桂枝',action:'加',reason:'温通经脉',doseOrHandling:'3g'},{trigger:'本例已见咳嗽',herbName:'紫菀',action:'加',reason:'润肺下气',doseOrHandling:'5g'}];
  assert.deepEqual(fill(rows),rows);
  assert.deepEqual(fill([...rows,...fill()]),rows,"已有两项时不再占用 D1 行");
@@ -129,7 +131,7 @@ await check('18','关闭D1时不借同方另一证的主症甚行，保留本证
  const row=textbook.textbookRowForModifications('胃痛','中焦气滞样证',['柴胡疏肝散']);const entry=row.modifications.find(x=>/胃痛.*甚/u.test(x.condition));assert.ok(entry);
  const st={...state,chiefComplaint:'胃痛',symptoms:{现病史:'胃痛，伴腹胀。'}};const context={prior:p,caseState:st,recordText:safe.clinicalGroundingText(st)};
  assert.ok(c.textbookMainSymptomPresent(entry.condition,entry.herbs[0],context));
- process.env.CDSS_MODIFICATION_TEXTBOOK_FILL='false';try{assert.equal(c.textbookMainSymptomPresent(entry.condition,entry.herbs[0],context),undefined);}finally{delete process.env.CDSS_MODIFICATION_TEXTBOOK_FILL;}
+ process.env.CDSS_MODIFICATION_TEXTBOOK_FILL='false';try{assert.equal(c.textbookMainSymptomPresent(entry.condition,entry.herbs[0],context),undefined);}finally{process.env.CDSS_MODIFICATION_TEXTBOOK_FILL='true';}
 });
 
 await check('19','同数旧行被D1替换后，模型取消也须返回实际新行',async()=>{

@@ -461,7 +461,7 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "self_discontinued_medication") return `${order}病历记录患者${item.irregular ? "未规律服用" : "自行停用了"}${discontinuedMedicationLabel(item)}${item.condition ? `（${item.condition}）` : ""}：写一条请${item.irregular ? "由医生评估后按医嘱规律服用" : "尽快由医生评估后调整用药并规律服用"}，不要自行停药或减量。`;
     if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来${item.topical?.length ? `；${item.topical.join("、")}病历写明是外用，按外用药写` : ""}${item.noSelfStop?.length ? `；${item.noSelfStop.join("、")}不要自行停用或减量` : ""}）。`;
     if (item.kind === "antithrombotic_bleeding") return item.drugs.length > 0
-      ? `${order}病历记录患者正在使用${item.drugs.join("、")}：主方与加减不用活血化瘀药及增强抗凝或增加出血方向的药；写明不要自行加用活血药，留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医，不自行停用抗凝或抗血小板药。`
+      ? `${order}病历记录患者正在使用${item.drugs.join("、")}：主方与加减不用活血化瘀药、化瘀止血药（三七、蒲黄等）及增强抗凝或增加出血方向的药；写明不要自行加用活血药，留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医，不自行停用抗凝或抗血小板药。`
       : `${order}病历记录${item.indication}，通常在服抗凝或抗血小板药：请患者告知是否在用；本方若有活血药，写明同用可能增加出血，留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医。`;
     if (item.kind === "high_risk_condition") return `${order}${highRiskConditionPromptText(item)}`;
     if (item.kind === "diabetes_glucose" && item.hypoglycemia) return `${order}本次是低血糖发作：写一条请按医嘱调整降糖药、按时进餐、随身带糖果，出现心慌、出汗、手抖、头晕时立即吃含糖食物并测血糖，神志不清时立即急诊；不要写「少吃甜食」。`;

@@ -26,14 +26,26 @@ type AuthorOptions = {
   mode?: FinalRationaleMode; transport?: RationaleTransport; timeoutMs?: number; claimCheck?: RationaleClaimCheck;
   caseRef?: string; requestRef?: string; observe?: (event: RationaleEvent) => void;
 };
-type RationaleRequest = { key: string; controller: AbortController; reply: Promise<unknown> };
+type RationaleRequest = { key: string; context: FinalRationaleContext; controller: AbortController; reply: Promise<unknown> };
+
+/**
+ * 预取稿的快照与定稿不同（对齐重写、闭合改了病机栏或待核实）时，病名、证名、病历、舌脉与流派都没变，预取稿仍按定稿的快照完整核对一遍，
+ * 合格就用（第五十一轮时延：此前快照一变就作废重写，M03 多等 3 秒；线上预取 30 命中、11 作废）。核对不过才用并行发出的新稿。
+ */
+export function finalRationaleConclusionUnchanged(draft: FinalRationaleContext, final: FinalRationaleContext): boolean {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  return draft.recordText === final.recordText &&
+    draft.input.conclusion.disease === final.input.conclusion.disease && same(draft.input.conclusion.names, final.input.conclusion.names) &&
+    same(draft.input.tongue, final.input.tongue) && same(draft.input.pulse, final.input.pulse) &&
+    (draft.input.lineage?.code || null) === (final.input.lineage?.code || null);
+}
 type Delivery = "new" | "old" | "limited" | "cache" | "none";
 type SkipReason = "off" | "no_chief" | "cache" | "two_pass" | "unavailable" | "limited" | "cancelled" | "projection";
 type RationaleEvent = {
   mode: FinalRationaleMode; version: string; caseRef?: string; requestRef?: string; snapshot?: string;
   bounded?: boolean; lineage?: boolean; secondaries?: number;
   eligible: boolean; launched: boolean; requests: number; physicalCalls: number; validReplies: number;
-  verified: boolean; signed: boolean; adopted: boolean; delivery: Delivery; prefetch: "none" | "hit" | "stale" | "cancelled";
+  verified: boolean; signed: boolean; adopted: boolean; delivery: Delivery; prefetch: "none" | "hit" | "stale" | "revalidated" | "cancelled";
   retried: boolean; softAccepted: boolean; softReasons: Pick<RationaleRejection, "code" | "field">[]; reasons: Pick<RationaleRejection, "code" | "field">[]; skip?: SkipReason;
   claimCheck: "skipped" | "checked" | "unavailable"; claimCalls: number; claimRemovals: number;
   promptTokens: number; completionTokens: number; modelMs: number; validationMs: number; waitMs: number;
@@ -113,7 +125,7 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
       options.signal.removeEventListener("abort", abort);
       event.modelMs += Date.now() - startedAt;
     });
-    const request = { key: context.key, controller, reply };
+    const request = { key: context.key, context, controller, reply };
     active = request;
     void Promise.resolve().then(() => {
       if (controller.signal.aborted) return undefined;
@@ -165,25 +177,53 @@ export function createFinalRationaleAuthor(options: AuthorOptions) {
       event.lineage = Boolean(context.input.lineage);
       event.secondaries = context.input.conclusion.names.length - 1;
       let request = draft;
+      let fallback: RationaleRequest | undefined;
       if (draft) {
         const hit = draft.key === context.key;
         event.prefetch = hit ? "hit" : "stale";
         if (!hit) {
-          draft.controller.abort("stale");
-          request = undefined;
+          if (finalRationaleConclusionUnchanged(draft.context, context)) {
+            // 病名证名病历都没变：预取稿留着按定稿快照核对，同时发新稿备用。
+            fallback = start(context);
+          } else {
+            draft.controller.abort("stale");
+            request = undefined;
+          }
         }
       }
       request ??= start(context);
       if (!request) { reason("budget_unavailable"); return undefined; }
-      let raw = await waitFor(request);
-      if (options.signal.aborted || finished || request.controller.signal.aborted) return undefined;
-      if (raw === undefined) { reason("no_reply"); return undefined; }
-      const validate = (revision = false) => {
+      const validateRaw = (value: unknown, revision = false) => {
         const started = Date.now();
-        try { return validateRationalePair(raw, context, { revision }); }
+        try { return validateRationalePair(value, context, { revision }); }
         finally { event.validationMs += Date.now() - started; }
       };
-      let result = validate();
+      let raw: unknown;
+      let result: ReturnType<typeof validateRaw> | undefined;
+      if (fallback) {
+        // 两稿谁先回来且按定稿快照合格就用谁，不为陈旧的预取稿多等（预取稿挂住时不拖到它超时）。
+        const pending = new Map<RationaleRequest, Promise<{ from: RationaleRequest; value: unknown }>>(
+          [request, fallback].map((item) => [item, waitFor(item).then((value) => ({ from: item, value }))]));
+        while (pending.size) {
+          const settled = await Promise.race(pending.values());
+          pending.delete(settled.from);
+          if (options.signal.aborted || finished) return undefined;
+          const checked = settled.value === undefined || settled.from.controller.signal.aborted ? undefined : validateRaw(settled.value);
+          raw = settled.value; result = checked; request = settled.from;
+          if (checked?.ok) break;
+        }
+        if (result?.ok) {
+          if (request === draft) event.prefetch = "revalidated";
+          for (const other of [draft, fallback]) if (other && other !== request) other.controller.abort("finished");
+        }
+      } else {
+        raw = await waitFor(request);
+        if (options.signal.aborted || finished) return undefined;
+        result = raw === undefined || request.controller.signal.aborted ? undefined : validateRaw(raw);
+      }
+      if (request.controller.signal.aborted && !result?.ok) return undefined;
+      if (raw === undefined || !result) { reason("no_reply"); return undefined; }
+      const validate = (revision = false) => validateRaw(raw, revision);
       if (!result.ok) {
         event.reasons.push(...result.reasons.map(({ code, field }) => ({ code, field })));
         if (result.reasons.some((item) => item.code === "evidence_gap")) return undefined;

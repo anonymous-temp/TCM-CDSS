@@ -2,6 +2,10 @@
   "schemaVersion": "tcm-antithrombotic-herb-avoid-v1",
   "note": "第四十九轮 D2：当前抗凝或抗血小板治疗时，活血化瘀药及增强抗凝/出血方向的研究条目不入方；减弱抗凝不作为禁药。教材分类沿用知识库判据，出处指向受治理知识库原条目。",
   "category": "活血化瘀药",
+  "extraCategories": [
+    "化瘀止血药"
+  ],
+  "extraCategoriesNote": "第五十一轮（用户 11/18 按建议定）：当前抗凝或抗血小板治疗时，《中药学》化瘀止血药（三七、蒲黄、茜草、花蕊石）也不入方——兼有化瘀之功，药理有抗血小板、抗凝或增强华法林作用的报道；抗凝下出血或 INR 超标的处理是复查凝血、由医生调整抗凝药，止血用收敛止血或凉血止血药（甲方 100 例 C070：华法林 INR 3.5 仍用三七、蒲黄、花蕊石，评审判特殊人群错）。",
   "entries": [
     {
       "name": "三棱",
@@ -1545,6 +1549,6 @@
     ]
   },
   "sourceHashes": {
-    "tcm-antithrombotic-herb-avoid.source.json": "6d8ea0308548d0c2195ede067357750adce61a4e4b6d59196ded35105ef978e8"
+    "tcm-antithrombotic-herb-avoid.source.json": "644d03272383bc45a56482b10b175bea39c9cc708a3508b42076da2f8a982dc7"
   }
 }

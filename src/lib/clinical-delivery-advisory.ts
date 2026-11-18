@@ -5,6 +5,7 @@ import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-r
 import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, isKnownTcmHerbName } from "./tcm-knowledge";
 import { hasIncompleteEditedHerb } from "./prescription-revision";
 import { rejectionTier } from "./diagnosis-rejection-tiers";
+import { specialPopulationConflictLabel } from "./special-population-labels";
 
 type Candidate = NonNullable<ClinicalReasoningResultV2["formula"]>["candidates"][number];
 
@@ -35,7 +36,7 @@ const COPY: ReadonlyArray<readonly [RegExp, string, string]> = [
   [/emperor_(?:not_primary|therapy_mismatch)/, "君药的选择或其功效与主要病机的对应需要确认。", "请结合主症与治法核对君药及君臣佐使分工。"],
   [/high_risk_pair|incompatib/, "处方中有需注意的配伍组合。", "请结合配伍禁忌决定是否调整相关药味。"],
   [/unsupported_high_impact|direction/, "该药的作用方向与本例治法不一致。", "请结合主症、舌脉及其在方中的用意决定去留。"],
-  [/special_population|contraindication|pregnan|liver|renal/, "该药对本例患者的情况（年龄、妊娠哺乳、基础病等）有慎用或禁用提示。", "请结合患者实际情况决定是否使用或更换。"],
+  [/special_population|contraindication|pregnan|liver|renal/, "该药对本例患者已记录的情况（基础病、用药或年龄等）有慎用或禁用提示。", "请结合患者实际情况决定是否使用或更换。"],
   [/dose|course|administration|daily|regimen/, "用量或服法与常用参考不一致。", "请确认用量、剂数、每日服药次数与疗程。"],
   [/duplicate/, "处方中有重复药味。", "请合并重复项并确认总量。"],
   [/unknown|identity/, "该药名或方名未能与药典及常用名对应。", "请核对药名、炮制品写法或出处。"],
@@ -74,6 +75,9 @@ export function clinicalDeliveryAdvisoryFromIssue(
     ...(herbName ? { herbIndex, herbName: displayText(herbName) } : {}),
     message: pairFindings.length > 0
       ? pairFindings.map((finding) => `${displayText(finding.leftDrug)}—${displayText(finding.rightDrug)}：属${displayText(finding.category)}；依据：${displayText(finding.basis)}。`).join(" ")
+      // 人群冲突码写明是哪一类人群（「孕期不宜」「正在用抗凝或抗血小板药…」），不写不适用于本例的人群（第五十一轮：82 岁男性出现「妊娠哺乳」，评审判特殊人群错）。
+      : /_special_population_high_risk_/u.test(issue)
+      ? `${herbName ? `${displayText(herbName)}：` : ""}${specialPopulationConflictLabel(issue)}（本例病历记录有相应情况），有慎用或禁用提示。`
       : `${herbName ? `${displayText(herbName)}：` : ""}${copy?.[1] || "本方有一处需要医生结合病例确认。"}${doseDetail}`,
     suggestedAction: pairFindings.length > 0
       ? "本方含配伍禁忌，调整相关药味之前不得采纳或开出；其余诊疗内容不受影响。"

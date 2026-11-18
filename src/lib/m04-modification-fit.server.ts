@@ -9,6 +9,7 @@ import { compositionIdentityName } from "./tcm-formula-provenance";
 import { quoteGroundedInText } from "./verbatim-quote";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { applyHerbCautionHits, checkHerbCautions } from "./herb-caution-check.server";
+import { herbIndicationText } from "./herb-indication";
 import modificationRelevance from "../data/tcm-modification-relevance.source.json" with { type: "json" };
 
 const MECHANISM_HALVES = new Set((modificationRelevance as { mechanismHalvesNotFindings?: string[] }).mechanismHalvesNotFindings || []);
@@ -22,7 +23,8 @@ const MECHANISM_HALVES = new Set((modificationRelevance as { mechanismHalvesNotF
 const TIMEOUT_MS = 4_000;
 // 药不对症的行删到只剩一行为止（第三十八轮：原为两行。核对之后紧接着有补写 topUpModificationConditions，不足两个条件会补上；
 // 留着两行下限时，甲方标准病历5 的「若气喘加炙麻黄」两次提名、复核都确认不对症，却因为加减只有两行留了下来）。
-const MIN_ROWS_AFTER_FIT = 1;
+// 第五十一轮（用户 11/18 定：加减有几条给几条）：药症不对的行一律去掉，不再为凑条数保留；补写随后按已见表现补。
+const MIN_ROWS_AFTER_FIT = 0;
 const MIN_DISTINCT_CONDITIONS = 2;
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -39,7 +41,7 @@ const SYSTEM = [
   "你是中医主治医师，逐行核对随证加减。每行是「某情况，加某药」：条件以「若」起头的说的是本例现在没有、之后可能出现的变化，不带「若」的是病历已记录的表现。",
   "每行写 verdict：",
   "contradicts：这个条件与病历已记录的情况相反，本例在现在的证候下不会这样（病历便溏对“若大便干结”、舌淡脉弱对“若舌红脉数”、口不渴对“若口渴”、多食易饥对“若食少”）。病历没提到的症状不算相反；quote 摘病历逐字原文。",
-  "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药；实热、火热证为非主诉的次要表现加温性药，如胃热炽盛证「纳差」加焦山楂——property 是《中药学》药性，次要表现由主证病机所致、主方清其病机即可），或这个条件不是本病会出现的变化；这个表现是主病直接引起的（高热、热毒内陷致拒食纳差，剧痛致失眠，失血、气脱致头晕），治好主病自然缓解，另加偏性药不当（如热毒证拒食加焦山楂、失血头晕加天麻）；药的功效与这个表现在本证里的病机对不上（气血不足的头晕加平肝息风的天麻，固摄缩尿写桑椹、白术）。不因为有更好的选择就判 misfit。",
+  "misfit：只在 kind 为 model 的行判。先读 indications（《中药学》该药的功效与【应用】各条标题，即它的主治范围）：这一行的表现（同一表现的不同说法算在内）不在 indications 里，也不是 indications 所写病证的典型表现，判 misfit——只是功效类别相近、药性方向不冲突不算管得到（如嗳气、呃逆要用降逆的药）。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药；实热、火热证为非主诉的次要表现加温性药，如胃热炽盛证「纳差」加焦山楂——property 是《中药学》药性，次要表现由主证病机所致、主方清其病机即可），或这个条件不是本病会出现的变化；这个表现是主病直接引起的（高热、热毒内陷致拒食纳差，剧痛致失眠，失血、气脱致头晕），治好主病自然缓解，另加偏性药不当（如热毒证拒食加焦山楂、失血头晕加天麻）；药的功效与这个表现在本证里的病机对不上（气血不足的头晕加平肝息风的天麻，固摄缩尿写桑椹、白术）。不因为有更好的选择就判 misfit。",
   "caution：两种 kind 都判。每一行先读 caution（《中药学》使用注意原文）：它点名慎用或忌用的某个症状（自汗、盗汗、便溏、失眠、出血…）本例病历写着，就判 caution，不论这一行的条件写的是什么（如麻黄 caution「表虚自汗、阴虚盗汗…慎用」，病历写「自汗」）。只看症状，「内有实热者慎用」这类说的是证候，不算；quote 摘病历里那个症状的逐字原文。",
   "unrelated：两种 kind 都判。条件说的情况与本例已记录的表现都无关——不是本例已有某个症状的加重或演变，也不是主诉主症的变化，而是另一组本例一条相关表现都没有的情况（如胃痛病例「若兼头晕目眩」而病历没有头晕；咳嗽病例「若兼有瘀血」而病历没有任何瘀象）。条件里的症状本例已有（程度不同也算）、或是本例主症常见的加重，不算 unrelated。quote 留空。",
   "not_finding：两种 kind 都判。主诉主症已经由主方治疗，单写主症本身、频次或形态不作加减条件；已记录的程度或特点可同向加强，条件必须带该词；教材“主症甚”按教材判据保留；缓解/加重因素、表情神态、闸门红旗或优先评估所引用的危重表现、脱水休克灌注不足征象也不作条件。条件说的不是患者此刻的一个症状、体征或舌脉：生活习惯或诱因（熬夜、久坐、加班、屏幕使用时间长、饮食不节）、缓解因素（吃糖后好转、休息后减轻）、病名或基础病（慢性肾病3期、焦虑症病史）、检查或就诊经过（未接受检查、拒绝说明）、病历里的说明（家属与本人描述不同）、正常情况（睡眠尚可）。quote 留空。",
@@ -48,7 +50,7 @@ const SYSTEM = [
 ].join("\n");
 
 const VERIFY_SYSTEM = [
-  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（not_finding：条件说的不是患者的症状、体征或舌脉，而是习惯、诱因、缓解或加重因素、表情神态、主诉主症本身、急危重征象、病名、检查或病历说明；contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反，含实热证为非主诉的次要表现加温性药；caution：这味药的使用注意点名慎用或忌用的那个症状，本例病历写着；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
+  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（not_finding：条件说的不是患者的症状、体征或舌脉，而是习惯、诱因、缓解或加重因素、表情神态、主诉主症本身、急危重征象、病名、检查或病历说明；contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症（row.indications 是《中药学》该药的功效与【应用】标题，表现不在其中）或与本证方向相反，含实热证为非主诉的次要表现加温性药；caution：这味药的使用注意点名慎用或忌用的那个症状，本例病历写着；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
   "只判这一条。理由成立答 true。条件只是病历没提到、或者只是另有更好的药，答 false。",
   "先在 why 里写这条理由依据的病历原文或药的功效（不超过20字），再下结论。",
   "只输出 JSON：{\"why\":\"…\",\"confirmed\":true} 或 {\"why\":\"…\",\"confirmed\":false}",
@@ -145,6 +147,8 @@ export function modificationFitRowPayload(row: Record<string, unknown>, line: nu
     reference: herbClaimReferenceText(text(row.herbName)).slice(0, 160),
     property: herbPropertyReferenceText(text(row.herbName)) || null,
     caution: herbCautionReferenceText(text(row.herbName)) || null,
+    // 第五十一轮：《中药学》该药【功效】与【应用】各条标题（主治范围），供 misfit 判「这味药管不管这个表现」。
+    indications: herbIndicationText(text(row.herbName)) || null,
   };
   return evidenceContext ? { ...legacy, ...evidenceContext } : legacy;
 }
@@ -220,7 +224,7 @@ export function withModificationsFrom(target: string, source: string): string {
 
 const TOP_UP_SYSTEM = [
   "你是中医主治医师。证型、治法、方药已定，现在为本例补写随证加减。随证加减是给这位患者这次就用的，不写「若…」这种以后才可能出现的备用条件。",
-  "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如便溏、口干、咽痛、眠差、咳痰、多汗、小便不利；舌苔、舌质、脉象只能和症状写在同一条里作条件，如「口苦、苔黄」，单写舌象或脉象不作条件，舌淡红、苔薄白、脉缓这类正常所见不写）；这样的表现不够两个时，再从本例较突出、主方照顾力度不足的已记录表现里补（如畏寒肢冷明显、腰膝酸软，加一味同向的药增强）；主诉主症及其频次、形态由主方治疗，单写主症名不算；不足两项时可取已记的程度或特点（剧痒、痛甚拒按、酸软无力、夜间加重、量多），trigger 必须引出该词，再加一味同向药加强。每个表现写一条，凑够 2 条、最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写证候名）；herbName 是不在 herbs 里的一味常用饮片，不加与方中某味同一功效、管同一表现的药；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
+  "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如便溏、口干、咽痛、眠差、咳痰、多汗、小便不利；舌苔、舌质、脉象只能和症状写在同一条里作条件，如「口苦、苔黄」，单写舌象或脉象不作条件，舌淡红、苔薄白、脉缓这类正常所见不写）；这样的表现不够两个时，再从本例较突出、主方照顾力度不足的已记录表现里补（如畏寒肢冷明显、腰膝酸软，加一味同向的药增强）；主诉主症及其频次、形态由主方治疗，单写主症名不算；不足两项时可取已记的程度或特点（剧痒、痛甚拒按、酸软无力、夜间加重、量多），trigger 必须引出该词，再加一味同向药加强。每个表现写一条，凑够 2 条、最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写证候名）；herbName 是不在 herbs 里的一味常用饮片，选《中药学》【应用】里写明主治这个表现的药（只是功效类别相近的不算），不加与方中某味同一功效、管同一表现的药；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
   "纳差、食少不是主诉、证候又不涉脾胃食积时，不为它加消食药（焦山楂、神曲、麦芽、鸡内金）；病人高热、意识改变、休克、少尿这类急危重表现不作加减条件。",
   "trigger 必须是患者此刻的一个症状、体征（不写生活习惯或诱因如熬夜、久坐、屏幕时间长，不写缓解或加重因素如吃糖后好转、遇冷加重，不写表情神态，不写主诉主症本身，不写急危重征象，不写病名、病史、检查或就诊经过，不写既往史、个人史里的内容）。",
   "主病直接引起的伴随表现不另加药（因疼痛或瘙痒而眠差、因发热而纳差、外感正邪相争而精神差，主病好了自然好）。药的寒热补泻要与证型一致：外感、痰热、湿热、瘀血这类实证不为次要表现加补益药，虚证不加攻伐药。病历否认的、existing 里已有的不写。病历里找不到这样的表现就少写或输出空数组，不要编。",
@@ -238,7 +242,7 @@ const STANDBY_TOP_UP_SYSTEM = [
 ].join("\n");
 
 const TOP_UP_VERIFY_SYSTEM = [
-  "你是中医主治医师。下面这条随证加减针对本例病历里已有的一个表现，这次就用。默认答 true；只有这味药管不到这个表现、与本证方向相反（实证为次要表现加补益药、虚证加攻伐药、寒证加寒凉药、热证加温热药）、这个表现病历里其实是否认的，或它只是主病直接引起、治好主病自然缓解的表现，或条件只是主诉主症本身，或是急危重表现，或条件根本不是可据以加减的症状体征（习惯、诱因、缓解或加重因素、表情神态、病名、检查、病历说明）时答 false。",
+  "你是中医主治医师。下面这条随证加减针对本例病历里已有的一个表现，这次就用。row.indications 是《中药学》该药的功效与【应用】标题。默认答 true；只有这味药管不到这个表现（indications 里没有这个表现或它所属的病证）、与本证方向相反（实证为次要表现加补益药、虚证加攻伐药、寒证加寒凉药、热证加温热药）、这个表现病历里其实是否认的，或它只是主病直接引起、治好主病自然缓解的表现，或条件只是主诉主症本身，或是急危重表现，或条件根本不是可据以加减的症状体征（习惯、诱因、缓解或加重因素、表情神态、病名、检查、病历说明）时答 false。",
   "只输出 JSON：{\"confirmed\":true} 或 {\"confirmed\":false}",
 ].join("\n");
 
@@ -320,7 +324,7 @@ export async function topUpModificationConditions(
   }, (row) => `${row.trigger}|${row.herbName}`, (row) => modificationTriggerNotFinding(row.trigger, context) ? undefined : ({
     messages: [
       { role: "system", content: TOP_UP_VERIFY_SYSTEM },
-      { role: "user", content: JSON.stringify({ syndrome, method, herbs, row, record: context.recordText.slice(0, 1_500) }) },
+      { role: "user", content: JSON.stringify({ syndrome, method, herbs, row: { ...row, indications: herbIndicationText(row.herbName) || null }, record: context.recordText.slice(0, 1_500) }) },
     ],
     maxTokens: 40,
     parse: parseConfirmed,

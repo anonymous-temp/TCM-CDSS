@@ -375,7 +375,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   }
   if (activeBleedingInGroundingText(structuredClinicalContext)) promptSuffixes.push(activeBleedingM04Rule(activeBleedingWording(structuredClinicalContext, gated.safetyGate?.redFlags || [])));
   if (currentAntithromboticTherapyRecorded(gated)) {
-    promptSuffixes.push("【抗凝或抗血小板药在用】主方与随症加减均不得使用《中药学》活血化瘀药类，以及有资料记载会增强抗凝或增加出血的药；没有出血也遵守。锁定方含禁药时按上方逐味清单重选或透明改为辨证组方。减弱华法林作用的人参类不按此禁用，开始或停服中药须更频繁复查INR。慎用标签与本例已记录人群对上时，不作为可选加味；主方保留的慎用药在notApplicable说明本例人群并请医生使用前确认。");
+    promptSuffixes.push("【抗凝或抗血小板药在用】主方与随症加减均不得使用《中药学》活血化瘀药类、化瘀止血药（三七、蒲黄、茜草、花蕊石；上面若写可用化瘀止血药，以这一条为准），以及有资料记载会增强抗凝或增加出血的药；没有出血也遵守；需要止血时用收敛止血或凉血止血药（如仙鹤草、白及、侧柏叶），并写明须尽快到医院复查凝血、由医生调整抗凝药。锁定方含禁药时按上方逐味清单重选或透明改为辨证组方。减弱华法林作用的人参类不按此禁用，开始或停服中药须更频繁复查INR。慎用标签与本例已记录人群对上时，不作为可选加味；主方保留的慎用药在notApplicable说明本例人群并请医生使用前确认。");
   }
   // 饮片使用注意与本例（2026-10-19 甲方标准病历 3：熟地黄为君，病历食欲下降、大便稀溏；《中药学》熟地黄「食少便溏者忌服」）：
   // 事先列给模型，不靠修复轮。编译器对仍写进处方的那一味逐味写明（herb-record-caution）。没有冲突时提示词不变。

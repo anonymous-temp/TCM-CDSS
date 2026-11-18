@@ -7,6 +7,7 @@ import textConsistency from "../data/diagnosis-text-consistency.source.json" wit
 import { westernDiagnosisAbbreviations } from "./western-diagnosis-aliases";
 import { recordMentionPolarityAt } from "./diagnosis-safety";
 import { settleWesternRecurrenceQualifier } from "./western-recurrence-qualifier";
+import westernNamePreferred from "../data/western-name-preferred.source.json" with { type: "json" };
 
 /**
  * 西医依据里说「尚缺/未查 X 检查」、而病历已经写了 X 的结果（第四十一轮，r1054 回顾 n12：病历「肌酸激酶正常，甲状腺功能正常，
@@ -213,8 +214,36 @@ export function westernCriteriaCertainty(name: string, recordText: string, known
   return { pending: missing.length > 0, missing, ...(threshold ? { courseMet: Boolean(course && course.lower >= threshold) } : {}), ...(clinicalOnly ? { clinicalOnly } : {}) };
 }
 
+const PREFERRED_WESTERN_NAMES = (westernNamePreferred as { names: Record<string, string> }).names;
+const isCharSubsequence = (short: string, long: string): boolean => {
+  let at = 0;
+  for (const ch of long) if (ch === short[at]) at += 1;
+  return at === short.length;
+};
+/**
+ * 依据句肯定的是另一个受治理病名（「符合妊娠期恶心呕吐…尚未达重度脱水标准」），病名却写成那个病没达到的诊断（「妊娠剧吐」）：
+ * 病名改为依据肯定的病（第五十一轮；甲方 11/18 只展示西医主诊断名＋依据句，hold40 h31 即 11.05 病历11 同类在新病历复现）。
+ * 只认要点表或规范写法表里有的病名；同一病的宽窄写法（糖尿病/2型糖尿病）、病名本身出现在依据里、病历写明既往已确诊的不改。
+ */
+export function basisAffirmedOtherDisease(name: string, basis: string, recordText = ""): string | undefined {
+  const core = String(name || "").trim().replace(/(?:待[查排]|可能)$/u, "").normalize("NFKC");
+  const source = String(basis || "").normalize("NFKC");
+  if (core.length < 2 || !source || source.includes(core) || (recordText && recordStatesWesternDiagnosis(core, recordText))) return undefined;
+  for (const match of source.matchAll(/符合([\u4e00-\u9fffA-Za-z0-9]{2,20}?)(?:的)?(?:典型)?(?:临床)?(?:表现|特征|特点|诊断标准|诊断)?(?=[，,。；;、（(]|$)/gu)) {
+    const written = match[1];
+    const preferred = PREFERRED_WESTERN_NAMES[written] || written;
+    const governed = Boolean(PREFERRED_WESTERN_NAMES[written]) || Object.values(PREFERRED_WESTERN_NAMES).includes(written) || westernCriteriaEntry(written)?.name === written;
+    if (!governed || preferred === core) continue;
+    if (isCharSubsequence(preferred, core) || isCharSubsequence(core, preferred) || isCharSubsequence(written, core) || isCharSubsequence(core, written)) continue;
+    return preferred;
+  }
+  return undefined;
+}
+
 /** 先定病名确定度，再以完整分句为单位舍弃互相冲突的断言；不把一个结论换词成另一个结论。 */
 export function settleWesternDiagnosisBasis(name: string, basis: string, recordText: string): { name: string; basis: string } {
+  const affirmed = basisAffirmedOtherDisease(name, basis, recordText);
+  if (affirmed) return settleWesternDiagnosisBasis(affirmed, basis, recordText);
   const qualified = settleWesternRecurrenceQualifier(name, basis, recordText);
   if (qualified.name !== name) return qualified;
   const core = String(name || "").trim().replace(/(?:待[查排]|可能)$/u, "");
