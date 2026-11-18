@@ -12,7 +12,7 @@ export function observeModelTransport<T>(run: (state: TransportObservation) => P
 }
 
 /** SDK retries pass through this wrapper individually. Never read or log the request. */
-export const observedModelFetch: typeof fetch = (input, init) => {
+export function observedModelFetch(input: Parameters<typeof fetch>[0], init?: RequestInit, onNetworkAttempt?: () => void): Promise<Response> {
   const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
   signal?.throwIfAborted();
   const state = observation.getStore();
@@ -20,5 +20,5 @@ export const observedModelFetch: typeof fetch = (input, init) => {
     state.observed = true;
     state.attempts += 1;
   }
-  return memoizedModelFetch(input, init);
-};
+  return memoizedModelFetch(input, init, onNetworkAttempt);
+}

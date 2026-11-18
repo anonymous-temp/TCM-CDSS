@@ -1,3 +1,5 @@
+import { createHash, randomUUID } from "node:crypto";
+import { logSkippedFinalRationale } from "@/lib/m03-final-rationale.server";
 import { m03TcmTwoPassPolicy } from "@/lib/m03-tcm-two-pass.server";
 import { TRUE_HEART_PAIN_DISEASE, trueHeartPainSignal } from "@/lib/true-heart-pain";
 import { buildM03TcmRuntimeContext } from "@/lib/m03-tcm-runtime.server";
@@ -59,19 +61,24 @@ async function handlePost(req: Request) {
   // 同一租户、同一病例内容的请求只算一次：进行中并入、已完成复用；调用方断开不中止计算
   // （stage-result-coalescing.server.ts）。显式重抽：x-cdss-regenerate: force 或 ?regenerate=force。
   const regenerate = regenerateFreshRequested(req);
-  return coalesceStageResponse({
+  const requestRef = randomUUID();
+  const caseRef = createHash("sha256").update(parsed.caseState.id).digest("hex").slice(0, 12);
+  const response = await coalesceStageResponse({
     stage: "diagnose",
     key: stageRequestFingerprint("diagnose", parsed.customer, parsed.caseState),
     bypass: regenerate,
-    compute: (signal) => computeDiagnose(parsed, signal),
+    compute: (signal) => computeDiagnose(parsed, signal, requestRef),
     cacheable: diagnoseResultReusable,
     // 复用给另一病例编号时按本次请求重新签名，否则下游验签必然失败（甲方 9/30、10/9 实测）。
     bindingId: contractBindingIdentity(parsed.caseState),
     rebindFinalContent: (content) => applyDiagnoseContractSignature(content, buildDiagnoseContractSignatureContext(parsed.caseState)),
   });
+  const reuse = response.headers.get("x-cdss-stage-result");
+  if (reuse === "reused" || reuse === "joined") logSkippedFinalRationale("cache", "cache", { caseRef, requestRef });
+  return response;
 }
 
-async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal): Promise<Response> {
+async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, requestRef: string): Promise<Response> {
   // 浏览器给整个请求 210s。服务端 180s 的 M03 编排时钟必须起在**临床事实准备之前**，
   // 否则 maybeAttachClinicalFactsBackstop 的模型调用不计入预算，总耗时会变成
   // 「事实准备 + 180s」而冲出浏览器余量，流被切成 HTTP 0 而不是送出 fail-closed 兜底。
@@ -101,6 +108,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready";
   const hasChiefComplaint = Boolean((gated.chiefComplaint || gated.hisRecord?.fields?.zhushu || "").trim());
   if (!hasChiefComplaint) {
+    logSkippedFinalRationale("no_chief", "limited", { requestRef });
     return markdownNdjsonResponse(buildSafetyLimitedDiagnosis(gated, gated.safetyGate!));
   }
 
@@ -459,6 +467,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     // 完整的 1796 方目录扫描 + 滑窗索引匹配，结果全程未被使用，且入参与真正喂给模型的短名单
     // 不同口径（不带 recallHint），读代码时会误以为「模型只能从检索短名单里选」。
     diagnoseSignatureContext: buildDiagnoseContractSignatureContext(gated),
+    m03FinalRationaleRequestRef: requestRef,
     outputTransform: buildEvidenceOutputTransform(
       evidenceContext,
       (content) => {

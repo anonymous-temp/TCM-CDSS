@@ -2,11 +2,17 @@ import "server-only";
 
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelConfigForModel, textModelRequestTuning, textModelFamily } from "./text-model";
+import { modelUsageSnapshot } from "./openai-compatible-response";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 
 const CROSS_CHECK_MODEL = () => process.env.PRIMARY_STRUCTURED_FALLBACK_MODEL?.trim() || "qwen3.8-flash";
 
 type Messages = Array<{ role: "system" | "user"; content: string }>;
+type RequestOwnedTask = {
+  model: string;
+  onNetworkAttempt: () => void;
+  onUsage: (usage: ReturnType<typeof modelUsageSnapshot>) => void;
+};
 
 async function runOne<T>(
   namespace: string,
@@ -18,15 +24,16 @@ async function runOne<T>(
   parse: (content: unknown) => T | undefined,
   signal?: AbortSignal,
   temperature = 0,
+  owned?: RequestOwnedTask,
 ): Promise<T | undefined> {
   if (signal?.aborted || !config.configured) return undefined;
-  return memoizedSmallTask<T | undefined>(namespace, smallTaskMemoKey([config.model, temperature, messages]), async () => {
+  const compute = async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const abort = () => controller.abort();
     signal?.addEventListener("abort", abort, { once: true });
     try {
-      const response = await observeModelTask({ task: namespace, stage, model: config.model }, () => createTextModelClient(config).chat.completions.create({
+      const response = await observeModelTask({ task: namespace, stage, model: config.model }, () => createTextModelClient(config, owned && { retryOwner: "application", onNetworkAttempt: owned.onNetworkAttempt }).chat.completions.create({
         model: config.model,
         temperature,
         max_tokens: maxTokens,
@@ -35,7 +42,9 @@ async function runOne<T>(
         ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
         messages,
       }, { signal: controller.signal }));
-      const value = parse(response.choices[0]?.message?.content);
+      owned?.onUsage(modelUsageSnapshot(response));
+      const choice = response.choices[0];
+      const value = owned && choice?.finish_reason !== "stop" ? undefined : parse(choice?.message?.content);
       return { value, cacheable: value !== undefined };
     } catch {
       return { value: undefined, cacheable: false };
@@ -43,7 +52,9 @@ async function runOne<T>(
       clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
     }
-  }, undefined, signal);
+  };
+  // Request-owned deadlines/cancellation stay local; the SDK transport still uses model-call memo.
+  return owned ? (await compute()).value : memoizedSmallTask<T | undefined>(namespace, smallTaskMemoKey([config.model, temperature, messages]), compute, undefined, signal);
 }
 
 /**
@@ -176,11 +187,13 @@ export function primaryModelJsonTask<T>(
   namespace: string,
   stage: "diagnose" | "prescribe",
   messages: Messages,
-  options: { maxTokens: number; timeoutMs: number },
+  options: { maxTokens: number; timeoutMs: number; requestOwned?: RequestOwnedTask },
   parse: (content: unknown) => T | undefined,
   signal?: AbortSignal,
 ): Promise<T | undefined> {
-  return runOne(namespace, stage, getControlledTerminologyModelConfig(), messages, options.maxTokens, options.timeoutMs, parse, signal);
+  const owned = options.requestOwned;
+  const config = owned ? textModelConfigForModel(owned.model) : getControlledTerminologyModelConfig();
+  return runOne(namespace, stage, config, messages, options.maxTokens, options.timeoutMs, parse, signal, 0, owned);
 }
 
 /** 一条已有的说法只问另一家（qwen3.8-flash）一次答对错（西医诊断确立程度，第四十二轮）。失败、超时返回 undefined。 */
