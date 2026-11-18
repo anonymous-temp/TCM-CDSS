@@ -229,3 +229,18 @@ await check("1.2", "补位关时教材「主症甚」行（若见咳甚）也不
     if (saved === undefined) delete process.env.CDSS_MODIFICATION_TEXTBOOK_FILL; else process.env.CDSS_MODIFICATION_TEXTBOOK_FILL = saved;
   }
 });
+
+await check("1.3", "补位关时教材主症甚条件不再经任何一路交付；压力、诱因不是加减条件", () => {
+  const saved = process.env.CDSS_MODIFICATION_TEXTBOOK_FILL;
+  try {
+    delete process.env.CDSS_MODIFICATION_TEXTBOOK_FILL;
+    const st = types.normalizeCaseStateInput({ patient: { age: 30, sex: "男" }, chiefComplaint: "恶寒发热1天", symptoms: { 现病史: "恶寒，发热，无汗，头痛身痛，鼻塞，舌苔薄白，脉浮紧。" } });
+    const ctx = { prior, caseState: st, recordText: types.normalizeCaseStateInput ? `主诉：恶寒发热1天\n现病史：恶寒，发热，无汗，头痛身痛，鼻塞，舌苔薄白，脉浮紧。` : "" };
+    assert.equal(c.textbookMainSymptomPresent("若见恶寒甚", "麻黄", ctx), undefined);
+    assert.equal(c.retainModificationFindings([{ trigger: "若见恶寒甚", herbName: "麻黄" }], ctx).length, 0);
+  } finally {
+    if (saved === undefined) delete process.env.CDSS_MODIFICATION_TEXTBOOK_FILL; else process.env.CDSS_MODIFICATION_TEXTBOOK_FILL = saved;
+  }
+  for (const trigger of ["学校压力大", "经济压力", "工作压力较大"]) assert.equal(c.modificationTriggerNotFinding(trigger), "factor", trigger);
+  assert.equal(c.modificationTriggerNotFinding("血压偏高"), undefined, "反证：不是压力");
+});

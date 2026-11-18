@@ -24,8 +24,13 @@ await check('1.1', '教材主症加强只在本例肯定存在时可用', () => 
   const main = found.modifications.find(row => /胃痛.*甚/u.test(row.condition));
   assert.ok(main, JSON.stringify(found.modifications));
   const herb = main.herbs[0];
-  assert.ok(compiler.textbookMainSymptomPresent(main.condition, herb, context));
-  assert.equal(compiler.textbookMainSymptomPresent(main.condition, herb, { ...context, recordText: '主诉：腹胀3天\n现病史：无胃痛' }), undefined);
+  // 第五十一轮起补位关时主症甚行一律不交付；判据本身在补位打开时照钉。
+  assert.equal(compiler.textbookMainSymptomPresent(main.condition, herb, context), undefined, '补位关');
+  process.env.CDSS_MODIFICATION_TEXTBOOK_FILL = 'true';
+  try {
+    assert.ok(compiler.textbookMainSymptomPresent(main.condition, herb, context));
+    assert.equal(compiler.textbookMainSymptomPresent(main.condition, herb, { ...context, recordText: '主诉：腹胀3天\n现病史：无胃痛' }), undefined);
+  } finally { process.env.CDSS_MODIFICATION_TEXTBOOK_FILL = 'false'; }
 });
 // r48 C3：条件条数夹具同时补上病历现症，不能凭空声明口干便溏。
 await check('1.2', '裸主症不凑条数，普通条件与红旗排除仍成立', () => {

@@ -1392,6 +1392,8 @@ export function modificationTextbookFillEnabled(): boolean {
 
 /** 本病本证教材的“主症甚”条目可以补一项；这里只认已见的主症，不声称病历记录了程度。 */
 export function textbookMainSymptomPresent(trigger: string, herbName: string, context: ModificationTriggerContext): { trigger: string; quote: string } | undefined {
+  // 补位关（第五十一轮缺省）时教材「主症甚」行一律不交付：条件写的是主症加重（「若见恶寒甚」），病历只记了主症（线上 c02 仍交付两行「若见恶寒甚」）。
+  if (!modificationTextbookFillEnabled()) return undefined;
   const prior = context.prior?.overview;
   const row = modificationTextbookFillEnabled() ? textbookFillRow(prior)
     : textbookRowForSyndrome(String(prior?.tcmDiseaseName || ""), String(prior?.primarySyndrome || ""));
