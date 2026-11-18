@@ -1,3 +1,4 @@
+import { finalRationaleStageIdentity } from "./m03-final-rationale-policy";
 import { elementClosureCacheIdentity } from "./m03-element-assertions";
 import { r1064GenerationIdentity } from "./r1064-generation-identity.server";
 import { withStageGenerationOutcome } from "./stage-generation-outcome.server";
@@ -180,7 +181,7 @@ export function stageRequestFingerprint(
     }
   }
   return createHash("sha256")
-    .update(`${stage}\n${generationIdentity()}\n${stage === "diagnose" ? elementClosureCacheIdentity() : ""}\n${tenant.clientId || ""}\n${tenant.customerId || ""}\n${canonicalJson(state)}`)
+    .update(`${stage}\n${generationIdentity()}\n${stage === "diagnose" ? elementClosureCacheIdentity() + finalRationaleStageIdentity() : ""}\n${tenant.clientId || ""}\n${tenant.customerId || ""}\n${canonicalJson(state)}`)
     .digest("hex");
 }
 

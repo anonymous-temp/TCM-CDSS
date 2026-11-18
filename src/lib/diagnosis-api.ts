@@ -1,3 +1,5 @@
+import { createFinalRationaleAuthor, finalRationaleDeliveryHash, logSkippedFinalRationale, rationalePairFrom, type RationaleTransport } from "./m03-final-rationale.server";
+import { withFinalRationalePair } from "./m03-final-rationale-validation.server";
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { applyM04FinalContent } from "./m04-final-delivery.server";
 import { finalizeWesternGuidelineContent } from "./western-guideline-references";
@@ -42,7 +44,7 @@ import { applyServerOwnedM03Fields } from "./m03-server-owned-fields";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, stripUntrustedM04IdentityMetadata, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
 import { clinicalReviewNotPerformedAttestation } from "@/lib/clinical-review-binding";
 import { applyDeliveredSurfaceToContent } from "./delivered-surface";
-import { activeBleedingInGroundingText, clinicalGroundingText, trustedInputText } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, clinicalGroundingText, sanitizeUngroundedRedFlagNegations, trustedInputText } from "./diagnosis-safety";
 import type { FormulaReferenceCaseSafety } from "@/lib/tcm-formula-provenance";
 
 /** 教材锚定用的本例安全事实（见 withDeterministicFormulaReferences）：与开方核对同一判据、同一份接地正文。 */
@@ -499,6 +501,9 @@ type StreamSafetyOptions = {
   structuredInstructionRecords?: InstructionRecordPool;
   structuredPriorReasoning?: ReturnType<typeof normalizeReasoningV2>;
   diagnoseSignatureContext?: DiagnoseContractSignatureContext;
+  m03FinalRationaleTransport?: RationaleTransport;
+  m03FinalRationaleTimeoutMs?: number;
+  m03FinalRationaleRequestRef?: string;
   prescribeSignatureContext?: PrescribeContractSignatureContext;
   requestSignal?: AbortSignal;
   /**
@@ -2936,6 +2941,17 @@ async function callPrimaryTextModelStream(
         sign: signFinalDelivery,
         fallback: () => opts.structuredStage === "diagnose" ? opts.truncateFallback || "" : renderM04DeliveryCheckpoint(undefined, opts.structuredPriorReasoning, "contract_rejected", opts.structuredDoseWithheldReasons || []),
       }) : undefined;
+      const projectEmissionSurface = (content: string) => applyDeliveredSurfaceToContent(content, { m03ElementAllows, herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState), patientSex: String((opts.structuredCaseState as { patient?: { sex?: unknown } } | undefined)?.patient?.sex || "") });
+      const rationaleAuthor = opts.structuredStage === "diagnose" && opts.structuredCaseState
+        ? createFinalRationaleAuthor({
+            state: opts.structuredCaseState,
+            scope: JSON.stringify(opts.diagnoseSignatureContext),
+            caseRef: opts.structuredCaseState.id ? createHash("sha256").update(opts.structuredCaseState.id).digest("hex").slice(0, 12) : undefined,
+            requestRef: opts.m03FinalRationaleRequestRef,
+            signal: upstreamController.signal, deadline: () => absoluteRunDeadline,
+            transport: opts.m03FinalRationaleTransport, timeoutMs: opts.m03FinalRationaleTimeoutMs,
+          })
+        : undefined;
       const preparedM03Outputs = new Set<string>();
       const preparedDiagnoseContent = async (content: string): Promise<string> => {
         if (preparedM03Outputs.has(content)) return content;
@@ -2981,6 +2997,11 @@ async function callPrimaryTextModelStream(
           const closed = closeM03Elements(transformed, true);
           const closureChanged = closed !== transformed;
           transformed = closed;
+          rationaleAuthor?.prefetch(() => {
+            if (!validatedStructuredReasoning(transformed, "diagnose", opts.structuredClinicalContext, undefined, true)) return undefined;
+            const specified = applyM03DecisionSpecificityPolicy(transformed, opts.structuredCaseState);
+            return m03ReasoningFromStructuredContent(projectEmissionSurface(specified));
+          });
           if (opts.m03AnalysisAlignment) {
             const aligned = await opts.m03AnalysisAlignment(transformed, upstreamController.signal).catch(() => transformed);
             if (typeof aligned === "string" && aligned.trim() && aligned !== transformed) {
@@ -3498,6 +3519,10 @@ async function callPrimaryTextModelStream(
       const closeClientStream = () => {
         if (clientStreamClosed) return;
         if (finalDeliveryPending) { closeRequested = true; return; }
+        const twoPass = stageReasonCode.startsWith("m03_two_pass_");
+        rationaleAuthor?.finish(upstreamController.signal.aborted ? "none" : twoPass && stageOutcome === "success" ? "old" : "limited", false,
+          upstreamController.signal.aborted ? "cancelled" : twoPass ? "two_pass" :
+            stageOutcome === "provider_error" ? "unavailable" : "limited");
         const telemetryStage: CdssTelemetryStage = opts.structuredStage || (kind === "question" ? "question" : kind === "collect" ? "collect" : "unstructured");
         const reviewStatus = opts.structuredStage === "diagnose"
           ? m03DiagnosticReviewStatus
@@ -5714,8 +5739,9 @@ async function callPrimaryTextModelStream(
           // 交付面投影（2026-10-13）：全部校验做完、签名之前，把调用方不要的整块清空、把服务端句式换成临床写法
           //（delivered-surface.ts 是唯一口径）。可见正文随之重渲染，常量 attestation 重新绑定到最终载荷。
           let emissionM04Attestation = m04AttestationWithScope;
+          let m03SurfaceAccepted = false;
           if (!truncated && transformed.ok && (opts.structuredStage === "diagnose" || opts.structuredStage === "prescribe")) {
-            const surfaced = applyDeliveredSurfaceToContent(emissionContent, { m03ElementAllows, herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState), patientSex: String((opts.structuredCaseState as { patient?: { sex?: unknown } } | undefined)?.patient?.sex || "") });
+            const surfaced = projectEmissionSurface(emissionContent);
             if (surfaced !== emissionContent) {
               // 辨证结果随载荷重渲染可见正文（与上面的特异性投影同一做法），正文之前的服务端前置区（安全警示横幅、
               // 质量批注）原样带回。开方结果只换结构化载荷：它的可见正文里有渲染之后才并入的内容（儿童用药说明等），
@@ -5755,15 +5781,15 @@ async function callPrimaryTextModelStream(
               // 投影后解析不回来或哈希绑不上时放弃投影，交付投影前的那份（内容更多，但结构与签名完整）。
               if (surfacedReasoning && (!current || rebound)) {
                 emissionContent = synchronized;
+                m03SurfaceAccepted = opts.structuredStage === "diagnose";
                 if (opts.structuredStage === "diagnose") emissionM03Attestation = rebound;
                 else emissionM04Attestation = rebound;
                 if (current) clinicalReviewRebindCount += 1;
               }
+            } else if (rationaleAuthor?.enabled) {
+              m03SurfaceAccepted = Boolean(structuredReasoningFromContent(surfaced));
             }
           }
-          ({ content: emissionContent, attestation: emissionM04Attestation } = await applyM04FinalContent(
-            emissionContent, emissionM04Attestation, opts, upstreamController.signal, absoluteRunDeadline,
-          ));
           if (enforceElementClosure && !truncated && transformed.ok) {
             emissionContent = closeM03Elements(emissionContent, false);
             const closed = m03ReasoningFromStructuredContent(emissionContent);
@@ -5778,11 +5804,48 @@ async function callPrimaryTextModelStream(
               emissionM03Attestation = rebindClinicalReviewAttestation(emissionM03Attestation, closed);
             }
           }
+          let authoredRationaleHash: string | undefined;
+          if (!truncated && transformed.ok && m03SurfaceAccepted && rationaleAuthor?.enabled && opts.structuredCaseState) {
+            const original = m03ReasoningFromStructuredContent(emissionContent);
+            const proposal = original && await rationaleAuthor.propose(original);
+            if (original && proposal && !clientStreamClosed && !upstreamController.signal.aborted) {
+              try {
+                const authored = withFinalRationalePair(original, proposal.pair, proposal.context);
+                const split = splitDeliveryContent(emissionContent, "diagnose");
+                const next = rerenderDelivery(joinDeliveryContent({ ...split.candidate, structured: authored as unknown as Record<string, unknown> }, split.kind));
+                const checked = validatedStructuredReasoning(next, "diagnose", opts.structuredClinicalContext, undefined, true);
+                const grounded = structuredReasoningFromContent(sanitizeUngroundedRedFlagNegations(next, opts.structuredCaseState));
+                const expectedHash = finalRationaleDeliveryHash(authored);
+                const rebound = checked && emissionM03Attestation ? rebindClinicalReviewAttestation(emissionM03Attestation, checked) : emissionM03Attestation;
+                if (checked && grounded && finalRationaleDeliveryHash(checked) === expectedHash &&
+                  JSON.stringify(rationalePairFrom(grounded)) === JSON.stringify(proposal.pair) && (!emissionM03Attestation || rebound)) {
+                  if (proposal.adopt) {
+                    emissionContent = next;
+                    emissionM03Attestation = rebound;
+                    authoredRationaleHash = expectedHash;
+                    if (rebound) clinicalReviewRebindCount += 1;
+                  }
+                } else rationaleAuthor.rejectTransaction();
+              } catch {
+                rationaleAuthor.rejectTransaction();
+              }
+            }
+          }
+          ({ content: emissionContent, attestation: emissionM04Attestation } = await applyM04FinalContent(
+            emissionContent, emissionM04Attestation, opts, upstreamController.signal, absoluteRunDeadline,
+          ));
           if (finalDelivery && deliveryPolicy.mode !== "off") {
-            if (!truncated && transformed.ok) rememberAcceptedProjection(emissionContent);
+            if (!truncated && transformed.ok && !authoredRationaleHash) rememberAcceptedProjection(emissionContent);
             emissionContent = await finalDelivery.run(emissionContent);
             const gatedReasoning = structuredReasoningFromContent(emissionContent);
-            if (gatedReasoning) {
+            if (authoredRationaleHash && (!gatedReasoning || finalRationaleDeliveryHash(gatedReasoning) !== authoredRationaleHash)) {
+              rationaleAuthor?.reason("delivery_gate_changed");
+              authoredRationaleHash = undefined;
+              truncated = true;
+              transformed = transformTruncateFallback();
+              emissionContent = transformed.content;
+              emissionM03Attestation = undefined;
+            } else if (gatedReasoning) {
               if (emissionM03Attestation) emissionM03Attestation = rebindClinicalReviewAttestation(emissionM03Attestation, gatedReasoning);
               if (emissionM04Attestation) emissionM04Attestation = rebindClinicalReviewAttestation(emissionM04Attestation, gatedReasoning);
             }
@@ -5824,6 +5887,12 @@ async function callPrimaryTextModelStream(
           }
           if (opts.structuredStage === "diagnose") {
             signedContent = sanitizeDiagnoseStreamingDraft(signedContent);
+          }
+          if (rationaleAuthor) {
+            const signed = !truncated && transformed.ok ? structuredReasoningFromContent(signedContent) : undefined;
+            const included = Boolean(authoredRationaleHash && signed?.contractSignature && finalRationaleDeliveryHash(signed) === authoredRationaleHash);
+            rationaleAuthor.finish(signed ? included ? "new" : "old" : "limited", included,
+              rationaleAuthor.enabled && !m03SurfaceAccepted && !truncated && transformed.ok ? "projection" : undefined);
           }
           const authoritativeFallbackAccepted = truncated && opts.authoritativeTruncateFallback && transformed.ok;
           // Tier-2/3 带批注受理不在这里渲染：它在 finalize 之前就解除截断
@@ -6236,8 +6305,11 @@ export async function callDiagnosisStream(
   if (backend === "deepseek" || backend === "openai") {
     if (!opts.structuredStage) return callPrimaryTextModelStream(prompt, kind, opts);
     const policy = deliveryGatePolicy();
-    return (await withRewriteLedger({ requestId: crypto.randomUUID(), stage: opts.structuredStage, mode: policy.mode },
-      () => callPrimaryTextModelStream(prompt, kind, opts), policy.ledger)).value;
+    const requestId = opts.m03FinalRationaleRequestRef || crypto.randomUUID();
+    const response = (await withRewriteLedger({ requestId, stage: opts.structuredStage, mode: policy.mode },
+      () => callPrimaryTextModelStream(prompt, kind, { ...opts, m03FinalRationaleRequestRef: requestId }), policy.ledger)).value;
+    if (opts.structuredStage === "diagnose" && !response.ok) logSkippedFinalRationale("unavailable", "none", { requestRef: requestId });
+    return response;
   }
   return callGlmStream(prompt, images, opts.requestSignal);
 }

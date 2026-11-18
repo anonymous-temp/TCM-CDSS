@@ -1,3 +1,6 @@
+import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { clinicalEventTemporalScopeAt } from "./clinical-polarity";
+import finalRationalePolicy from "../data/m03-final-rationale-policy.source.json";
 import criteriaJson from "../data/tcm-diagnostics-syndrome-criteria.json";
 import labelConcepts from "../data/tcm-syndrome-label-concepts.source.json";
 import factPolicy from "../data/delivery-facts-policy.source.json";
@@ -5,7 +8,7 @@ import policy from "../data/pathogenesis-columns.source.json";
 import coldHeatSigns from "../data/tcm-cold-heat-signs.source.json";
 import natureJson from "../data/tcm-nature-lexicon.json";
 import { clauseLocalMentionPolarityAt, negationGroundingEquivalents, recordedFindingReading } from "./diagnosis-safety";
-import { EXCESS_ELEMENTS, MIN_RECORD_SIGNS, natureLabelSignTerms, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintyMissingClaims, uncertaintiesWithRecordedAnswers, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording } from "./analysis-element-closure";
+import { EXCESS_ELEMENTS, MIN_RECORD_SIGNS, natureLabelSignTerms, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintyMissingClaims, uncertaintiesWithRecordedAnswers, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, textHasSign } from "./analysis-element-closure";
 import { classifyNatureColumns, natureItemDeficiencyOrExcess } from "./nature-column-classification";
 import { coreProseAfterCut, rowsAfterCut } from "./m03-core-prose-floor";
 
@@ -90,6 +93,55 @@ function sameElement(question: string, asserted: readonly string[]): boolean {
   if (!new RegExp(policy.uncertainty.elementQuestionRemainder, "u").test(remainder)) return false;
   const wanted = assertedNatureLabels(question);
   return wanted.length > 0 && wanted.every((label) => asserted.includes(label));
+}
+
+/** Terminal authoring can remove an answered question without editing any of the reasoning. */
+export function filterAnsweredFinalRationaleUncertainties(
+  items: NonNullable<ClinicalReasoningResultV2["pathogenesis"]["uncertainties"]>,
+  recordText: string,
+  root: ClinicalReasoningResultV2,
+): typeof items {
+  if (!recordText) return items;
+  const names = [root.overview.primarySyndrome, ...(root.overview.secondarySyndromes || [])].join("、");
+  const output = items.flatMap((row) => {
+    const item = text(row.item);
+    const core = questionCore(item);
+    if (!core || RELATION.test(item) || new RegExp(finalRationalePolicy.preservedQuestions, "u").test(item) ||
+      new RegExp(finalRationalePolicy.protectedQuestionAffects, "u").test(text(row.affects)) ||
+      new RegExp(policy.uncertainty.reasonQuestionPattern, "u").test(text(row.reason))) return [row];
+    if (new RegExp(policy.uncertainty.elementQuestionPrefix, "u").test(item) && sameElement(core, assertedNatureLabels(names))) {
+      const element = EXCESS_ELEMENTS.find((entry) => entry.nameMarkers.includes(core));
+      if (element && recordExcessSigns(recordText, element.id).length >= MIN_RECORD_SIGNS) return [];
+      const confirmed = natureLabelSignTerms(core).filter((sign) => textHasSign(recordText, sign) && recordedFindingReading(recordText, sign) === "affirmed");
+      const independent = confirmed.filter((sign) => !confirmed.some((other) => other !== sign && other.includes(sign)));
+      // A settled label by itself is not proof of the element's independent support.
+      return root.overview.primarySyndromeResolution === "resolved" && independent.length >= MIN_RECORD_SIGNS ? [] : [row];
+    }
+    if (!PREFIX.test(item) && core === item) return [row];
+    const parts = core.split(GLUE).map((part) => part.trim()).filter(Boolean);
+    const unanswered = parts.filter((part) => {
+      const forms = [part, ...negationGroundingEquivalents(part)];
+      const current = recordText.split(/[。！？；;\n]/u).filter((sentence) => forms.some((form) => {
+        for (let at = sentence.indexOf(form); at >= 0; at = sentence.indexOf(form, at + form.length)) {
+          if (clinicalEventTemporalScopeAt(sentence, at, form.length) === "current") return true;
+        }
+        return false;
+      })).join("。");
+      return !findingAnswered(part, current, item);
+    });
+    if (!parts.length || unanswered.length === parts.length) return [row];
+    if (!unanswered.length) return [];
+    const remaining = unanswered.join("、");
+    const nextItem = item.replace(core, remaining);
+    const reasonText = text(row.reason);
+    const claims = uncertaintyMissingClaims(reasonText);
+    const reasonCore = claims.length === 1 ? claims[0] : questionCore(reasonText);
+    const reasonParts = reasonCore.split(GLUE).map((part) => part.trim()).filter(Boolean);
+    const reason = reasonParts.length > 0 && reasonParts.every((part) => parts.includes(part))
+      ? reasonText.replace(reasonCore, reasonParts.filter((part) => unanswered.includes(part)).join("、") || remaining) : row.reason;
+    return [{ ...row, item: nextItem, reason }];
+  });
+  return output.length === items.length && output.every((row, index) => row === items[index]) ? items : output;
 }
 
 /** One outlet for generated, rewritten, cached and overview-migrated pending items. Mixed questions retain the unanswered part. */

@@ -206,11 +206,14 @@ function replay(stored: Stored): Response {
  * 模型调用的唯一入口（SDK 的 fetch 选项与 fetchWithConnectTimeout 都走这里）。不在作用域内时等于 globalThis.fetch。
  * 进行中的同内容调用并入：调用方先到的负责真实请求，后到的等它的完整响应；它失败或被中止，后到的自己再发一次。
  */
-export async function memoizedModelFetch(input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> {
+export async function memoizedModelFetch(input: Parameters<typeof fetch>[0], init?: RequestInit, onNetworkAttempt?: () => void): Promise<Response> {
   const scope = scopes.getStore();
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
   const key = scope && !scope.forgotten ? modelCallMemoKey(url, init?.body) : undefined;
-  if (!scope || !key) return globalThis.fetch(input, init);
+  if (!scope || !key) {
+    onNetworkAttempt?.();
+    return globalThis.fetch(input, init);
+  }
   scope.used.add(key);
   // 登记进行中要在任何 await 之前：读盘期间同内容的另一路就得看到它，否则两路都会发真实请求。
   const pending = scope.fresh ? undefined : inFlight.get(key);
@@ -244,6 +247,7 @@ export async function memoizedModelFetch(input: Parameters<typeof fetch>[0], ini
   }
   let response: Response;
   try {
+    onNetworkAttempt?.();
     response = await globalThis.fetch(input, init);
   } catch (error) {
     release(undefined);

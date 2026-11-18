@@ -202,13 +202,13 @@ export function getControlledTerminologyModelConfig(): TextModelConfig {
 /** Application recovery owns the whole retry budget when selected; other callers retain SDK recovery. */
 export function createTextModelClient(
   config = getPrimaryTextModelConfig(),
-  options: { retryOwner?: "sdk" | "application" } = {},
+  options: { retryOwner?: "sdk" | "application"; onNetworkAttempt?: () => void } = {},
 ): OpenAI {
   return new OpenAI({
     apiKey: config.apiKey || "missing-api-key",
     baseURL: config.baseUrl,
     maxRetries: options.retryOwner === "application" ? 0 : 2,
-    fetch: observedModelFetch,
+    fetch: options.onNetworkAttempt ? (input, init) => observedModelFetch(input, init, options.onNetworkAttempt) : observedModelFetch,
   });
 }
 

@@ -1,0 +1,374 @@
+import "server-only";
+import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { authoritativePatientAgeYears, normalizeClinicalText, clinicalGroundingText, clauseLocalMentionPolarityAt, recordMentionPolarityAt, recordedFindingReading } from "./diagnosis-safety";
+import { affirmedClinicalSourceClauses, clinicalClausePolarity, clinicalEventTemporalScopeAt, RECORD_GAP_MARKER, stripClinicalSectionLabel } from "./clinical-polarity";
+import { isUnrecordedInspectionFieldValue } from "./clinical-state";
+import { buildTrustedRecordIndex, deliveryHash } from "./delivery-trusted-record.server";
+import { chiefComplaintFindings, chiefComplaintPhrase, rationaleFindingsChecklist } from "./rationale-findings-checklist";
+import { followupConversationView } from "./followup-conversation";
+import { getLineageCard, resolveLineageCode } from "./tcm-lineages";
+import { isTextbookDiseaseName, splitTextbookDiseaseSubtype, textbookDiseaseDiagnosisPoints, textbookRowForSyndrome, withoutFingerVeinClause } from "./tcm-textbook-syndromes";
+import { diagnosticsCriteriaFor, elementCompositeCriteriaEntry, compoundCriteriaEntries } from "./m03-secondary-syndrome-consistency.server";
+import { finalRationaleElementContext } from "./m03-final-rationale-elements.server";
+import { TCM_INSPECTION_AXES } from "./tcm-inspection-lexicon";
+import exam from "../data/physical-exam-claim-lexicon.source.json";
+import symptomAxis from "../data/tcm-symptom-axis-map.source.json";
+import chiefConcepts from "../data/tcm-differential-chief-concepts.source.json";
+import rules from "../data/m03-final-rationale-policy.source.json";
+import deliveryFactsPolicy from "../data/delivery-facts-policy.source.json";
+import { alignQuoteToSource } from "./source-quote-alignment";
+import { courseSpans } from "./western-record-course";
+import { FINAL_RATIONALE_VERSION } from "./m03-final-rationale-policy";
+import { FINAL_RATIONALE_SYSTEM, rationaleRevision, type RationaleRejection } from "./m03-final-rationale-outline.server";
+
+export type Inspection = "tongue" | "pulse";
+type Line = { id: string; text: string; path: string; offset: number; contextOffset: number; inspection?: Inspection; chief: boolean; current: boolean; context: string; reading: string; onsets: Array<{ start: number; end: number }> };
+export type Finding = { line: string; at: number; term: string };
+const unique = <T>(items: readonly T[]) => [...new Set(items)];
+const inspectionKeys = ["tongue", "pulse"] as const;
+const inspectionPaths = {
+  tongue: new RegExp(rules.tonguePath, "u"),
+  pulse: new RegExp(rules.pulsePath, "u"),
+};
+const inspectionPrefix = { tongue: new RegExp(rules.tonguePrefix, "u"), pulse: /^(?:脉象|切诊)\s*[:：]\s*/u };
+const inspectionWords = { tongue: /^(?:舌(?!下含服)|苔)/u, pulse: new RegExp(rules.pulseFindingPrefix, "u") };
+const inspectionUnavailable = new RegExp(rules.inspectionUnavailable, "u");
+const inspectionLabel = new RegExp(rules.inspectionLabel, "u");
+const stripInspectionLabel = (value: string) => value.replace(inspectionLabel, "");
+const familyObject = new RegExp(rules.familyObject, "gu");
+const historyHeading = new RegExp(rules.historyHeading, "u");
+
+const GOVERNED_FINDINGS = unique([
+  ...symptomAxis.entries.flatMap((entry) => entry.terms),
+  ...exam.groups.flatMap((entry) => entry.terms),
+  ...TCM_INSPECTION_AXES.flatMap((axis) => [...axis.groups.flatMap((group) => group.terms), ...axis.normal.split(/[，、]/u)]),
+]).filter((term) => term.length >= 2).sort((a, b) => b.length - a.length);
+
+function recordLines(state: CaseState): Line[] {
+  const sources = buildTrustedRecordIndex(state).sources;
+  const conversation = followupConversationView(state.conversation);
+  const followupAnswers = new Set(conversation.answers.map((answer) => answer.answer));
+  const hasPrimaryRecord = Boolean(state.hisRecord?.rawText || Object.values(state.hisRecord?.fields || {}).some(Boolean) || conversation.primaryNarrative.length);
+  const lines: Line[] = [];
+  const chiefText = state.chiefComplaint || "";
+  const chiefCourses = courseSpans(chiefText);
+  const chiefTerms = unique([
+    ...chiefComplaintFindings(state),
+    ...chiefText.split(/[，,。；;、]|伴/u).map(chiefComplaintPhrase).filter((term) => term.length >= 2),
+    ...GOVERNED_FINDINGS.filter((term) => chiefText.includes(term)),
+    ...chiefConcepts.concepts.filter(({ forms }) => forms.some((form) => chiefText.includes(form) && recordedFindingReading(chiefText, form) === "affirmed"))
+      .flatMap(({ forms }) => forms),
+  ]);
+  for (const source of sources) {
+    if (source.sourcePath === "/tongueImageDesc") continue;
+    if (source.sourcePath.startsWith("/symptoms/") && hasPrimaryRecord) continue;
+    // A bare answer can quote what it actually says. Assistant question text is never a source.
+    if (source.role === "answer" && followupAnswers.has(source.text) && !/\p{Script=Han}{2}/u.test(source.text)) continue;
+    const field = inspectionKeys.find((key) => inspectionPaths[key].test(source.sourcePath));
+    const chief = /\/(?:chiefComplaint|zhushu)$/u.test(source.sourcePath);
+    let current = source.role !== "history";
+    for (const match of source.text.matchAll(/[^\r\n]+/gu)) {
+      const raw = match[0];
+      const trimmed = raw.trimStart();
+      if (historyHeading.test(trimmed)) current = false;
+      else if (stripClinicalSectionLabel(trimmed) !== trimmed || inspectionKeys.some((key) => inspectionPrefix[key].test(trimmed))) current = source.role !== "history";
+      if (field && isUnrecordedInspectionFieldValue(trimmed, field)) continue;
+      const prefix = field ? inspectionPrefix[field] : undefined;
+      const content = prefix ? trimmed.replace(prefix, "") : trimmed;
+      const text = content.trimEnd();
+      const contextOffset = raw.length - content.length;
+      if (!text || lines.some((line) => line.text === text && line.inspection === field && line.current === current && line.chief === chief)) continue;
+      const fieldKey = source.sourcePath.split("/").at(-1) || "";
+      const onsets = current && (fieldKey === "presentHistory" || deliveryFactsPolicy.hpiKeys.includes(fieldKey))
+        ? onsetAnchors(raw, chiefCourses, chiefTerms) : [];
+      // A family term used as the object of recognition does not supply the symptom's subject.
+      const reading = raw.replace(familyObject, (name) => "某".repeat(name.length));
+      lines.push({ id: "", onsets, path: source.sourcePath, offset: match.index + contextOffset, contextOffset,
+        context: raw, reading, text, inspection: field, chief, current });
+    }
+  }
+  // Bound the prompt using complete lines and keep direct four-examination entries and the chief complaint first.
+  lines.sort((a, b) => Number(b.chief) - Number(a.chief) || Number(Boolean(b.inspection)) - Number(Boolean(a.inspection)) || Number(b.current) - Number(a.current));
+  return lines.map((line, index) => ({ ...line, id: `r${index + 1}` }));
+}
+
+function offsets(text: string, term: string): number[] {
+  const positions: number[] = [];
+  if (!term) return positions;
+  for (let at = text.indexOf(term); at !== -1; at = text.indexOf(term, at + 1)) positions.push(at);
+  return positions;
+}
+
+const courseOnset = new RegExp(rules.courseOnset, "u");
+const painTerm = new RegExp(`^([\\p{Script=Han}]{1,5}?)${rules.painTerminal}$`, "u");
+const continuation = new RegExp(rules.currentCourseContinuation, "gu");
+const observation = new RegExp(rules.affirmativeObservation, "u");
+const partialRelief = new RegExp(rules.partialRelief, "gu");
+
+function sitePainPattern(term: string): RegExp | undefined {
+  const site = painTerm.exec(term)?.[1].replace(/部位?$/u, "");
+  return site ? new RegExp(`${site}${rules.painModifier}${rules.painTerminal}`, "gu") : undefined;
+}
+
+function describesChief(text: string, chiefTerms: readonly string[]): boolean {
+  return chiefTerms.some((term) => {
+    if (recordedFindingReading(text, term) === "affirmed") return true;
+    const expanded = sitePainPattern(term)?.exec(text);
+    return Boolean(expanded && clauseLocalMentionPolarityAt(text, expanded.index + expanded[0].length - 1) === "affirmed");
+  });
+}
+
+function onsetAnchors(text: string, chiefCourses: ReturnType<typeof courseSpans>, chiefTerms: string[]) {
+  if (!chiefCourses.length) return [];
+  const normalized = normalizeClinicalText(text);
+  const onsets: Line["onsets"] = [];
+  for (const { 0: sentence, index } of normalized.matchAll(/[^。；;]+/gu)) {
+    for (const span of courseSpans(sentence)) {
+      if (!chiefCourses.some((chief) => chief.lower === span.lower && chief.upper === span.upper)) continue;
+      const at = span.index + span.length;
+      const onsetClause = sentence.slice(at);
+      if (courseOnset.test(onsetClause) && describesChief(onsetClause, chiefTerms)) {
+        onsets.push({ start: index + span.index, end: index + at + 1 });
+      }
+    }
+    // An earlier illness and a still-recurring chief complaint can share the same HPI sentence.
+    for (const match of sentence.matchAll(continuation)) {
+      if (describesChief(sentence.slice(match.index + match[0].length), chiefTerms)) {
+        onsets.push({ start: index + match.index, end: index + match.index + match[0].length });
+      }
+    }
+  }
+  return onsets;
+}
+
+function isCurrentEpisode(line: Line, offset: number, length: number): boolean {
+  const scope = clinicalEventTemporalScopeAt(line.context, offset, length, { groundingQuote: true });
+  if (scope === "current") return true;
+  const sentenceStart = Math.max(...["。", "；", ";"].map((delimiter) => line.context.lastIndexOf(delimiter, offset - 1))) + 1;
+  const onset = line.onsets.find(({ end }) => end > sentenceStart && end <= offset);
+  if (!onset) return false;
+  if (scope === "historical_resolved") {
+    // Same-episode conditional, partial relief is a presenting feature. Keep any complete
+    // remission visible to the shared temporal reader.
+    const maskedRelief = line.context.replace(partialRelief, (relief) => " ".repeat(relief.length));
+    if (clinicalEventTemporalScopeAt(maskedRelief, offset, length, { groundingQuote: true }) === "historical_resolved") return false;
+  }
+  if (line.context.slice(onset.start, onset.end).match(continuation)) {
+    return clinicalEventTemporalScopeAt(line.context.slice(onset.end), offset - onset.end, length, { groundingQuote: true }) === "current";
+  }
+  // Keep any independent historical anchor before or after the onset that matches the chief complaint.
+  const beforeOnset = line.context.slice(sentenceStart, onset.start);
+  return clinicalEventTemporalScopeAt(beforeOnset, beforeOnset.length) === "current" &&
+    clinicalEventTemporalScopeAt(line.context.slice(onset.end), offset - onset.end, length, { groundingQuote: true }) === "current";
+}
+
+function independentlyAffirmedAt(text: string, offset: number): boolean {
+  const start = Math.max(...["，", ",", "。", "；", ";"].map((mark) => text.lastIndexOf(mark, offset - 1))) + 1;
+  const clause = text.slice(start).split(/[，,。；;]/u)[0];
+  // Accept a documented positive after an earlier negation only when it has an independent predicate.
+  // The existing affirmed-clause reader still guards negation lists and conditional statements.
+  return (recordedFindingReading(text, clause) === "affirmed" || observation.test(clause)) &&
+    affirmedClinicalSourceClauses(text).some((affirmed) => affirmed.includes(clause));
+}
+
+function isCurrentFindingAt(line: Line, at: number, term: string, affirmedSpan = false): boolean {
+  const offset = line.contextOffset + at;
+  const polarity = recordMentionPolarityAt(line.reading, offset);
+  return line.current && polarity !== "excluded" &&
+    (polarity === "affirmed" || affirmedSpan || independentlyAffirmedAt(line.reading, offset)) &&
+    clauseLocalMentionPolarityAt(line.reading, offset) === "affirmed" &&
+    isCurrentEpisode(line, offset, term.length);
+}
+
+function findingInLine(line: Line, term: string): Finding | undefined {
+  const at = offsets(line.text, term).find((offset) => isCurrentFindingAt(line, offset, term));
+  return at === undefined ? undefined : { line: line.id, at, term };
+}
+
+function inspectionFindings(lines: readonly Line[], field: Inspection): Finding[] {
+  const found: Finding[] = [];
+  const covered = new Set<string>();
+  for (const line of lines.filter((entry) => entry.current)) {
+    const explicit = line.inspection === field;
+    if (line.inspection && !explicit) continue;
+    for (const match of line.text.matchAll(/[^，,。；;、！？]+/gu)) {
+      const raw = match[0].trim();
+      const term = stripInspectionLabel(raw).replace(inspectionPrefix[field], "").trim();
+      if ((!explicit && !inspectionWords[field].test(term)) || inspectionUnavailable.test(raw) || isUnrecordedInspectionFieldValue(term, field) || !/\p{Script=Han}/u.test(term)) continue;
+      if (field === "pulse" && (new RegExp(rules.barePulseCount, "u").test(term) || withoutFingerVeinClause(term) !== term)) continue;
+      const start = match.index + match[0].indexOf(term);
+      const coating = field === "tongue" ? term.indexOf("苔", 1) : -1;
+      const components = coating > 0 && term.startsWith("舌") && !term.startsWith("舌苔") ? [term.slice(0, coating), term.slice(coating)] : [term];
+      let at = start;
+      for (const component of components) {
+        // 无苔、无异常 are observations as phrases. Availability was checked above.
+        const anchor = /^(?:无苔|无异常)/u.test(component) ? component.slice(0, 1) : component;
+        if (!covered.has(component) && isCurrentFindingAt(line, at, anchor)) {
+          found.push({ line: line.id, at, term: component });
+          covered.add(component);
+        }
+        at += component.length;
+      }
+    }
+  }
+  return found;
+}
+
+function chiefFindings(state: CaseState, lines: readonly Line[], disease: string): Finding[] {
+  const diseaseCore = splitTextbookDiseaseSubtype(disease).disease;
+  const nominated = unique([...chiefComplaintFindings(state), ...GOVERNED_FINDINGS]);
+  const found: Finding[] = [];
+  for (const line of lines.filter((entry) => entry.chief)) {
+    for (const clause of line.text.split(/[，,。；;、\n]|伴/u)) {
+      const phrase = chiefComplaintPhrase(clause);
+      if (!phrase || (isTextbookDiseaseName(phrase) && phrase !== diseaseCore)) continue;
+      const terms = nominated.filter((term) => clause.includes(term)).sort((a, b) => b.length - a.length);
+      const selected = terms.filter((term, index) => !terms.slice(0, index).some((longer) => longer.includes(term)));
+      for (const term of selected.length ? selected : [phrase]) {
+        const finding = findingInLine(line, term);
+        if (finding && !found.some((entry) => entry.term === term)) found.push(finding);
+      }
+    }
+  }
+  return found;
+}
+
+function syndromeReferences(names: string[], disease: string, ageYears: number | undefined, chiefComplaint: string) {
+  let pointId = 0;
+  return names.map((name) => {
+    const row = textbookRowForSyndrome(disease, name, { ageYears, chiefComplaint });
+    const criteria = diagnosticsCriteriaFor(name) ?? elementCompositeCriteriaEntry(name);
+    const components = criteria?.components?.map(diagnosticsCriteriaFor).filter(Boolean) ?? compoundCriteriaEntries(name);
+    const pointTexts = unique([...(row?.manifestations.split(/[，、；。]/u) || []), ...(criteria?.specific || []), ...(criteria?.manifestations || []), ...components.flatMap((component) => component?.specific || [])]).slice(0, 14);
+    return {
+      name, row: row ? { book: row.book, term: row.syndromeName, id: row.id, evidence: row.evidence } : null,
+      criteria: criteria ? { name: criteria.name, line: criteria.line || undefined, components: criteria.components, book: "中医诊断学" } : null,
+      points: pointTexts.map((value) => [`S${++pointId}`, value] as const),
+    };
+  });
+}
+
+export function buildFinalRationaleContext(root: ClinicalReasoningResultV2, state: CaseState, scope: string) {
+  const { overview, pathogenesis, therapy, lineageAdaptation } = root;
+  const names = [overview.primarySyndrome, ...(overview.secondarySyndromes || [])];
+  if (root.stage !== "diagnose" || !overview.tcmDiseaseName || !names[0] || names[0] === "症状级工作判断" ||
+    !["resolved", "bounded"].includes(overview.primarySyndromeResolution || "") ||
+    !overview.tcmDiseaseRationale || !overview.tcmDiagnosticRationale || !pathogenesis.chain.length ||
+    !pathogenesis.locationDifferentiation || !pathogenesis.natureDifferentiation) return undefined;
+
+  const fullLines = recordLines(state);
+  let remaining = 6800;
+  const lines = fullLines.filter((line) => {
+    if (line.text.length > 1800 || line.text.length > remaining) return false;
+    remaining -= line.text.length;
+    return true;
+  });
+  const recordText = clinicalGroundingText(state);
+  const chief = chiefFindings(state, lines, overview.tcmDiseaseName);
+  if (!chief.length) return undefined;
+  const tongue = inspectionFindings(fullLines, "tongue");
+  const pulse = inspectionFindings(fullLines, "pulse");
+  const displayed = new Set(lines.map((line) => line.id));
+  // An omitted measured finding cannot be described as unrecorded.
+  if ([...tongue, ...pulse].some((finding) => !displayed.has(finding.line))) return undefined;
+  const age = authoritativePatientAgeYears(state) ?? undefined;
+  const disease = overview.tcmDiseaseName;
+  const source = textbookDiseaseDiagnosisPoints(disease, age) ?? textbookDiseaseDiagnosisPoints(splitTextbookDiseaseSubtype(disease).disease, age);
+  const points = (source?.points || []).slice(0, 12).map((point, index) => [`D${index + 1}`, point] as const);
+  const syndrome = syndromeReferences(names, disease, age, state.chiefComplaint);
+  const code = resolveLineageCode(state.tcmLineagePreference);
+  const card = code === "unrestricted" ? null : getLineageCard(code);
+  const facts = (state.clinicalFacts?.affirmedSymptoms || []).filter((item) =>
+    lines.some((line) => line.text.includes(item.quote) && findingInLine(line, item.term)));
+  const important = rationaleFindingsChecklist(state, 8).flatMap((term) => {
+    const finding = lines.map((line) => findingInLine(line, term)).find(Boolean);
+    return finding && !chief.some((item) => item.term.includes(term)) && ![...tongue, ...pulse].some((item) => item.term.includes(term) || term.includes(item.term)) ? [finding] : [];
+  });
+  const fingerVein = lines.flatMap((line) => line.text.split(/[，,。；;、！？]/u).flatMap((part) => {
+    const term = part.trim();
+    if (!/^(?:小儿)?指纹.+/u.test(term) || RECORD_GAP_MARKER.test(term)) return [];
+    const finding = findingInLine(line, term);
+    return finding ? [finding] : [];
+  }));
+  const ground = (term: string) => lines.map((line) => findingInLine(line, term)).find(Boolean);
+  const location = pathogenesis.locationDifferentiation;
+  const nature = pathogenesis.natureDifferentiation;
+  const input = {
+    records: lines.map(({ id, text, path, current, inspection }) => [id, text, inspection || path.split("/").at(-1), current ? undefined : "history"]),
+    chief, tongue, pulse, important: [...new Map([...important, ...fingerVein].map((item) => [item.term, item])).values()],
+    conclusion: { disease, names, resolution: overview.primarySyndromeResolution, reason: overview.primarySyndromeResolutionReason, confidence: overview.evidence?.confidence },
+    axes: {
+      location: { ...location, details: location.details?.map(({ location, basis }) => ({ location, basis: ground(basis) ?? null })) },
+      nature: { ...nature, basis: nature.basis ? ground(nature.basis) ?? null : null },
+    },
+    ground: unique([...overview.primarySyndromeBasis, ...pathogenesis.chain.map((node) => node.patientFact)])
+      .map(ground).filter((finding): finding is Finding => Boolean(finding)),
+    pending: pathogenesis.uncertainties,
+    method: therapy?.overallMethod, direction: overview.recommendedFormulaDirection, formulas: overview.recommendedFormulaNames,
+    lineage: card ? { code, label: card.label, lens: card.dxEmphasis, adaptation: lineageAdaptation } : null,
+    diseaseReference: source ? { book: source.book, definition: source.definition, points } : null,
+    syndrome,
+  };
+  const key = deliveryHash({
+    version: FINAL_RATIONALE_VERSION, stateId: state.id, scope, input, recordText, facts,
+    sources: lines.map(({ path, offset, context }) => [path, offset, context]),
+    safety: state.safetyGate, caseCompleteness: state.completeness,
+    safetyManagement: root.management, completeness: root.completeness,
+    theory: { method: therapy, lineageAdaptation, location, nature, primaryBasis: overview.primarySyndromeBasis },
+  });
+  const elements = finalRationaleElementContext(root, { ageYears: age, chiefComplaint: state.chiefComplaint });
+  return { key, input, lines, recordText, state, root, elements };
+}
+
+export type FinalRationaleContext = NonNullable<ReturnType<typeof buildFinalRationaleContext>>;
+
+export function finalRationaleMessages(context: FinalRationaleContext, reasons: RationaleRejection[] = []) {
+  return [
+    { role: "system" as const, content: FINAL_RATIONALE_SYSTEM },
+    { role: "user" as const, content: JSON.stringify({ ...context.input, snapshot: context.key, ...(reasons.length ? { revise: reasons.map(rationaleRevision) } : {}) }) },
+  ];
+}
+
+/** Find one continuous record span. For repeated wording, try another occurrence if the first is excluded. */
+export function hasCurrentRationaleQuote(context: FinalRationaleContext, quote: string): boolean {
+  for (const line of context.lines) {
+    if (!line.current) continue;
+    const rejected = new Set<number>();
+    for (;;) {
+      const aligned = alignQuoteToSource(quote, line.context, { excludedAt: (_, at) => rejected.has(at) });
+      if (!aligned || rejected.has(aligned.start)) break;
+      const text = stripInspectionLabel(aligned.span);
+      const start = aligned.end - text.length - line.contextOffset;
+      if (text && quoteOccurrenceAffirmed(context, line, text, start)) return true;
+      rejected.add(aligned.start);
+    }
+  }
+  return false;
+}
+
+function quoteOccurrenceAffirmed(context: FinalRationaleContext, line: Line, text: string, start: number): boolean {
+  if (inspectionUnavailable.test(text) || RECORD_GAP_MARKER.test(text)) return false;
+  const readingText = line.reading.slice(line.contextOffset + start, line.contextOffset + start + text.length);
+  const reading = recordedFindingReading(line.reading, readingText);
+  const affirmedPassage = /[，,]/u.test(readingText) && reading === "affirmed" &&
+    affirmedClinicalSourceClauses(line.reading).some((affirmed) => affirmed.includes(readingText));
+  if (!isCurrentFindingAt(line, start, text, affirmedPassage)) return false;
+  // A continuous excerpt can still include a negative or historical item after its opening finding.
+  for (const fragment of text.matchAll(/[^，,。；;！？]+/gu)) {
+    const part = fragment[0].trim();
+    const at = start + fragment.index + fragment[0].indexOf(part);
+    if (!part) continue;
+    if (clinicalClausePolarity(part) !== "affirmed" &&
+      !((GOVERNED_FINDINGS.includes(part) || /^无(?:苔|异常)$/u.test(part)) && recordedFindingReading(line.context, part) === "affirmed")) return false;
+    if (!isCurrentFindingAt(line, at, part, affirmedPassage)) return false;
+  }
+  for (const finding of GOVERNED_FINDINGS) {
+    for (const at of offsets(text, finding)) {
+      if (!isCurrentFindingAt(line, start + at, finding, affirmedPassage)) return false;
+    }
+  }
+  if (reading === "denied" || (reading !== "affirmed" && reading !== "conflicting" &&
+    !independentlyAffirmedAt(line.reading, line.contextOffset + start))) return false;
+  return !context.state.clinicalFacts?.redFlags.some(({ status, quote }) => status === "negative" && quote &&
+    offsets(line.text, quote).some((at) => at <= start && at + quote.length >= start + text.length));
+}

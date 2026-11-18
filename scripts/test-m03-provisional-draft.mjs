@@ -61,6 +61,6 @@ test("insertion keeps the signed limited contract as the only sentinel and is id
 
 test("the limited-result emit is wired to attach the draft (source anchor by semantics)", () => {
   const api = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
-  assert.match(api, /renderM03ProvisionalDraftSection\(\s*schemaValidDiagnoseDraft\(closeM03Elements\(authoritativeContent, false\)\)/, "草稿取自最后一版权威内容");
+  assert.match(api, /renderM03ProvisionalDraftSection\(\s*schemaValidDiagnoseDraft\(closeM03Elements\(authoritativeContent, false\)\)/, "草稿取自最后一版权威内容并先做证素闭合，闭合不得改证名");
   assert.match(api, /authoritativeFallbackAccepted\s*\?\s*`\$\{STREAM_REPLACE_MARKER\}\$\{insertM03ProvisionalDraft\(transformed\.content, m03ProvisionalSection\)\}`/, "签名有限页分支必须附草稿");
 });
