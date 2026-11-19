@@ -3868,6 +3868,44 @@ Rollback: image `tcm-cdss:20261118-0eb6e91-prebuilt` (or `…209779e…`, `…52
 - **C046** (82 y, anticoagulant, hip fracture) is still a non-dose page.
 - **The reply to the customer** is drafted in `~/runlogs/r1018/work/r1068/甲方11.18批注回复.md`; the user sends it.
 
+### 11/19 round 52: modifications written after the prescription is final; stopped period with pain or bleeding (2026-11-19)
+
+The user asked what the next iteration should be and whether the build could be delivered, then set the constraints: no interface change and no new fields, nothing the customer has to change, no new trigger or selection rules, model-driven; knowledge tables only as a reasoning aid if needed. Material: `~/runlogs/r1018/work/r1069/` (`gen.sh`, `judge-mods.mjs` 随症加减-only judge, `judge-accept.mjs` calibrated full judge, `tally-mods.py [--replayed]`, `compare.py` incl. authoring telemetry, `replay/preg-signal.*`, `probe/zz-probe/` offline drivers, `cp/cp.py` 23 mutations, all caught, `deploy/`, `甲方11.18批注回复.md` updated). Suite `test:r1069-main` (17 checks). Interface doc V2.66 (also covers round 51, which had not been written into the changelog).
+
+**Judge calibrated to the customer's words first.** The customer's 10.26 note on standard case 2 (「方中镇惊定志药物仅龙齿，重镇安神之力不足，随症加减药物未考虑到此方面」) asks modifications to reinforce a weak first method item; round 51's judge failed every row conditioned on the chief complaint (12 of 15 fails on the customer's own 81 records). The O item and its precedent now say: reinforcing the first method item counts as right, repeating the chief complaint with nothing to add counts as minor. The customer's original wording on modifications is in `r1039/ledger/ledger.json` (`modification-*`).
+
+**What changed.**
+- **`m04-modification-authoring.server.ts`** (`CDSS_M04_MODIFICATION_AUTHORING`, default on in production only; switch in `m04-final-content-policy.ts` so the delivered surface reads it too). In the M04 candidate transform, after the herb table is final:
+  - one deepseek-flash call first lists the record's current findings with what in the formula covers each (main / uncovered / weakly covered / incidental), then decides which first-pass rows to keep (each existing row is shown with its 《中药学》 indications; an indication listed under a pattern only holds for that pattern) and writes new rows, each with the herb's textbook indication first and a `purpose` (reinforce / uncovered / weak);
+  - new rows go through the compiler's existing floor (`topUpModificationRow`: present in the record, dose within ChP, 十八反, population, allergy, not in the formula, direction, incidental sleep/appetite) and the textbook caution check, then qwen3.8-flash looks only for clear errors; a rejection stands only when deepseek confirms its reason;
+  - new rows fill up to two distinct conditions, plus at most one reinforcement row; rows beyond two did not improve verdicts and added mismatches (车前子 for 小便短黄 with fluid damage, 天麻 for 头晕 in essence deficiency);
+  - the existing fit check (`dropMisfitModifications`, two vendors) runs in parallel and its removals are merged (`withoutRowsRemovedBy`); the author's own drops are applied without a second opinion;
+  - author failure or timeout → the old fit check + top-up path; the final top-up and the delivered-surface textbook fill are unchanged.
+- **Reinforcement rows** (`allowMainSymptom` in `ModificationTriggerContext`): only authored rows skip the "condition is the chief complaint" filter, in presence, retention and the delivered surface. Normal findings, factors, demeanour and emergency signs are still not conditions.
+- **`topUpModificationRow` reports why it rejects** (`onReject`), for telemetry `m04_modification_authoring` (`compileRejected`, with disease and syndrome names, no record text).
+- **Stopped period with abdominal pain or vaginal bleeding** (`pregnancyPainOrBleedingSignalInGroundingText`, the grounding-text entry of the gate's existing obstetric signal): the herb population check treats it as possible pregnancy, so ChP 孕妇慎用 herbs are barred as for recorded pregnancy. Round 51 blamed the label lookup for e05-17; the lookup already resolved 制附子 → 附子. The real cause was that the pregnancy assessor reads bare 「停经45天」 as unknown (a deliberate rule, unchanged). Corpus scan over 20,513 records: 6 newly affected, all suspected ruptured ectopic pregnancies.
+
+**Iterations (same-day memo-replayed arms, qwen4-max on 随症加减 only; base = production 885db272).**
+
+| Version | Pairs | Non-fail base → new |
+|---|---|---|
+| v1 rewrite, reviewer re-judges kept rows and the author's drops | 30 | 83.3 → 66.7 |
+| v2 cover every addable finding, final top-up narrowed | 64 | 79.7 → 71.9 |
+| v3 cap at two conditions + one reinforcement, final top-up restored | 64 | 79.7 → 81.2 |
+| v4 reason wording, short reinforcement triggers, reinforcement direction | 221 | 76.5 → 78.7 |
+| v5 = shipped: existing rows shown with textbook indications, more rationale | 221 | 76.5 → 81.0 |
+
+- What broke v1/v2: qwen3.8-flash as a second opinion removed defensible rows (麸炒山药 for 小便清长; the deepseek recheck agreed) and restored an incidental 酸枣仁 the author had correctly dropped; "有几条给几条" without the final top-up left 0–1 rows where the record had addable findings. The author's own judgments were mostly right offline.
+- v5 by set: the customer's own 81 records 82.7 → 91.4, held-out 40 82.5 → 90.0, the customer's 100-case set 69.0 → 69.0 (12 fixed, 12 broken; mostly sparse records), clean passes 76 → 89. Single judging; the same output flips about 7% between judgings.
+- What v5 fixed is the customer's named classes: incidental 酸枣仁 (4), 旋覆花 for 善叹息, 桑螵蛸 against yin-deficiency heat, 白芍 for 头晕. What still fails: too few rows on sparse records, kept first-pass rows the author did not question (白芍 for 头晕 in two records, incidental 焦山楂), reinforcement aimed at the wrong method item.
+- P0 audit on v5 (221): dose over ChP / over 2× / 十八反十九畏 incl. 加减 / pregnancy-prohibited / child-toxic / organ / anticoagulant blood movers all 0; 220 dosed (C046 as before).
+- Authoring: 235/237 ok, p50 4.3 s, p90 6.9 s, max 12.4 s; it runs in parallel with the 方义 claim check and the fit check, so M04 grows by roughly the difference.
+
+**Left as is.**
+- The customer's 100-case set stays at 69% on this item: sparse records with one or two findings, where the judge wants two rows the record cannot support.
+- 中医诊断 (证名窄于分析) and the element-closure enforce mode were not touched (no new evidence since round 50).
+- C046 still a non-dose page.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
