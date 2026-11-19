@@ -3901,7 +3901,19 @@ The user asked what the next iteration should be and whether the build could be 
 - P0 audit on v5 (221): dose over ChP / over 2× / 十八反十九畏 incl. 加减 / pregnancy-prohibited / child-toxic / organ / anticoagulant blood movers all 0; 220 dosed (C046 as before).
 - Authoring: 235/237 ok, p50 4.3 s, p90 6.9 s, max 12.4 s; it runs in parallel with the 方义 claim check and the fit check, so M04 grows by roughly the difference.
 
+- **Tried and reverted (v6):** asking the author to quote, for each existing row, the matching 【应用】 entry and judge whether its pattern fits. It did not remove 「头晕目眩：加白芍」 on c10-509376 (and brought it back on c20, where v5 had removed it on the same replay), so the premise failed.
+- Full customer rubric on the 10 standard cases (qwen4-max, both arms): 随症加减 5/10 → 9/10, 出处方义 7 → 10, 配伍 9 → 10; 病机 9 → 7 is judge variance (the M03 text is byte-identical between the arms).
+
+**In production (995c2826, tag `20261119-995c282-prebuilt`, deployed 2026-11-19 05:31 UTC; same release directory and `20260927-dsrepair` override).** Code = 687e284d (v5); the docs commit was deployed so the source digest equals main's.
+- Gate on 687e284d: lint, 346 suites, fresh-artifact suites, typecheck, all green (`/var/tmp/r1069/gate.sh`, non-stopping).
+- `verify:deployed-image` passed (commit, digest, strictReady, qwen and deepseek live). `regress:prod-smoke`: 0 failures (M03 P95 21.5 s, M04 P95 21.6 s); its first run died on connect timeouts from this machine after two samples and still logged exit 0 — read the log.
+- Probes, forced regeneration: customer 10 on hospital-b — all stages 200, standard disease and syndrome, no red flag; 病历2 gets 龙骨 for 坐卧不安 (the 10.26 reinforcement), no incidental 酸枣仁 on 病历1/10. 8 targets on hospital-a/b — e05-17 without 附子/花蕊石 (「按本例情况已去除：附子（孕期不宜）；花蕊石（孕期不宜）」), c03/c30 without incidental 酸枣仁, c11 覆盆子 instead of 桑螵蛸 for yin-deficiency nocturia. **c10-509376 (the customer's own 10.29 record) still had 「头晕目眩：加白芍」 on this generation**: the first pass wrote it and the author kept it; in the local v5 replay it was removed. This is the remaining visible class.
+- Latency, one chain at a time: M04 median 16.5 s on the standard cases (round 50 single-stream: 15.2 s), 17.7 s on the targets; authoring in the container log 36/36 ok, p50 4.2 s, p90 5.4 s, max 6.8 s.
+- Rollback: image `tcm-cdss:20261118-885db27-prebuilt` with `docker-compose.yml.pre-995c282` in the release directory; the new step alone: `CDSS_M04_MODIFICATION_AUTHORING=off` in the override (no rebuild). Container log before the replacement: `~/telemetry-archive/container-pre-995c282-*.log.gz` on the host.
+- Local build: OOM-killed once at 3.5 GB available; went through with two temporary 3 GB zram devices (removed afterwards).
+
 **Left as is.**
+- Kept first-pass rows the author does not question, chiefly 白芍 for 头晕 under deficiency patterns (the customer's 10.29 example); the author alone keeps it in about half of the generations. A narrow two-vendor check of kept rows against the indication's pattern is the next candidate; the broad version of that check removed good rows in v1.
 - The customer's 100-case set stays at 69% on this item: sparse records with one or two findings, where the judge wants two rows the record cannot support.
 - 中医诊断 (证名窄于分析) and the element-closure enforce mode were not touched (no new evidence since round 50).
 - C046 still a non-dose page.
