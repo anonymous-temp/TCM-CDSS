@@ -17,6 +17,8 @@ import { observeModelTask } from "./cdss-model-task-telemetry";
 import { prefetchAssessFollowupFromFinalCandidate } from "./stage-prefetch.server";
 import { checkFormulaAnalysisClaimsInContent } from "./m04-formula-analysis-claim-check.server";
 import { dropMisfitModifications, topUpModificationConditions, withModificationsFrom } from "./m04-modification-fit.server";
+import { authorModificationsInContent } from "./m04-modification-authoring.server";
+import { modificationAuthoringEnabled } from "./m04-final-content-policy";
 
 /** Independent vendor for positive verification; no unchecked/failure results are memoized. */
 export function m04FinalModelIO(): M04FinalContentIO {
@@ -135,10 +137,62 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
 /** Old candidate tasks remain byte-for-byte on rollback; new authoring must not stack on old repairs. */
 export async function prepareM04CandidateContent(content: string, context: { recordText: string; prior: ClinicalReasoningResultV2; caseState: CaseState }, signal?: AbortSignal): Promise<string> {
   const policy = m04FinalContentPolicy();
+  // 第五十二轮：随证加减在定稿后由模型专写、另一厂商复核（m04-modification-authoring.server.ts），与方义核对并行。
+  // 写作失败、超时时回到下面原来的核对＋补写两步。
+  if (modificationAuthoringEnabled() && !(policy.enabled && policy.modifications === "on")) {
+    // 首轮行的删错仍由原来的加减核对（两家）负责，与写作并行；合并时写作留下的首轮行里被核对删掉的不交付。
+    const [checked, authored, fitted] = await Promise.all([
+      policy.enabled && policy.analysis === "on" ? content : checkFormulaAnalysisClaimsInContent(content, signal),
+      authorModificationsInContent(content, context, signal).catch(() => undefined),
+      dropMisfitModifications(content, context, signal),
+    ]);
+    if (authored !== undefined) return withAuthoredModificationsFrom(checked, withoutRowsRemovedBy(authored, content, fitted));
+    return topUpModificationConditions(withModificationsFrom(checked, fitted), context, signal);
+  }
   const [checked, fitted] = await Promise.all([
     policy.enabled && policy.analysis === "on" ? content : checkFormulaAnalysisClaimsInContent(content, signal),
     policy.enabled && policy.modifications === "on" ? content : dropMisfitModifications(content, context, signal),
   ]);
   const combined = withModificationsFrom(checked, fitted);
   return policy.enabled && policy.modifications === "on" ? combined : topUpModificationConditions(combined, context, signal);
+}
+
+/** 把写作结果里的加减行与（因与加减重复而去掉后的）中成药行放进方义核对后的内容（两份来自同一份内容、各改一处）。 */
+function withAuthoredModificationsFrom(target: string, source: string): string {
+  const read = (content: string) => {
+    const start = content.indexOf("<!-- DIAGNOSIS_JSON_START -->");
+    const end = start >= 0 ? content.indexOf("<!-- DIAGNOSIS_JSON_END -->", start) : -1;
+    if (start < 0 || end < 0) return undefined;
+    try { return { start, end, root: asRecord(JSON.parse(content.slice(start + "<!-- DIAGNOSIS_JSON_START -->".length, end).trim())) }; } catch { return undefined; }
+  };
+  const withModifications = withModificationsFrom(target, source);
+  const to = read(withModifications);
+  const fromFormula = asRecord(read(source)?.root?.formula);
+  const toFormula = asRecord(to?.root?.formula);
+  if (!to || !toFormula || !fromFormula || !Array.isArray(fromFormula.patentAndWestern)) return withModifications;
+  toFormula.patentAndWestern = fromFormula.patentAndWestern;
+  return `${withModifications.slice(0, to.start + "<!-- DIAGNOSIS_JSON_START -->".length)}\n${JSON.stringify(to.root, null, 2)}\n${withModifications.slice(to.end)}`;
+}
+
+/**
+ * 写作结果里去掉加减核对删掉的首轮行（纯函数，供测试）：按「条件｜动作｜药名」认行；写作新加的行不受影响（同一条件换了药是另一行）。
+ */
+export function withoutRowsRemovedBy(authored: string, original: string, fitted: string): string {
+  const read = (content: string) => {
+    const start = content.indexOf("<!-- DIAGNOSIS_JSON_START -->");
+    const end = start >= 0 ? content.indexOf("<!-- DIAGNOSIS_JSON_END -->", start) : -1;
+    if (start < 0 || end < 0) return undefined;
+    try { return { start, end, root: asRecord(JSON.parse(content.slice(start + "<!-- DIAGNOSIS_JSON_START -->".length, end).trim())) }; } catch { return undefined; }
+  };
+  const key = (row: unknown) => { const item = asRecord(row); return `${asText(item.trigger)}|${asText(item.action)}|${asText(item.herbName)}`; };
+  const rowsOf = (value: ReturnType<typeof read>) => Array.isArray(asRecord(value?.root?.formula).modifications) ? asRecord(value?.root?.formula).modifications as unknown[] : undefined;
+  const before = rowsOf(read(original)), after = rowsOf(read(fitted));
+  const target = read(authored);
+  const rows = rowsOf(target);
+  if (!before || !after || !target || !rows) return authored;
+  const kept = new Set(after.map(key));
+  const removed = new Set(before.map(key).filter((item) => !kept.has(item)));
+  if (!removed.size) return authored;
+  asRecord(target.root.formula).modifications = rows.filter((row) => !removed.has(key(row)));
+  return `${authored.slice(0, target.start + "<!-- DIAGNOSIS_JSON_START -->".length)}\n${JSON.stringify(target.root, null, 2)}\n${authored.slice(target.end)}`;
 }

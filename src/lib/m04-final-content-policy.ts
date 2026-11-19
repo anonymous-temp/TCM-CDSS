@@ -22,3 +22,15 @@ export function m04FinalContentPolicy(env: Readonly<Record<string, string | unde
     // E must include this in whole-stage reuse/coalescing keys; these modules do not cache.
     version: `m04-final-v2:${enabled}:${analysis}:${functions}:${modifications}:${error || "ok"}` };
 }
+
+/**
+ * 随证加减是否在处方定稿后由模型专写、另一厂商复核（第五十二轮，m04-modification-authoring.server.ts）。
+ * 放在这个无服务端依赖的模块里，交付投影（delivered-surface）也读同一个开关：开着时主症补强行不按「主诉本身」去掉、不再按教材补行。
+ * CDSS_M04_MODIFICATION_AUTHORING=on|off；缺省生产开、其余关（测试与本机开发用桩反复跑同一输入，不该多出模型调用）。
+ */
+export function modificationAuthoringEnabled(env: Readonly<Record<string, string | undefined>> = process.env): boolean {
+  const value = env.CDSS_M04_MODIFICATION_AUTHORING;
+  if (value === "on" || value === "true") return true;
+  if (value === "off" || value === "false") return false;
+  return env.NODE_ENV === "production";
+}

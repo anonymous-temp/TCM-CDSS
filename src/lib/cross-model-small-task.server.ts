@@ -207,6 +207,18 @@ export function crossVendorConfirm(
   return runOne(`${namespace}_verify`, stage, textModelConfigForModel(CROSS_CHECK_MODEL()), messages, options.maxTokens, options.timeoutMs, parseConfirmed, signal);
 }
 
+/** 只问另一家（qwen3.8-flash）一次、自定解析（要它说出理由时用；第五十二轮加减复核）。失败、超时返回 undefined。 */
+export function crossVendorJsonTask<T>(
+  namespace: string,
+  stage: "diagnose" | "prescribe",
+  messages: Messages,
+  options: { maxTokens: number; timeoutMs: number },
+  parse: (content: unknown) => T | undefined,
+  signal?: AbortSignal,
+): Promise<T | undefined> {
+  return runOne(namespace, stage, textModelConfigForModel(CROSS_CHECK_MODEL()), messages, options.maxTokens, options.timeoutMs, parse, signal);
+}
+
 /** 复核答案里的 yes/no：{"confirmed":true|false}。 */
 export function parseConfirmed(content: unknown): boolean | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;

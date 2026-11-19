@@ -15,7 +15,7 @@ import { populationMatchedPrecautions } from "./population-matched-precautions";
 import { currentMedicationPrecautions } from "./current-medication-precautions";
 import { redFlagRuleIdForMessage, clinicalGroundingText, medicationPopulationAudience, currentAntithromboticTherapyRecorded } from "./diagnosis-safety";
 import { antithromboticHerbAvoid } from "./antithrombotic-herb-policy";
-import { m04FinalContentPolicy } from "./m04-final-content-policy";
+import { m04FinalContentPolicy, modificationAuthoringEnabled } from "./m04-final-content-policy";
 import { projectM04FinalFacts } from "./m04-final-projection";
 import { isSourceFallbackFunctionDisplay, projectGroundedHerbFunctions, selectGroundedHerbFunction, functionClauses, herbFunctionSourceClauses } from "./herb-function-display-source";
 import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./delivery-rewrite-ledger";
@@ -3041,7 +3041,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
   // 辨证阶段已采纳的患者原话（主证依据与各病机节点的患者事实）：随证加减的触发条件说的症状这里已有，就不是「若」出现的变化。
   const recordedFacts = modificationPresenceFactsFor(options?.recordText || "", { overview: priorOverview as { primarySyndromeBasis?: unknown } | undefined, pathogenesis: { chain: records(record(reasoning.pathogenesis)?.chain) } });
   const triggerContext = { caseState: options?.caseState, recordText: options?.recordText, prior: { overview: { tcmDiseaseName: String(priorOverview?.tcmDiseaseName || ""), primarySyndrome: String(priorOverview?.primarySyndrome || ""), recommendedFormulaNames: Array.isArray(priorOverview?.recommendedFormulaNames) ? priorOverview.recommendedFormulaNames as string[] : [] } }, priorityEvaluation: options?.priorityEvaluation };
-  if (formula && Array.isArray(formula.modifications)) formula.modifications = retainModificationFindings(records(formula.modifications), triggerContext);
+  // 第五十二轮：定稿后写加减开着时，写作并复核过的主症补强行不按「主诉本身」去掉（留存过滤与末端教材补行里的留存同一开关）。
+  const authoredModifications = modificationAuthoringEnabled();
+  if (formula && Array.isArray(formula.modifications)) formula.modifications = retainModificationFindings(records(formula.modifications), { ...triggerContext, allowMainSymptom: authoredModifications });
   // 备用加减（「若X」而病历里没有X）不交付（第四十四轮，2026-11-14 用户：甲方页面默认勾选、没有确认的地方，评审按患者实际病情判）。
   // 编译阶段已按同一判据不列；这里兜住补写、核对之后的行与旧缓存。病历原文拿不到时（没传 recordText）不动，免得把已见的也删了。
   if (formula && Array.isArray(formula.modifications) && options?.recordText && !standbyModificationsDelivered()) {
@@ -3099,7 +3101,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
   }
   if (formula && options?.caseState && options.recordText && Array.isArray(formula.modifications)) {
     formula.modifications = fillTextbookModificationConditions(records(formula.modifications), reasoning as unknown as ClinicalReasoningResultV2, options.caseState as CaseState,
-      records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")), { recordText: options.recordText, priorityEvaluation: options.priorityEvaluation,
+      records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")), { recordText: options.recordText, priorityEvaluation: options.priorityEvaluation, authored: authoredModifications,
         prepareRow: (row) => deliveredProcessedHerbNames({ formula: { candidates: [], modifications: [row] } }, options) });
     // 新补的行在同一次投影里也完成现症写法、理由与煎法附注清理。
     for (const modification of records(formula.modifications)) projectModification(modification);

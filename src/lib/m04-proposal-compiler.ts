@@ -1217,7 +1217,9 @@ function degreeFormInRecord(forms: readonly string[], recordText: string): { phr
  * 已见时返回交付写法（「本例已见X」）与病历原句；否则 undefined。recordedFacts 是病历原文加辨证阶段采纳的患者原话。
  */
 export function presentModificationCondition(trigger: string, recordedFacts: string, context: ModificationTriggerContext = {}): { trigger: string; quote: string } | undefined {
-  if (!recordedFacts || typeof trigger !== "string" || modificationTriggerNotFinding(trigger, { ...context, recordText: context.recordText || recordedFacts })) return undefined;
+  if (!recordedFacts || typeof trigger !== "string") return undefined;
+  const notFinding = modificationTriggerNotFinding(trigger, { ...context, recordText: context.recordText || recordedFacts });
+  if (notFinding && !(notFinding === "main_symptom" && context.allowMainSymptom)) return undefined;
   const raw = trigger.normalize("NFKC").trim().replace(/^本例已见/u, "若");
   // 先看整句：条件逐字是病历里肯定写到的一句原话（「头痛连及项背」），照原话写，不按「及」切成两段。
   const body = raw.replace(CONDITION_LEAD, "").replace(/[。；;，,\s]+$/u, "");
@@ -1280,6 +1282,9 @@ function normalOrRecordMetaTrigger(trigger: string): boolean {
 /** 加减条件分型只在此处判；编译、补写、核对与交付缓存复用，不以行数下限豁免。 */
 export type ModificationTriggerContext = {
   caseState?: Pick<CaseState, "chiefComplaint" | "safetyGate">;
+  // 第五十二轮：定稿后写加减（模型专写、另一厂商复核）开着时，主症补强行不按「条件即主诉本身」去掉（甲方 10.26 病历2：主法药力不足时加减要补强）。
+  // 只放开 main_symptom 这一类；正常所见、诱因、神态、急危重征象照旧不作条件。
+  allowMainSymptom?: boolean;
   recordText?: string;
   prior?: { overview?: { tcmDiseaseName?: string | null; primarySyndrome?: string | null; recommendedFormulaNames?: string[] } } | null;
   priorityEvaluation?: unknown;
@@ -1440,6 +1445,7 @@ export function retainModificationFindings<T extends { trigger?: unknown; herbNa
   return supported.filter((row) => {
     const issue = modificationTriggerNotFinding(String(row.trigger || ""), context);
     if (!issue) return true;
+    if (issue === "main_symptom" && context.allowMainSymptom) return true;
     // 沿用第四十八轮教材“主症甚”判据，但条件必须保留教材的程度词。
     return issue === "main_symptom" && triggerPolicy.mainSymptomCharacteristics.some((word) => String(row.trigger || "").includes(word)) &&
       Boolean(textbookMainSymptomPresent(String(row.trigger || ""), String(row.herbName || ""), context));
@@ -2933,9 +2939,12 @@ function additionRiskNote(herbName: string, caseState: CaseState | undefined): s
  */
 export function topUpModificationRow(
   row: { trigger: string; herbName: string; dose: string; reason: string; symptomPathogenesis?: string },
-  context: { prior: ClinicalReasoningResultV2; caseState?: CaseState; candidateHerbNames: readonly string[]; existingTriggers: readonly string[]; allowTextbookMain?: boolean; textbookFill?: boolean; baseHerbNames?: readonly string[]; priorityEvaluation?: unknown },
+  context: { prior: ClinicalReasoningResultV2; caseState?: CaseState; candidateHerbNames: readonly string[]; existingTriggers: readonly string[]; allowTextbookMain?: boolean; textbookFill?: boolean; baseHerbNames?: readonly string[]; priorityEvaluation?: unknown;
+    // 第五十二轮：定稿后由模型专写、另一厂商复核过的行（m04-modification-authoring）。主症补强行不按「主诉本身」拦（甲方 10.26 病历2：主法药力不足时加减要补强）；onReject 记下拦掉的判据供实测。
+    authored?: boolean; onReject?: (code: string) => void },
 ): Record<string, unknown> | undefined {
   const { prior, caseState, candidateHerbNames } = context;
+  const reject = (code: string): undefined => { context.onReject?.(code); return undefined; };
   const herbName = modificationDisplayHerbName(row.herbName.trim(), canonicalTcmHerbIdentity(row.herbName.trim()));
   const recordText = caseState ? clinicalGroundingText(caseState) : "";
   // 第四十四轮起补写的是本例已有表现的加减：条件得是病历里肯定写到的表现，交付写「本例已见X」，依据是病历原句。
@@ -2943,32 +2952,34 @@ export function topUpModificationRow(
   const standby = standbyModificationsDelivered();
   const strengthening = context.allowTextbookMain ? textbookMainSymptomPresent(row.trigger, row.herbName, { caseState, prior, recordText, priorityEvaluation: context.priorityEvaluation }) : undefined;
   const source = (context.textbookFill && modificationTextbookFillEnabled()) || strengthening ? textbookFillSource(row.trigger, herbName, { prior, recordText }) : undefined;
-  if (source && textbookFillRemovalConflict(source.entry, candidateHerbNames)) return undefined;
-  const present = strengthening || (standby ? undefined : presentModificationCondition(row.trigger, modificationPresenceFactsFor(recordText, prior), { caseState, prior, recordText, priorityEvaluation: context.priorityEvaluation }));
-  if (!source && (standby ? !modelConditionalTriggerShape(row.trigger) : !present)) return undefined;
+  if (source && textbookFillRemovalConflict(source.entry, candidateHerbNames)) return reject("textbook_removal_conflict");
+  const present = strengthening || (standby ? undefined : presentModificationCondition(row.trigger, modificationPresenceFactsFor(recordText, prior), { caseState, prior, recordText, priorityEvaluation: context.priorityEvaluation, allowMainSymptom: context.authored }));
+  if (!source && (standby ? !modelConditionalTriggerShape(row.trigger) : !present)) return reject("not_present");
   const notFinding = modificationTriggerNotFinding(row.trigger, { caseState, prior, recordText, priorityEvaluation: context.priorityEvaluation });
-  if ((notFinding && !(notFinding === "main_symptom" && strengthening)) || modificationTriggerTonguePulseOnly(row.trigger)) return undefined;
+  if (notFinding && !(notFinding === "main_symptom" && (strengthening || context.authored))) return reject(`not_finding:${notFinding}`);
+  if (modificationTriggerTonguePulseOnly(row.trigger)) return reject("tongue_pulse_only");
   // 补写的行同样不为顺带的睡眠差加安神药（与编译阶段同一判据；2026-11-14 第四十五轮甲方标准病历3「本例已见睡眠差：加酸枣仁」，甲方 10.26 点过名）。
   if (incidentalSleepTriggerModification({ trigger: row.trigger, herbName, reason: row.reason }, prior) &&
-    !mindSymptomsProminentInRecord(recordText, caseState?.chiefComplaint || "", "")) return undefined;
+    !mindSymptomsProminentInRecord(recordText, caseState?.chiefComplaint || "", "")) return reject("incidental_sleep");
   // 偶见纳差不加消食药（与编译阶段同一判据，第四十六轮）。
-  if (incidentalAppetiteDigestiveModification({ trigger: row.trigger, herbName }, prior, caseState?.chiefComplaint || "")) return undefined;
-  if (!isKnownTcmHerbName(canonicalTcmHerbIdentity(herbName))) return undefined;
+  if (incidentalAppetiteDigestiveModification({ trigger: row.trigger, herbName }, prior, caseState?.chiefComplaint || "")) return reject("incidental_appetite");
+  if (!isKnownTcmHerbName(canonicalTcmHerbIdentity(herbName))) return reject("unknown_herb");
   const trigger = source ? row.trigger : present ? present.trigger : row.trigger;
   const sameCondition = (left: string, right: string) => distinctModificationConditions([{ trigger: left.replace(/^本例已见/u, "") }, { trigger: right.replace(/^本例已见/u, "") }]) === 1;
-  if (context.existingTriggers.some((existing) => sameCondition(existing, trigger))) return undefined;
-  if (candidateHerbNames.some((name) => modificationHerbIdentity(name) === modificationHerbIdentity(herbName))) return undefined;
+  if (context.existingTriggers.some((existing) => sameCondition(existing, trigger))) return reject("same_condition");
+  if (candidateHerbNames.some((name) => modificationHerbIdentity(name) === modificationHerbIdentity(herbName))) return reject("herb_in_formula");
   const dose = /^\d{1,3}(?:\.\d)?\s*(?:g|克)$/i.test(row.dose.trim()) ? `${parseFloat(row.dose)}g` : undefined;
-  if (!dose || !modificationDoseWithinPharmacopoeia(dose, herbName, "加")) return undefined;
+  if (!dose || !modificationDoseWithinPharmacopoeia(dose, herbName, "加")) return reject("dose");
   // 方向与编译、开方核对同一个判据（modificationRowDirectionIssue）：针对病历已有表现的行，理由本身不带高影响方向时只拦与治法相反的。
   // 此前这里用的是严格判据，开方核对认「本例已见X」时又认不出是病历表现（第四十六轮在 normalizedModificationTrigger 去掉前缀），
   // 补写提名、复核都确认的「胸闷：加瓜蒌」「白天困倦嗜睡：加石菖蒲」在这一步被拦，加减只剩一条（new45-n07）。
   const issue = modificationRowDirectionIssue(herbName, [row.reason, row.symptomPathogenesis].filter(Boolean).join("；"), trigger, prior);
-  if (issue && !source && !strengthening && !conditionDeclaresHighImpactDirection(trigger, issue)) return undefined;
+  if (issue && !source && !strengthening && !conditionDeclaresHighImpactDirection(trigger, issue)) return reject(`direction:${issue}`);
   const allergens = caseState ? recordedAllergensInText(recordText, clauseLocalMentionPolarityAt) : [];
   const syndromeText = [prior.overview?.primarySyndrome, ...(prior.overview?.secondarySyndromes || [])].filter(Boolean).join("；");
-  if (source && (standbyHerbOpposesSyndromePole(herbName, syndromeText) || textbookEntryOpposedSide(herbName, source.entry.herbs, row.reason, prior))) return undefined;
-  if (modificationAddBlock({ actionType: "add", trigger, herbName, reason: row.reason }, { caseState, candidateHerbNames, recordText, syndromeText, groundingText: recordText, allergens, functionCoverageHerbNames: context.baseHerbNames })) return undefined;
+  if (source && (standbyHerbOpposesSyndromePole(herbName, syndromeText) || textbookEntryOpposedSide(herbName, source.entry.herbs, row.reason, prior))) return reject("textbook_opposed");
+  const addBlock = modificationAddBlock({ actionType: "add", trigger, herbName, reason: row.reason }, { caseState, candidateHerbNames, recordText, syndromeText, groundingText: recordText, allergens, functionCoverageHerbNames: context.baseHerbNames });
+  if (addBlock) return reject(`add_block:${typeof addBlock === "string" ? addBlock : "blocked"}`);
   const pediatric = caseState ? pediatricDoseRuleFromGroundingText(recordText) : undefined;
   const compiled = {
     trigger,
@@ -2996,18 +3007,19 @@ export function topUpModificationRow(
       : { evidenceLevel: "model_inference", source: MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, confidence: "低" },
   };
   // 开方安全底线逐行用的判据：底线会拒的（理由里夹了剂量等）这里就不进，不让一条补写的行连累整方。
-  return m04ModificationSafetyIssue(compiled, 0, prior, isKnownTcmHerbName) ? undefined : compiled;
+  const safetyIssue = m04ModificationSafetyIssue(compiled, 0, prior, isKnownTcmHerbName);
+  return safetyIssue ? reject(`safety:${safetyIssue}`) : compiled;
 }
 
 /**
  * 末端确定性保底：已有表现（含教材主症甚）先取，仍不足才按 D1 补到两个。
  * 编译、补写与交付投影共用 topUpModificationRow / modificationAddBlock，无模型调用。
  */
-export function fillTextbookModificationConditions(rows: Record<string, unknown>[], prior: ClinicalReasoningResultV2, caseState: CaseState, candidateHerbNames: readonly string[] = [], options: Pick<ModificationTriggerContext, "recordText" | "priorityEvaluation"> & { prepareRow?: (row: Record<string, unknown>) => void } = {}): Record<string, unknown>[] {
+export function fillTextbookModificationConditions(rows: Record<string, unknown>[], prior: ClinicalReasoningResultV2, caseState: CaseState, candidateHerbNames: readonly string[] = [], options: Pick<ModificationTriggerContext, "recordText" | "priorityEvaluation"> & { prepareRow?: (row: Record<string, unknown>) => void; authored?: boolean } = {}): Record<string, unknown>[] {
   const recordText = options.recordText || clinicalGroundingText(caseState);
   // 交付投影传入的是 prescribe 外壳；来源只读已定病证、方名与病机，不更改结论。
   const diagnosis = { ...prior, stage: "diagnose" as const };
-  const context = { prior: diagnosis, caseState, recordText, priorityEvaluation: options.priorityEvaluation };
+  const context = { prior: diagnosis, caseState, recordText, priorityEvaluation: options.priorityEvaluation, allowMainSymptom: options.authored };
   const syndromeText = [diagnosis.overview?.primarySyndrome, ...(diagnosis.overview?.secondarySyndromes || [])].filter(Boolean).join("；");
   const allergens = recordedAllergensInText(recordText, clauseLocalMentionPolarityAt);
   const checked = withoutRepeatedModificationConditions(withoutRepeatedAddedHerbs(withoutMutuallyIncompatibleAdditions(retainModificationFindings(rows, context).filter((item) => {

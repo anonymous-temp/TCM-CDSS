@@ -62,6 +62,7 @@ import {
   pediatricDoseRuleForAgeYears,
   pediatricDoseRuleForStageWords,
   pediatricStageOldestAgeYears,
+  labeledAgeYears,
   stripInfantFeedingPhrases,
   type PediatricDoseRule,
 } from "./pediatric-dose-rule";
@@ -6436,12 +6437,29 @@ export function recordWritesStoppedPeriod(text: string): boolean {
  * 血压 88/56，只得到默认的「3天内」）。不认头晕：闭经病例常伴头晕；头晕只在产科提示那一档另算。
  */
 export function pregnancyPainOrBleedingSignal(state: CaseState, text = trustedInputText(state)): boolean {
+  return pregnancyPainOrBleedingSignalCore(text, pregnancyScreenRequired(state), maternalStateText(state, text));
+}
+
+/**
+ * 同一判据的病历文本版（开方核对只拿到带「患者年龄：」「患者性别：」标签行的病历文本，没有 CaseState）：
+ * 女性、标注年龄 10–59 岁且病历没写绝经/子宫切除时，等同 pregnancyScreenRequired。第五十二轮：e05-17「停经45天，右下腹撕裂样疼痛伴阴道流血」
+ * 妊娠判据读为未知（停经单独不算可疑妊娠，这一口径不变），药典孕妇慎用的制附子、花蕊石因此照样进方；开方这边改读这同一个判据。
+ */
+export function pregnancyPainOrBleedingSignalInGroundingText(text: string): boolean {
+  const normalized = String(text || "").normalize("NFKC");
+  if (!/性别\s*[:：]?\s*女/u.test(normalized)) return false;
+  const age = labeledAgeYears(normalized);
+  if (age == null || age < REPRODUCTIVE_STATE_MIN_AGE_YEARS || age >= 60 || recordExcludesPregnancyPotential(normalizeClinicalText(normalized), age)) return false;
+  return pregnancyPainOrBleedingSignalCore(normalized, true, normalized);
+}
+
+function pregnancyPainOrBleedingSignalCore(text: string, screenRequired: boolean, maternalText: string): boolean {
   const obstetric = governedRedFlagCategory("obstetric");
   if (hasAnyTerm(text, obstetric.symptoms.filter((term) => /妊娠|孕|产/.test(term)))) return true;
   const painOrBleeding = hasAnyTerm(text, ["阴道流血", "阴道出血", ...obstetric.symptoms.filter((term) => !/妊娠|孕|产/.test(term))]) ||
     hasPatternWithoutNegation(text, ABDOMINAL_PAIN_FORM);
-  if (painOrBleeding && isPositiveOrPossibleClinicalState(assessPregnancyState(maternalStateText(state, text)))) return true;
-  return pregnancyScreenRequired(state) && hasPatternWithoutNegation(text, STOPPED_PERIOD_FORM) &&
+  if (painOrBleeding && isPositiveOrPossibleClinicalState(assessPregnancyState(maternalText))) return true;
+  return screenRequired && hasPatternWithoutNegation(text, STOPPED_PERIOD_FORM) &&
     (hasAnyTerm(text, ["阴道流血", "阴道出血", "带中夹血", "见红"]) || hasPatternWithoutNegation(text, ABDOMINAL_PAIN_FORM));
 }
 

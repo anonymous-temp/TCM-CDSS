@@ -425,6 +425,7 @@
     "test:r1067-disease": "node --max-old-space-size=1280 scripts/test-r1067-disease.mjs",
     "test:r1067-closure": "node --max-old-space-size=1280 scripts/test-r1067-closure.mjs",
     "test:r1068-main": "node --max-old-space-size=1280 scripts/test-r1068-main.mjs",
+    "test:r1069-main": "node --max-old-space-size=1280 scripts/test-r1069-main.mjs",
     "test:r1067-rationale3": "node --max-old-space-size=1280 scripts/test-r1067-rationale3.mjs"
   },
   "dependencies": {

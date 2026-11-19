@@ -25,7 +25,7 @@ import { boundaryRuleShown } from "./candidate-boundary-text";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { alignQuoteToSource } from "./source-quote-alignment";
 import { allergenHerbMatch, recordedAllergensInText } from "./allergen-profile";
-import { activeBleedingInGroundingText, currentAntithromboticTherapyRecorded, clauseLocalMentionPolarityAt, recordMentionPolarityAt } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, currentAntithromboticTherapyRecorded, clauseLocalMentionPolarityAt, pregnancyPainOrBleedingSignalInGroundingText, recordMentionPolarityAt } from "./diagnosis-safety";
 import { antithromboticHerbAvoid } from "./antithrombotic-herb-policy";
 import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
 import { formulaModificationHerbName, normalizeFormulaModificationAction } from "./formula-modification";
@@ -4118,11 +4118,14 @@ export function m04GenerationSpecialPopulationIssue(
   // 牛膝、枳壳与川芎、延胡索作君臣行气活血）。第五十一轮起不分君臣佐使（见下）；加减行同一判据（herbAdditionPopulationConflict）。
   // 第四十六轮（总指挥定）扩到可疑妊娠（「不能排除妊娠」「可能怀孕」）：与剂量一致化 D4 可疑妊娠给剂量、医生确认才可采纳同一口径。
   // 妊娠状态没有记录的育龄女性（pregnancy_unknown 档，第十七轮定）不在此列，那一档只避药典孕妇禁用药。
-  if (isPositiveOrPossibleClinicalState(assessPregnancyState(clinicalContext))) {
+  // 第五十二轮：育龄女性停经伴腹痛或阴道出血（与闸门产科提示、24 小时早孕评估通道同一判据）按可疑妊娠处理药典孕妇慎用药
+  //（e05-17 停经45天、右下腹撕裂样痛伴阴道流血：妊娠判据读为未知，制附子、花蕊石照样进方）。
+  if (isPositiveOrPossibleClinicalState(assessPregnancyState(clinicalContext)) || pregnancyPainOrBleedingSignalInGroundingText(clinicalContext)) {
     // 教材新增清单只读患者本人的妊娠提及；assessPregnancyState 负责状态，全文极性判据负责主语。
     const normalizedContext = clinicalContext.replace(/[\r\n]+/gu, "。").replace(/[^\S\r\n]+/gu, "");
     const pregnancyEvidence = assessPregnancyState(normalizedContext).evidence || "";
-    const patientPregnancy = Boolean(pregnancyEvidence) && [...normalizedContext.matchAll(new RegExp(pregnancyEvidence.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "gu"))]
+    // 停经伴腹痛/出血这一路是患者本人的停经（判据自带性别、年龄与否认），不再另核主语。
+    const patientPregnancy = pregnancyPainOrBleedingSignalInGroundingText(clinicalContext) || Boolean(pregnancyEvidence) && [...normalizedContext.matchAll(new RegExp(pregnancyEvidence.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "gu"))]
       .some((match) => recordMentionPolarityAt(normalizedContext, match.index!) === "affirmed");
     // 第五十一轮（用户 11/18 按建议定）：已记录在孕或可疑妊娠时，药典孕妇慎用饮片在任何位置都不用——甲方 P0「特殊人群禁忌 100%」，
     // 评审判 C064 孕 20 周佐使位的牛膝、C097 孕 12 周的行气药为错。佐使位的由定稿逐味剔除（dropSafetyConflictingM04CandidateHerbs，
