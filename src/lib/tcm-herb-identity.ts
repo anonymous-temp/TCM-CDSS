@@ -1,4 +1,5 @@
 import herbIdentityJson from "../data/tcm-herb-identity-catalog.json" with { type: "json" };
+import preparationMorphologyJson from "../data/tcm-herb-preparation-morphology.source.json" with { type: "json" };
 
 export type GovernedHerbIdentityStatus =
   | "exact_standard_name"
@@ -69,6 +70,71 @@ export function isIdentityIndeterminateHerbName(value: unknown): boolean {
   return [...raw].length === 1 && /[一-鿿]/.test(raw);
 }
 
+type PreparationMorphology = {
+  minBaseLength?: number;
+  prefixes: string[];
+  suffixes: Array<{ suffix: string; preparation: string }>;
+  twoFormMarkers?: { prefix: string; followers: string[] };
+  noPreparationMergeBases?: { names: string[] };
+};
+const PREPARATION_MORPHOLOGY = preparationMorphologyJson as unknown as PreparationMorphology;
+const PREPARATION_PREFIXES = [...new Set(PREPARATION_MORPHOLOGY.prefixes)].sort((a, b) => b.length - a.length || a.localeCompare(b));
+const NO_PREPARATION_MERGE = new Set(PREPARATION_MORPHOLOGY.noPreparationMergeBases?.names || []);
+
+/** 炮制前缀（从长到短），供需要「去掉炮制写法」的读者共用；不要再在各模块里各写一份前缀正则。 */
+export function governedHerbPreparationPrefixes(): readonly string[] {
+  return PREPARATION_PREFIXES;
+}
+
+/**
+ * 几种写法都认得时取规范名：自己就是身份目录正名的那个（炙甘草）排在构词出来的写法（蜜甘草）前面，其余照原顺序（第五十三轮：
+ * 构词规则让「蜜＋任何药名」都认得之后，按「认得就用」挑写法会把药典名炙甘草换成蜜甘草）。
+ */
+export function preferStandardHerbNames(candidates: readonly string[]): string[] {
+  const isStandard = (name: string) => resolveGovernedTcmHerbIdentity(name).canonicalName === identityInput(name);
+  return [...candidates.filter(isStandard), ...candidates.filter((name) => !isStandard(name))];
+}
+
+/** 「生熟地」「生炙草」这类两种规格并写：「生」后紧跟另一个炮制字或「熟」。 */
+export function isTwoFormPreparationName(prefix: string, rest: string): boolean {
+  const twoForm = PREPARATION_MORPHOLOGY.twoFormMarkers;
+  return Boolean(twoForm && prefix === twoForm.prefix &&
+    (twoForm.followers.some((follower) => rest.startsWith(follower)) || PREPARATION_PREFIXES.some((other) => rest.startsWith(other))));
+}
+
+/**
+ * 「炮制写法＋药名」「药名＋炭/片」的原药行。规则与构建期 split_prepared_herb_name 逐条相同：前缀从长到短逐个试，
+ * 余下部分至少两个字、在身份目录里可自动解析且非歧义才成立；「生熟地」「生炙草」这类两种规格并写的不成立。
+ */
+export function preparedHerbNameBase(value: unknown): { row: ResolutionRow; base: string; preparation: string } | undefined {
+  const name = identityInput(value);
+  const minBase = PREPARATION_MORPHOLOGY.minBaseLength ?? 2;
+  // 不合并名单只管炮制品（炒神曲、焦神曲）；「生」是生品，等于原药本身。
+  const usable = (candidate: string, prefix = "") => {
+    if ([...candidate].length < minBase || isIdentityIndeterminateHerbName(candidate) || (NO_PREPARATION_MERGE.has(candidate) && prefix !== "生")) return undefined;
+    const row = RESOLUTION_INDEX[candidate];
+    return row && row.autoResolvable && row.canonicalName && row.status !== "ambiguous" ? row : undefined;
+  };
+  for (const prefix of PREPARATION_PREFIXES) {
+    if (!name.startsWith(prefix) || name.length <= prefix.length) continue;
+    const rest = name.slice(prefix.length);
+    if (isTwoFormPreparationName(prefix, rest)) continue;
+    const direct = usable(rest, prefix);
+    if (direct) return { row: direct, base: rest, preparation: prefix };
+    if (rest.endsWith("片")) {
+      const sliced = usable(rest.slice(0, -1), prefix);
+      if (sliced) return { row: sliced, base: rest.slice(0, -1), preparation: prefix };
+    }
+  }
+  for (const { suffix, preparation } of PREPARATION_MORPHOLOGY.suffixes) {
+    if (!name.endsWith(suffix) || name.length <= suffix.length) continue;
+    const base = name.slice(0, -suffix.length);
+    const row = usable(base);
+    if (row) return { row, base, preparation };
+  }
+  return undefined;
+}
+
 /**
  * T9 is the first and authoritative identity resolver. A multi-target alias remains unresolved;
  * callers may display its candidates for pharmacist confirmation but must never silently choose one.
@@ -89,7 +155,21 @@ export function resolveGovernedTcmHerbIdentity(value: unknown): GovernedHerbIden
     return { inputName, status: "ambiguous", candidates };
   }
   const row = RESOLUTION_INDEX[inputName];
-  if (!row) return { inputName, status: "unmapped", candidates: [] };
+  if (!row) {
+    // 炮制品透明构词兜底（与构建期 split_prepared_herb_name 读同一份 tcm-herb-preparation-morphology.source.json）。
+    // 系统自己会写出的名字构建期已逐个入表；这里只接住模型自写、不在任何表里的写法（焦白术、蜜麻黄）。
+    const prepared = preparedHerbNameBase(inputName);
+    if (!prepared) return { inputName, status: "unmapped", candidates: [] };
+    return {
+      inputName,
+      canonicalName: prepared.row.canonicalName!,
+      status: "source_backed_preparation_form",
+      candidates: [],
+      preparation: prepared.preparation,
+      ...(prepared.row.medicinalPart ? { medicinalPart: prepared.row.medicinalPart } : {}),
+      ...(prepared.row.doseCanonicalName ? { doseCanonicalName: prepared.row.doseCanonicalName } : {}),
+    };
+  }
   if (row.status === "ambiguous" || !row.canonicalName) {
     return { inputName, status: "ambiguous", candidates: [...(row.candidates || [])] };
   }

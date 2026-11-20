@@ -43,6 +43,7 @@ import {
   highImpactHerbDirectionIssue,
   sameHerbIdentity,
   ordinaryHistoricalDoseDeviation,
+  doseCeilingBasisLabel,
   ordinaryProcessedBaseHerbName,
   recordedPopulationCautions,
   herbAdditionPopulationConflict,
@@ -78,7 +79,7 @@ const evidence = {
   confidence: "中" as const,
 };
 
-function compileHerbVerification(name: string, dose: string, method: string, modelIsToxic = false, pediatric?: PediatricDoseRule): {
+export function compileHerbVerification(name: string, dose: string, method: string, modelIsToxic = false, pediatric?: PediatricDoseRule): {
   verificationTier: "verified" | "unverified_dose" | "identity_pending" | "toxic_regulated";
   doseSource: "governed_boundary" | "classical_source" | "none";
   verificationReasons: string[];
@@ -3222,8 +3223,8 @@ export function compileM04Proposal(
     if (ceilingDeviation && cappedDose) {
       verification.verificationReasons = [
         ceilingDeviation.pediatric
-          ? `候选剂量原为 ${ceilingDeviation.dose}，高于儿童折算上限（《中国药典》2020年版一部成人 ${ceilingDeviation.adultMin}–${ceilingDeviation.adultMax}g × ${ceilingDeviation.pediatric.fractionText}），已按上限 ${cappedDose} 给出；病情急重需超过时，请医生按体重个体化确定并注明理由。`
-          : `候选剂量原为 ${ceilingDeviation.dose}，高于《中国药典》2020年版一部规定的 ${ceilingDeviation.min}–${ceilingDeviation.max}g，已按上限 ${cappedDose} 给出；如需超常规用量，请医生注明理由并签名确认。`,
+          ? `候选剂量原为 ${ceilingDeviation.dose}，高于儿童折算上限（${doseCeilingBasisLabel(herb.name, ceilingDeviation.basis).replace(/的$/u, "")}成人 ${ceilingDeviation.adultMin}–${ceilingDeviation.adultMax}g × ${ceilingDeviation.pediatric.fractionText}），已按上限 ${cappedDose} 给出；病情急重需超过时，请医生按体重个体化确定并注明理由。`
+          : `候选剂量原为 ${ceilingDeviation.dose}，高于${doseCeilingBasisLabel(herb.name, ceilingDeviation.basis)} ${ceilingDeviation.min}–${ceilingDeviation.max}g，已按上限 ${cappedDose} 给出；如需超常规用量，请医生注明理由并签名确认。`,
         ...verification.verificationReasons,
       ].slice(0, 8);
     }

@@ -8,7 +8,7 @@ import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-r
 import { chpPregnancyLabel, chpPregnancyHerbTier } from "./conception-herb-policy";
 import { assessLactationState, assessPregnancyState, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
 import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
-import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, controlledDoseEquivalentTarget, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
 import { prescriptionRegimenContractIssue, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { executableFormulaCompilationReferences, isCompositionRestoredGovernedIdentity, isSignedTextbookFormulaIdentity } from "./tcm-formula-provenance";
@@ -3928,14 +3928,39 @@ export function doseWithinConservativeModelLimit(name: string, dose: string, dec
   // 非剂量结果；现在把「这一味的量由谁负责」讲清楚，而不是整张方作废。
   if (grams != null && isClinicianDoseHerb(name)) return true;
   if (grams == null || limit?.min == null || limit.max == null) return false;
+  const governedRanges = governedDoseRanges(limit, decoctionMethod);
+  if (pediatric) return grams > 0 && governedRanges.some((range) => grams <= pediatricDoseCeilingG(range.max, pediatric, name));
+  return governedRanges.some((range) => grams >= range.min && grams <= range.max);
+}
+
+/** 合同按数值区间核对时认可的区间：主条目，加上与煎服方式相合的分途径条目。 */
+function governedDoseRanges(limit: NonNullable<ReturnType<typeof getTcmHerbDoseLimit>>, decoctionMethod: string): Array<{ min: number; max: number }> {
   const routeMatchedAlternatives = (limit.alternatives || []).filter((range) =>
     range.sourceType === "routeDose" &&
     /煎服|汤剂|另煎|另炖/.test(`${range.routeForm || ""}${range.method || ""}`) &&
     /煎|汤|剂/.test(decoctionMethod)
   );
-  const governedRanges = [{ min: limit.min, max: limit.max }, ...routeMatchedAlternatives];
-  if (pediatric) return grams > 0 && governedRanges.some((range) => grams <= pediatricDoseCeilingG(range.max, pediatric, name));
-  return governedRanges.some((range) => grams >= range.min && grams <= range.max);
+  return [{ min: limit.min as number, max: limit.max as number }, ...routeMatchedAlternatives];
+}
+
+/**
+ * 合同自己认可的最大克数——doseWithinConservativeModelLimit 数值区间那一支的上沿（第五十三轮）。
+ * 「普通药味超过上限时按上限给出」此前另用一套判据（只认单一药典来源），合同驳回而编译器不压的药味就修复轮原样重写、整页退成
+ * 无剂量页（甲方 11.20 复测病历 13：6 岁患儿茯神按茯苓折算上限 7.5g，模型写高，茯神的用量依据是「按茯苓复核」而非药典原文）。
+ * 现在按上限给出读这一个函数，两边不会再不一致。液体药、医师定量与管制药材没有可压的数值上限，返回 undefined。
+ */
+export function conservativeDoseCeilingG(name: string, decoctionMethod: string, pediatric?: PediatricDoseRule, writtenGrams?: number): { ceiling: number; adultCeiling: number } | undefined {
+  if (liquidHerbDoseRule(name)) return undefined;
+  const regulatoryClass = clinicianDoseHerbClass(name);
+  if (regulatoryClass === "controlled_or_toxic" || regulatoryClass === "endangered_or_banned" || isClinicianDoseHerb(name)) return undefined;
+  const limit = getTcmHerbDoseLimit(name);
+  if (limit?.min == null || limit.max == null) return undefined;
+  // 有写定剂量时只取低于它的上沿：两个互不相交的认可区间（3–9g 与 15–30g）之间写 12g，按 9g 给，绝不往上抬。
+  const ceilings = governedDoseRanges(limit, decoctionMethod)
+    .map((range) => ({ adultCeiling: range.max, ceiling: pediatric ? pediatricDoseCeilingG(range.max, pediatric, name) : range.max }))
+    .filter((entry) => Number.isFinite(entry.ceiling) && entry.ceiling > 0 && (writtenGrams == null || entry.ceiling < writtenGrams));
+  if (ceilings.length === 0) return undefined;
+  return ceilings.reduce((best, entry) => (entry.ceiling > best.ceiling ? entry : best));
 }
 
 export type OrdinaryHistoricalDoseDeviation = {
@@ -3986,20 +4011,31 @@ export function ordinaryHistoricalDoseDeviation(
   if (ordinaryBase && (clinicianDoseHerbClass(ordinaryBase) || getTcmHerbGenerationSafetyProfile(ordinaryBase).isToxic)) return undefined;
   if (!dosePassesSafetySanityCeiling(name, herb.dose)) return undefined;
   const limit = getTcmHerbDoseLimit(name);
-  // 药典同一药材条目下按炮制或用药形式分列的用量（地黄条目：鲜地黄 12～30g、生地黄 10～15g）同样是药典单一来源（第二十三轮：
-  // 犀角地黄汤、增液汤里生地黄写到 20–30g，此前不走「按上限处理」，修复用尽后整页退成非剂量页，红旗集 2 例）。
-  const pharmacopoeiaSingleSource = limit?.basis === "中华人民共和国药典：2020年版．一部" ||
-    (limit?.sourceType === "routeDose" && typeof limit.basis === "string" && limit.basis.startsWith("中华人民共和国药典：2020年版．一部（"));
-  if (!limit || (limit.sourceType !== "dose" && limit.sourceType !== "routeDose") || !pharmacopoeiaSingleSource || limit.sourceConflict || typeof limit.basis !== "string") return undefined;
+  // 合同核对用的任何数值区间都可以按它的上沿给出（第五十三轮）：药典原文、同条目分列用量（生地黄 10～15g）、受控等价条目
+  //（茯神按茯苓）、来源冲突时合同同样认可的分途径区间。此前只认单一药典来源，茯神、来源冲突的药味被合同驳回却不压，整页作废。
+  // 药典外参考用量（sourceType=reference）是医师定量类，合同本不按区间驳回，不在此列。
+  if (!limit || (limit.sourceType !== "dose" && limit.sourceType !== "routeDose") || typeof limit.basis !== "string") return undefined;
   const { min, max } = limit;
   const basis: string = limit.basis;
   if (typeof min !== "number" || typeof max !== "number" || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || min > max) return undefined;
   const grams = doseInGrams(herb.dose);
   if (grams == null || doseWithinConservativeModelLimit(name, herb.dose, decoctionMethod, pediatric)) return undefined;
+  const ceiling = conservativeDoseCeilingG(name, decoctionMethod, pediatric, grams);
   if (pediatric) {
-    return { dose: herb.dose, min: 0, max: pediatricDoseCeilingG(max, pediatric, name), basis, direction: "above_reference", pediatric, adultMin: min, adultMax: max };
+    if (!ceiling) return undefined;
+    return { dose: herb.dose, min: 0, max: ceiling.ceiling, basis, direction: "above_reference", pediatric, adultMin: min, adultMax: ceiling.adultCeiling };
   }
-  return { dose: herb.dose, min, max, basis, direction: grams < min ? "below_reference" : "above_reference" };
+  // 低于全部认可区间的成人剂量不改、只批注（儿童、老人、体弱者用量可低于常用下限）。
+  if (!ceiling) return grams < min ? { dose: herb.dose, min, max, basis, direction: "below_reference" } : undefined;
+  return { dose: herb.dose, min, max: ceiling.adultCeiling, basis, direction: "above_reference" };
+}
+
+/** 按上限给出时写给医生的依据：药典原文照写；受控等价条目写「按X的药典用量」，其余写依据原文。 */
+export function doseCeilingBasisLabel(name: string, basis: string): string {
+  if (basis.startsWith("中华人民共和国药典：2020年版．一部")) return "《中国药典》2020年版一部规定的";
+  const equivalent = controlledDoseEquivalentTarget(name);
+  if (equivalent) return `按${equivalent}的《中国药典》2020年版一部用量核对的`;
+  return `「${basis}」所定的`;
 }
 
 const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{

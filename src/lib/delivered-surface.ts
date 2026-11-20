@@ -85,7 +85,7 @@ import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose
 import { settleWesternDiagnosisBasis, withoutUnrecordedTestCitations } from "./recorded-test-claims";
 import { withoutLabelPlaceholders } from "./instruction-record-pool";
 import { resolveTcmDiseaseName } from "./clinical-terminology";
-import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
+import { governedHerbPreparationPrefixes, governedTcmHerbAdjudicatedCanonical, preferStandardHerbNames, preparedHerbNameBase, resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { DELIVERED_METHOD_ITEM_CAP, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import { governedFourCharacterMethodTerms, governedTreatmentMethodOccurrencesInText, resolveNationalStandardTcmSyndromeTerm, treatmentMethodCoveredBy, type TreatmentPrincipleEntry } from "./clinical-governance-tables";
 import { assessPregnancyState } from "./clinical-state";
@@ -1837,7 +1837,7 @@ export function processedNameFromColumn(name: string, processing: string): strin
   else if (PREPARATION_PREFIXES.has(p)) candidates.push(`${p}${name}`, ...(p === "麸炒" ? [`炒${name}`] : []), ...(p === "蜜" ? [`炙${name}`] : []));
   else return undefined;
   const baseLimit = getTcmHerbDoseLimit(name);
-  return candidates.find((candidate) => candidate !== name && isKnownTcmHerbName(candidate) && Boolean(getTcmHerbDoseLimit(candidate) || baseLimit));
+  return preferStandardHerbNames(candidates).find((candidate) => candidate !== name && isKnownTcmHerbName(candidate) && Boolean(getTcmHerbDoseLimit(candidate) || baseLimit));
 }
 
 /**
@@ -4003,8 +4003,109 @@ function withEstablishedDiagnosis(projected: Json, options?: DeliveredSurfaceOpt
 }
 
 export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: DeliveredSurfaceOptions): T {
-  return withContiguousChainNodeIds(traceProjection("projectDeliveredReasoning", reasoning, () => projectDeliveredReasoningInternal(reasoning, rawOptions, false),
-    { ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.projectDeliveredReasoning" }));
+  return withDerivedPrescriptionBookkeeping(withContiguousChainNodeIds(traceProjection("projectDeliveredReasoning", reasoning, () => projectDeliveredReasoningInternal(reasoning, rawOptions, false),
+    { ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.projectDeliveredReasoning" })));
+}
+
+/**
+ * 由别的字段推出来的处方字段，在交付的最后一步按交付内容重算一次（第五十三轮）。此前各写各的，后加的环节不回写：
+ *  · modificationReview（加减核对统计）由编译器写，之后的加减专写、补位、定稿过滤增删的行都不回写——甲方 11.20 复测病历 10
+ *    交付 2 条加减，统计写「保留 1 条、删除 3 条」，删除原因只合计 2 条；
+ *  · triggerSource.sourceRef 指向开方时的工作副本（西医依据恢复成病历分句的那一份），交付面把西医依据收成一句，指向
+ *    supportingFacts[3] 的引用就落了空；
+ *  · 药名里写着炮制（土炒白术、制苍术）而炮制栏空着；
+ *  · 「本例已见」后照抄主诉连病程（「本例已见夜间遗尿反复1年」）。
+ * 只按交付内容重算，不新增字段、不改结构；重复执行结果不变。
+ */
+export function withDerivedPrescriptionBookkeeping<T>(reasoning: T): T {
+  const object = record(reasoning);
+  const formula = object?.stage === "prescribe" ? record(object.formula) : undefined;
+  if (!object || !formula) return reasoning;
+  const next = structuredClone(object);
+  const nextFormula = record(next.formula)!;
+  const modifications = Array.isArray(nextFormula.modifications) ? nextFormula.modifications as unknown[] : [];
+  for (const value of modifications) {
+    const row = record(value);
+    if (!row) continue;
+    if (typeof row.trigger === "string") row.trigger = triggerWithoutCourse(row.trigger);
+    const source = record(row.triggerSource);
+    if (source) {
+      const resolved = resolvedTriggerSource(next, source);
+      if (resolved) row.triggerSource = resolved;
+      else delete row.triggerSource;
+    }
+  }
+  const review = record(nextFormula.modificationReview);
+  if (review) {
+    const reasons = (Array.isArray(review.droppedReasons) ? review.droppedReasons : [])
+      .map((item) => record(item)).filter((item): item is Json => Boolean(item && typeof item.code === "string" && Number(item.count) > 0));
+    const retained = Math.min(30, modifications.length);
+    const dropped = Math.min(30, reasons.reduce((sum, item) => sum + Number(item.count), 0));
+    review.retainedCount = retained;
+    review.droppedCount = dropped;
+    review.submittedCount = Math.min(30, retained + dropped);
+    review.droppedReasons = reasons;
+    review.droppedReason = reasons.length > 0
+      ? reasons.map((item) => `${String(item.message || "")}${Number(item.count) > 1 ? `（${Number(item.count)}条）` : ""}`).join("；")
+      : null;
+  }
+  for (const candidateValue of Array.isArray(nextFormula.candidates) ? nextFormula.candidates : []) {
+    for (const herbValue of Array.isArray(record(candidateValue)?.herbs) ? record(candidateValue)!.herbs as unknown[] : []) {
+      const herb = record(herbValue);
+      if (!herb || typeof herb.name !== "string" || (typeof herb.processing === "string" && herb.processing.trim())) continue;
+      const written = writtenProcessingOf(herb.name);
+      if (written) herb.processing = written;
+    }
+  }
+  return next as T;
+}
+
+/** 药名里写着的炮制（土炒白术→土炒、荆芥炭→炭）：身份解析到的原药名之外多出来的前缀或「炭」，必须是受治理的炮制写法。 */
+function writtenProcessingOf(name: string): string | undefined {
+  const identity = resolveGovernedTcmHerbIdentity(name);
+  const base = identity.canonicalName;
+  if (!base || base === name) return undefined;
+  if (name.endsWith(base)) {
+    const prefix = name.slice(0, name.length - base.length);
+    return governedHerbPreparationPrefixes().includes(prefix) ? prefix : undefined;
+  }
+  if (name === `${base}炭`) return "炭";
+  const prepared = preparedHerbNameBase(name);
+  return prepared && prepared.preparation !== "切片" ? prepared.preparation : undefined;
+}
+
+const TRIGGER_COURSE_TAIL = /[，,、\s]*(?:反复|持续|间断|间歇)?(?:发作)?\s*(?:\d+(?:\.\d+)?|[一二三四五六七八九十两半]+|X{2,})\s*(?:余|多)?\s*(?:个)?(?:天|日|周|星期|月|年)(?:余|多|来|以来)?$/u;
+function triggerWithoutCourse(trigger: string): string {
+  const stripped = trigger.replace(TRIGGER_COURSE_TAIL, "");
+  const core = stripped.replace(/^本例已见/u, "");
+  return core.length >= 2 ? stripped : trigger;
+}
+
+/** triggerSource 在交付内容里仍能找到：原引用有效就保留；否则在主证依据或病机链患者事实里按原文重新定位；都找不到返回 undefined。 */
+function resolvedTriggerSource(reasoning: Json, source: Json): Json | undefined {
+  const quote = typeof source.sourceQuote === "string" ? source.sourceQuote : "";
+  const ref = typeof source.sourceRef === "string" ? source.sourceRef : "";
+  if (!quote) return undefined;
+  const [path, nodeId] = ref.split(":");
+  const pointer = path ? path.replace(/\[(\d+)\]/gu, ".$1").split(".").filter(Boolean) : [];
+  let cursor: unknown = reasoning;
+  for (const key of pointer) cursor = Array.isArray(cursor) ? cursor[Number(key)] : record(cursor)?.[key];
+  const chain = record(reasoning.pathogenesis)?.chain;
+  const nodeMatches = !nodeId || (Array.isArray(chain) && pointer[0] === "pathogenesis" && record(chain[Number(pointer[2])])?.nodeId === nodeId);
+  if (typeof cursor === "string" && cursor.includes(quote) && nodeMatches) return source;
+  const basis = record(reasoning.overview)?.primarySyndromeBasis;
+  if (Array.isArray(basis)) {
+    const index = basis.findIndex((item) => typeof item === "string" && item.includes(quote));
+    if (index >= 0) return { kind: "primary_syndrome_basis", sourceRef: `overview.primarySyndromeBasis[${index}]`, sourceQuote: quote };
+  }
+  if (Array.isArray(chain)) {
+    const index = chain.findIndex((node) => typeof record(node)?.patientFact === "string" && String(record(node)!.patientFact).includes(quote));
+    if (index >= 0) {
+      const id = record(chain[index])?.nodeId;
+      return { kind: "pathogenesis_patient_fact", sourceRef: `pathogenesis.chain[${index}].patientFact${typeof id === "string" ? `:${id}` : ""}`, sourceQuote: quote };
+    }
+  }
+  return undefined;
 }
 
 /**

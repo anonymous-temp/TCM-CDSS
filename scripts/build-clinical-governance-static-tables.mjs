@@ -404,6 +404,20 @@ const sources = [
     accessedAt: "2026-08-10",
   },
   localSource(
+    "SRC-HERB-PREPARATION-MORPHOLOGY",
+    "饮片炮制品透明构词规则（炮制前缀＋药名、药名＋炭/片）",
+    "src/data/tcm-herb-preparation-morphology.source.json",
+    "project_governed_rule",
+    "只判定「炒白术、酒牛膝、地榆炭」一类写法与原药是同一味饮片，身份与剂量条目归到原药；依据《中药炮制学》炮制方法分类（本地语料第14066行）。不提供剂量依据",
+  ),
+  localSource(
+    "SRC-HERB-NONPHARMACOPOEIA-DOSE",
+    "药典外药材参考用量表（逐条至少两条出处）",
+    "src/data/tcm-herb-nonpharmacopoeia-dose.source.json",
+    "project_governed_reference",
+    "只收《中国药典》2020年版一部未收载药材的煎服参考用量与别名；身份目录据其别名把同一味药的写法归到正名，用量只作参考区间",
+  ),
+  localSource(
     "SRC-REFERENCE-NISHI-ACUPUNCTURE",
     "nihaisha-nishi-tcm 针灸课程证据索引",
     "参考/nihaisha-nishi-tcm-main/references/acupuncture.md",

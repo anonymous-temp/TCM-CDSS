@@ -108,8 +108,12 @@ check("ID-02 败酱指败酱草，不是小蓟；龙骨/五灵脂/六神曲有�
   for (const [name, canonical] of [["龙骨", "龙骨"], ["煅龙骨", "龙骨"], ["五灵脂", "五灵脂"], ["醋五灵脂", "五灵脂"], ["六神曲", "六神曲"], ["浮小麦", "浮小麦"], ["土鳖虫", "土鳖虫（䗪虫）"], ["䗪虫", "土鳖虫（䗪虫）"]]) {
     assert.equal(identity.resolveGovernedTcmHerbIdentity(name).canonicalName, canonical, name);
   }
-  assert.equal(identity.resolveGovernedTcmHerbIdentity("焦神曲").canonicalName, undefined,
-    "中医师 2026-08-16：炒/焦神曲无独立依据时不自动合并");
+  // 中医师 2026-08-16：炒/焦神曲无独立依据时不自动并入六神曲。第五十三轮起两者各有自己的身份（不是六神曲），只有用量按
+  // 本表已列的别名（六神曲参考用量）核对——此前身份查不到，处方核对栏写「身份待核」而剂量层早按六神曲核过。
+  for (const name of ["焦神曲", "炒神曲"]) {
+    assert.equal(identity.resolveGovernedTcmHerbIdentity(name).canonicalName, name, `${name} 不并入六神曲`);
+    assert.notEqual(identity.resolveGovernedTcmHerbIdentity(name).canonicalName, "六神曲");
+  }
   assert.equal(kb.clinicianDoseHerbClass("土鳖虫"), undefined, "土鳖虫是药典药（3–10g，有小毒），不按药典未收载处理");
   // 藜芦不补身份：补了以后藜芦散、通顶散（与人参、细辛同方，十八反）、乌喙丸会获得方剂配剂量资格。
   // 藜芦按管制毒性从不给剂量，十八反核对按知识库药名命中，不依赖这条身份。

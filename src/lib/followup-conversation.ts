@@ -79,6 +79,34 @@ export function followupConversationView(conversation: readonly ConversationMess
   return view;
 }
 
+const UNOBTAINED_ANSWER = /未取得|未能|不清楚|不详|未查|没(?:看|查|注意)|未记录|未见|医生补充|不确定|无法|看不清|说不清|不知道/u;
+const PULSE_QUALITY = /^(?:[浮沉迟数弦滑细弱缓涩紧濡洪虚实结代促芤革牢伏散微动长短疾大小有力无力而稍略偏、，,\s])+$/u;
+
+/**
+ * 追问里问到舌象或脉象、且作答就是舌脉描述时，取出这段描述（第五十三轮）。页面把作答直接写进该题对应的栏位，接口调用方
+ * 只把它放在 conversation 里：甲方 10/26 回答我们自己的舌象题「舌红少津」，闸门照报「缺舌象」、M03 照写「未获舌脉」。
+ * 由入口归一时补进空着的 tongue / pulse 栏，所有读舌脉的环节读到同一份；栏位已有值时不动。
+ */
+export function answeredFollowupTonguePulse(view: FollowupConversationView): { tongue?: string; pulse?: string } {
+  const out: { tongue?: string; pulse?: string } = {};
+  for (const { question, answer } of view.answers) {
+    const text = answer.replace(/^(?:[A-H][.、．:：]\s*)/u, "").trim();
+    if (!text || UNOBTAINED_ANSWER.test(text) || text.length > 60) continue;
+    const asksTongue = /舌|苔/u.test(question);
+    const asksPulse = /脉/u.test(question);
+    if (!asksTongue && !asksPulse) continue;
+    const pulseAt = text.indexOf("脉");
+    const tonguePart = (pulseAt >= 0 ? text.slice(0, pulseAt) : text).replace(/[，,；;。\s]+$/u, "");
+    const pulsePart = pulseAt >= 0 ? text.slice(pulseAt).replace(/[，,；;。\s]+$/u, "") : "";
+    if (asksTongue && !out.tongue && /舌|苔/u.test(tonguePart)) out.tongue = tonguePart;
+    if (asksPulse && !out.pulse) {
+      if (pulsePart.length > 1) out.pulse = pulsePart;
+      else if (!/舌|苔/u.test(text) && PULSE_QUALITY.test(text)) out.pulse = `脉${text}`;
+    }
+  }
+  return out;
+}
+
 /** 请求入口用：剔除跳过句，以及紧挨在它前面、因此没有回答的那道题。 */
 export function stripFollowupSkipMessages<T extends ConversationMessageLike>(conversation: readonly T[]): { conversation: T[]; skipped: boolean } {
   const kept: T[] = [];

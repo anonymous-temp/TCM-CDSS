@@ -31,7 +31,7 @@
     },
     {
       "file": "tcm-herb-identity-catalog.json",
-      "sha256": "02644f3de6a9c1db14519def971fd1089092247a420960ab90f6e11b744ba41c"
+      "sha256": "67730f8b76a93251ccf67226cf8642149e9fd47e99fef45630a8adbe89578e8b"
     },
     {
       "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
@@ -1051,12 +1051,12 @@
       "黄芪芍桂苦酒汤",
       "黄连汤〔《外台秘要》卷三十三·妊娠二月〕"
     ],
-    "varietyFlexibleFormulaCount": 126,
-    "varietyUndeterminedFormulaCount": 66,
+    "varietyFlexibleFormulaCount": 158,
+    "varietyUndeterminedFormulaCount": 96,
     "governedFormulaCount": 3018,
     "prescriptionLockEligibleCount": 2929,
     "identityLockEligibleCount": 2929,
-    "doseCompilationEligibleCount": 2512,
+    "doseCompilationEligibleCount": 2516,
     "symptomTaggedFormulaCount": 1145,
     "diseaseTaggedFormulaCount": 376,
     "syndromeTaggedFormulaCount": 2302,
@@ -5928,9 +5928,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "莲子心",
@@ -5978,12 +5982,32 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [
         "晚蚕砂"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": [
         "missing_governed_indication"
       ]
@@ -10115,9 +10139,13 @@
         },
         {
           "rawName": "大戟",
-          "canonicalName": "京大戟",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
         },
         {
           "rawName": "芫花",
@@ -10171,11 +10199,11 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
+        "ingredient_variety_ambiguous_requires_clinician_selection",
         "ingredient_numeric_dose_boundary_missing",
         "ingredient_controlled_toxic_requires_manual_prescription"
       ],
       "controlledToxicIngredientNames": [
-        "大戟",
         "甘遂",
         "轻粉"
       ],
@@ -10191,8 +10219,26 @@
       "clinicianDoseIngredientNames": [
         "黑丑"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "大戟",
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "大戟",
+          "acceptedNames": [
+            "京大戟",
+            "大戟",
+            "红大戟"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -17672,9 +17718,13 @@
         },
         {
           "rawName": "矾石",
-          "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         },
         {
           "rawName": "山茱萸",
@@ -17760,12 +17810,32 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "矾石"
+      ],
       "clinicianDoseIngredientNames": [
         "薯蓣"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "矾石",
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "矾石",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -20003,8 +20073,10 @@
         },
         {
           "rawName": "炒杏仁",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "苦杏仁",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "炒"
         },
         {
           "rawName": "僵蚕",
@@ -20071,19 +20143,15 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
+      "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [
-        "炒杏仁"
-      ],
+      "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
@@ -33327,9 +33395,13 @@
         },
         {
           "rawName": "矾石",
-          "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         },
         {
           "rawName": "黄芩",
@@ -33402,10 +33474,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "矾石"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "矾石",
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "矾石",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -37895,8 +37987,10 @@
         },
         {
           "rawName": "煅炉甘石",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "炉甘石",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "煅"
         }
       ],
       "indications": [
@@ -40674,9 +40768,9 @@
       "ingredientLinks": [
         {
           "rawName": "枸杞根",
-          "canonicalName": "地骨皮",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false
         },
         {
           "rawName": "蔷薇根",
@@ -40736,6 +40830,7 @@
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
+        "枸杞根",
         "商陆根"
       ],
       "corruptIngredientNames": [],
@@ -55120,9 +55215,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "丁香皮",
@@ -55206,10 +55305,30 @@
       ],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -85237,9 +85356,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "川椒",
@@ -85340,10 +85463,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -88608,9 +88751,13 @@
       "ingredientLinks": [
         {
           "rawName": "大戟",
-          "canonicalName": "京大戟",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
         },
         {
           "rawName": "葫芦巴",
@@ -88690,13 +88837,11 @@
       "doseBlockingReasons": [
         "ingredient_endangered_or_banned_requires_legal_eligibility"
       ],
-      "controlledToxicIngredientNames": [
-        "大戟"
-      ],
+      "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [
         "麝香"
       ],
-      "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
+      "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [
@@ -88709,8 +88854,26 @@
       "clinicianDoseIngredientNames": [
         "川楝"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "大戟",
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "大戟",
+          "acceptedNames": [
+            "京大戟",
+            "大戟",
+            "红大戟"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -91769,9 +91932,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "苁蓉",
@@ -91902,10 +92069,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -96512,9 +96699,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "补骨脂",
@@ -96586,6 +96777,7 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [
+        "茴香",
         "萆薢"
       ],
       "clinicianDoseIngredientNames": [
@@ -96593,6 +96785,13 @@
         "琥珀"
       ],
       "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        },
         {
           "name": "萆薢",
           "candidates": [
@@ -96603,6 +96802,15 @@
         }
       ],
       "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        },
         {
           "recordedName": "萆薢",
           "acceptedNames": [
@@ -97618,9 +97826,13 @@
         },
         {
           "rawName": "矾石",
-          "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         },
         {
           "rawName": "鬼羽箭",
@@ -97650,7 +97862,10 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_variety_ambiguous_requires_clinician_selection",
+        "ingredient_identity_requires_resolution",
+        "ingredient_numeric_dose_boundary_missing",
+        "ingredient_controlled_toxic_requires_manual_prescription"
       ],
       "controlledToxicIngredientNames": [
         "雄黄"
@@ -97664,10 +97879,7 @@
       "missingDoseBoundaryIngredientNames": [
         "雄黄"
       ],
-      "manualDoseIngredientNames": [
-        "羊角",
-        "雄黄"
-      ],
+      "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
         "鬼羽箭"
       ],
@@ -97678,6 +97890,13 @@
             "决明子",
             "千里光"
           ]
+        },
+        {
+          "name": "矾石",
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         }
       ],
       "varietyFlexibleIngredients": [
@@ -97687,6 +97906,15 @@
             "决明子",
             "千里光",
             "羊角"
+          ],
+          "reason": "catalog_records_bare_genus"
+        },
+        {
+          "recordedName": "矾石",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
           ],
           "reason": "catalog_records_bare_genus"
         }
@@ -103072,9 +103300,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "川楝子",
@@ -103148,10 +103380,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -107501,9 +107753,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "吴茱萸",
@@ -107551,10 +107807,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -111518,9 +111794,13 @@
         },
         {
           "rawName": "大戟",
-          "canonicalName": "京大戟",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
         },
         {
           "rawName": "甘遂",
@@ -111569,7 +111849,6 @@
       "identityBlockingReasons": [],
       "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [
-        "大戟",
         "甘遂"
       ],
       "endangeredOrBannedIngredientNames": [],
@@ -111584,8 +111863,26 @@
         "甘遂"
       ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "大戟",
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "大戟",
+          "acceptedNames": [
+            "京大戟",
+            "大戟",
+            "红大戟"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -127847,9 +128144,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "陈皮",
@@ -127927,10 +128228,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -133005,9 +133326,13 @@
         },
         {
           "rawName": "大戟",
-          "canonicalName": "京大戟",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
         },
         {
           "rawName": "白芥子",
@@ -133048,11 +133373,11 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
+        "ingredient_variety_ambiguous_requires_clinician_selection",
         "ingredient_numeric_dose_boundary_missing",
         "ingredient_controlled_toxic_requires_manual_prescription"
       ],
       "controlledToxicIngredientNames": [
-        "大戟",
         "甘遂"
       ],
       "endangeredOrBannedIngredientNames": [],
@@ -133064,8 +133389,26 @@
       ],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "大戟",
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "大戟",
+          "acceptedNames": [
+            "京大戟",
+            "大戟",
+            "红大戟"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": [],
       "functions": [
         "祛痰逐饮"
@@ -133621,9 +133964,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "川芎",
@@ -133721,10 +134068,30 @@
       ],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -136019,9 +136386,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "甘草",
@@ -136067,10 +136438,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -141336,9 +141727,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "羌活",
@@ -141413,6 +141808,7 @@
       ],
       "manualDoseIngredientNames": [
         "川乌",
+        "茴香",
         "萆薢"
       ],
       "clinicianDoseIngredientNames": [
@@ -141426,6 +141822,13 @@
             "绵萆薢",
             "黄山药"
           ]
+        },
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         }
       ],
       "varietyFlexibleIngredients": [
@@ -141436,6 +141839,15 @@
             "绵萆薢",
             "萆薢",
             "黄山药"
+          ],
+          "reason": "catalog_records_bare_genus"
+        },
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
           ],
           "reason": "catalog_records_bare_genus"
         }
@@ -141643,9 +142055,9 @@
       "ingredientLinks": [
         {
           "rawName": "木防己",
-          "canonicalName": "防己",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false
         },
         {
           "rawName": "桂枝",
@@ -141692,11 +142104,15 @@
       "identityBlockingReasons": [
         "missing_governed_indication"
       ],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution"
+      ],
       "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "木防己"
+      ],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
@@ -141742,8 +142158,11 @@
       "ingredientLinks": [
         {
           "rawName": "木防己",
+          "adjudicatedIngredient": "防己",
+          "adjudicationEvidence": "同木防己汤：「国家已于2004年发布文件停用“广防己”药用标准，以“粉防己”代之」（本地语料L155076），药典防己即粉防己。",
+          "adjudicationBasis": "第五十三轮别名核对后按方裁定",
           "canonicalName": "防己",
-          "linkageStatus": "unique_source_backed",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -141839,8 +142258,11 @@
       "ingredientLinks": [
         {
           "rawName": "木防己",
+          "adjudicatedIngredient": "防己",
+          "adjudicationEvidence": "《中药学》防己条【其他】：「马兜铃科植物广防己…的根称为“广防己”或“木防己”…由于广防己含有马兜铃酸，具有肾毒性，为保证用药安全，国家已于2004年发布文件停用“广防己”药用标准，以“粉防己”代之」（本地语料L155076）。药典防己即粉防己。",
+          "adjudicationBasis": "第五十三轮别名核对后按方裁定",
           "canonicalName": "防己",
-          "linkageStatus": "unique_source_backed",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -142893,9 +143315,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "赤芍药",
@@ -142967,10 +143393,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -157097,8 +157543,11 @@
         },
         {
           "rawName": "蜀漆",
+          "adjudicatedIngredient": "常山",
+          "adjudicationEvidence": "《方剂学》本方方解：「方中蜀漆（常山苗）难求，现多以常山代之」（本地语料L87502）。",
+          "adjudicationBasis": "第五十三轮别名核对后按方裁定",
           "canonicalName": "常山",
-          "linkageStatus": "unique_source_backed",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -162688,9 +163137,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "附子",
@@ -162735,10 +163188,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -174112,9 +174585,13 @@
         },
         {
           "rawName": "矾石",
-          "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         },
         {
           "rawName": "胡粉",
@@ -174151,7 +174628,9 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "矾石"
+      ],
       "clinicianDoseIngredientNames": [
         "六畜毛",
         "头垢",
@@ -174159,8 +174638,26 @@
         "胡粉",
         "青布"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "矾石",
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "矾石",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": [
         "composition_is_collated_chapter_requires_source_split"
       ]
@@ -178625,9 +179122,13 @@
       "ingredientLinks": [
         {
           "rawName": "矾石",
-          "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         },
         {
           "rawName": "辛夷",
@@ -178768,6 +179269,7 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [
+        "矾石",
         "青木香"
       ],
       "clinicianDoseIngredientNames": [
@@ -178781,6 +179283,13 @@
       ],
       "varietyUndeterminedIngredients": [
         {
+          "name": "矾石",
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
+        },
+        {
           "name": "青木香",
           "candidates": [
             "木香",
@@ -178789,6 +179298,15 @@
         }
       ],
       "varietyFlexibleIngredients": [
+        {
+          "recordedName": "矾石",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
+          ],
+          "reason": "catalog_records_bare_genus"
+        },
         {
           "recordedName": "青木香",
           "acceptedNames": [
@@ -179252,8 +179770,10 @@
         },
         {
           "rawName": "制半夏",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "半夏",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "制"
         },
         {
           "rawName": "山楂",
@@ -179287,15 +179807,11 @@
       "identityBlockingReasons": [
         "composition_is_collated_chapter_requires_source_split"
       ],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
+      "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [
-        "制半夏"
-      ],
+      "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
@@ -179600,9 +180116,13 @@
         },
         {
           "rawName": "矾石",
-          "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         },
         {
           "rawName": "苦参",
@@ -179713,6 +180233,7 @@
       ],
       "manualDoseIngredientNames": [
         "皂荚",
+        "矾石",
         "硫黄",
         "雄黄"
       ],
@@ -179740,6 +180261,13 @@
             "大皂角",
             "猪牙皂"
           ]
+        },
+        {
+          "name": "矾石",
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         }
       ],
       "varietyFlexibleIngredients": [
@@ -179749,6 +180277,15 @@
             "大皂角",
             "猪牙皂",
             "皂荚"
+          ],
+          "reason": "catalog_records_bare_genus"
+        },
+        {
+          "recordedName": "矾石",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
           ],
           "reason": "catalog_records_bare_genus"
         }
@@ -185550,9 +186087,9 @@
         },
         {
           "rawName": "蜀漆",
-          "canonicalName": "常山",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false
         },
         {
           "rawName": "僵蚕",
@@ -185614,7 +186151,8 @@
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
         "狼牙",
-        "雚芦"
+        "雚芦",
+        "蜀漆"
       ],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
@@ -195651,10 +196189,8 @@
         },
         {
           "rawName": "麸炒神曲",
-          "canonicalName": "六神曲",
-          "linkageStatus": "source_backed_preparation_form",
-          "autoResolvable": true,
-          "preparation": "麸炒"
+          "canonicalName": null,
+          "linkageStatus": "unmapped"
         }
       ],
       "indications": [
@@ -215104,9 +215640,9 @@
         },
         {
           "rawName": "蜀漆",
-          "canonicalName": "常山",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false
         },
         {
           "rawName": "葶苈子",
@@ -215164,6 +215700,7 @@
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
+        "蜀漆",
         "商陆根"
       ],
       "corruptIngredientNames": [],
@@ -218423,9 +218960,13 @@
         },
         {
           "rawName": "矾石",
-          "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         },
         {
           "rawName": "续断",
@@ -218475,10 +219016,30 @@
       ],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "矾石"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "矾石",
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "矾石",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -237955,9 +238516,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "蒲黄",
@@ -238036,12 +238601,32 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [
         "芍药"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -244672,8 +245257,11 @@
       "ingredientLinks": [
         {
           "rawName": "矾石",
+          "adjudicatedIngredient": "白矾",
+          "adjudicationEvidence": "原方组成表（tcm-formula-original-compositions，《三因极一病证方论》原文「矾石（三分，烧）」）逐方核为白矾；矾石一名在硝石矾石散另有皂矾一说，故不作全局别名，只按本方裁定。",
+          "adjudicationBasis": "第五十三轮别名核对后按方裁定",
           "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -244717,7 +245305,17 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "白矾",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
+          ],
+          "reason": "adjudication_evidence_is_inferential:formula_intent_inference"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -244829,8 +245427,11 @@
       "ingredientLinks": [
         {
           "rawName": "矾石",
+          "adjudicatedIngredient": "白矾",
+          "adjudicationEvidence": "原方组成表（《三因极一病证方论》原文「矾石（煅）滑石（各等分）」）逐方核为白矾；矾石不作全局别名，只按本方裁定。",
+          "adjudicationBasis": "第五十三轮别名核对后按方裁定",
           "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -244878,7 +245479,17 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "白矾",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
+          ],
+          "reason": "adjudication_evidence_is_inferential:formula_intent_inference"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -245601,9 +246212,13 @@
         },
         {
           "rawName": "矾石",
-          "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         },
         {
           "rawName": "松罗",
@@ -245652,13 +246267,33 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "矾石"
+      ],
       "clinicianDoseIngredientNames": [
         "松罗",
         "麦曲"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "矾石",
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "矾石",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -245839,9 +246474,13 @@
         },
         {
           "rawName": "矾石",
-          "canonicalName": "白矾",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
         }
       ],
       "indications": [
@@ -245873,6 +246512,7 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
+        "ingredient_variety_ambiguous_requires_clinician_selection",
         "ingredient_identity_requires_resolution"
       ],
       "controlledToxicIngredientNames": [],
@@ -245885,8 +246525,26 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "矾石",
+          "candidates": [
+            "白矾",
+            "皂矾（绿矾）"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "矾石",
+          "acceptedNames": [
+            "白矾",
+            "皂矾（绿矾）",
+            "矾石"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -251537,8 +252195,11 @@
         },
         {
           "rawName": "茴香",
+          "adjudicatedIngredient": "小茴香",
+          "adjudicationEvidence": "原方组成表（《儒门事亲》原文「黑牵牛（头末四两）茴香（一两，炒）」）逐方核为小茴香；《中药炮制学》小茴香【处方用名】「小茴香、小茴、茴香、盐茴香」（本地语料L16948）。茴香亦为八角茴香处方名，不作全局别名。",
+          "adjudicationBasis": "第五十三轮别名核对后按方裁定",
           "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
       ],
@@ -254840,8 +255501,10 @@
       "ingredientLinks": [
         {
           "rawName": "生竹茹",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "竹茹",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "生"
         },
         {
           "rawName": "石膏",
@@ -254885,19 +255548,15 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
+      "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [
-        "生竹茹"
-      ],
+      "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
@@ -261427,9 +262086,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "川楝子",
@@ -261504,10 +262167,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -261955,9 +262638,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "木香",
@@ -262011,10 +262698,30 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -269959,9 +270666,13 @@
         },
         {
           "rawName": "大戟",
-          "canonicalName": "京大戟",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
         },
         {
           "rawName": "芫花",
@@ -270018,7 +270729,6 @@
       "identityBlockingReasons": [],
       "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [
-        "大戟",
         "甘遂"
       ],
       "endangeredOrBannedIngredientNames": [],
@@ -270035,8 +270745,26 @@
       "clinicianDoseIngredientNames": [
         "黑牵牛"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "大戟",
+          "candidates": [
+            "京大戟",
+            "红大戟"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "大戟",
+          "acceptedNames": [
+            "京大戟",
+            "大戟",
+            "红大戟"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": [],
       "functions": [
         "行气逐水"
@@ -274555,10 +275283,8 @@
         },
         {
           "rawName": "麸炒神曲",
-          "canonicalName": "六神曲",
-          "linkageStatus": "source_backed_preparation_form",
-          "autoResolvable": true,
-          "preparation": "麸炒"
+          "canonicalName": null,
+          "linkageStatus": "unmapped"
         }
       ],
       "indications": [
@@ -280617,9 +281343,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "土乌药",
@@ -280671,12 +281401,32 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [
         "土乌药"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -282306,9 +283056,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "补骨脂",
@@ -282403,12 +283157,32 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [
         "石龙芮"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -284444,10 +285218,8 @@
         },
         {
           "rawName": "麸炒神曲",
-          "canonicalName": "六神曲",
-          "linkageStatus": "source_backed_preparation_form",
-          "autoResolvable": true,
-          "preparation": "麸炒"
+          "canonicalName": null,
+          "linkageStatus": "unmapped"
         },
         {
           "rawName": "泽泻",
@@ -286788,9 +287560,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "桂心",
@@ -286919,12 +287695,32 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
+      "manualDoseIngredientNames": [
+        "茴香"
+      ],
       "clinicianDoseIngredientNames": [
         "川楝"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -290296,8 +291092,11 @@
       "ingredientLinks": [
         {
           "rawName": "蜀漆",
+          "adjudicatedIngredient": "常山",
+          "adjudicationEvidence": "蜀漆为常山之苗（《方剂学》L53878「方中蜀漆即常山的苗」），现多以常山代之（L87502桂枝去芍药加蜀漆龙骨牡蛎救逆汤方解）；本方按同一代用惯例。",
+          "adjudicationBasis": "第五十三轮别名核对后按方裁定",
           "canonicalName": "常山",
-          "linkageStatus": "unique_source_backed",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -300987,8 +301786,10 @@
         },
         {
           "rawName": "炙枳实",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "枳实",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "炙"
         }
       ],
       "indications": [
@@ -301006,19 +301807,15 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
+      "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [
-        "炙枳实"
-      ],
+      "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
@@ -310534,8 +311331,10 @@
         },
         {
           "rawName": "制半夏",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "半夏",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "制"
         },
         {
           "rawName": "香豉",
@@ -310618,19 +311417,15 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
+      "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [
-        "制半夏"
-      ],
+      "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
@@ -318775,8 +319570,10 @@
       "ingredientLinks": [
         {
           "rawName": "煨石膏",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "石膏",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "煨"
         },
         {
           "rawName": "东丹",
@@ -338030,9 +338827,13 @@
       "ingredientLinks": [
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "蚕砂",
@@ -338061,7 +338862,9 @@
       "identityBlockingReasons": [
         "missing_governed_indication"
       ],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_variety_ambiguous_requires_clinician_selection"
+      ],
       "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
@@ -338072,8 +338875,26 @@
       "clinicianDoseIngredientNames": [
         "蚕砂"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": [
         "missing_governed_indication"
       ]
@@ -352696,9 +353517,13 @@
         },
         {
           "rawName": "茴香",
-          "canonicalName": "小茴香",
-          "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false,
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
         },
         {
           "rawName": "官桂",
@@ -352777,14 +353602,33 @@
         "硫黄"
       ],
       "manualDoseIngredientNames": [
-        "硫黄"
+        "硫黄",
+        "茴香"
       ],
       "clinicianDoseIngredientNames": [
         "官桂",
         "阳起石"
       ],
-      "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyUndeterminedIngredients": [
+        {
+          "name": "茴香",
+          "candidates": [
+            "小茴香",
+            "八角茴香"
+          ]
+        }
+      ],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "茴香",
+          "acceptedNames": [
+            "八角茴香",
+            "小茴香",
+            "茴香"
+          ],
+          "reason": "catalog_records_bare_genus"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -355218,9 +356062,13 @@
             },
             {
               "rawName": "车前",
-              "canonicalName": "车前草",
-              "linkageStatus": "unique_source_backed",
-              "autoResolvable": true
+              "canonicalName": null,
+              "linkageStatus": "ambiguous",
+              "autoResolvable": false,
+              "candidates": [
+                "车前子",
+                "车前草"
+              ]
             },
             {
               "rawName": "银柴胡",
@@ -361290,8 +362138,9 @@
             },
             {
               "rawName": "浮麦",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "浮小麦",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             }
           ],
           "disposition": "historical_same_name_variant_not_baseline",
@@ -363191,8 +364040,10 @@
             },
             {
               "rawName": "炙黄耆",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "黄芪",
+              "linkageStatus": "source_backed_preparation_form",
+              "autoResolvable": true,
+              "preparation": "炙"
             }
           ],
           "disposition": "historical_same_name_variant_not_baseline",
@@ -363432,8 +364283,9 @@
             },
             {
               "rawName": "浮麦",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "浮小麦",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             }
           ],
           "disposition": "historical_same_name_variant_not_baseline",
@@ -363463,8 +364315,10 @@
             },
             {
               "rawName": "蜜炙黄耆",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "黄芪",
+              "linkageStatus": "source_backed_preparation_form",
+              "autoResolvable": true,
+              "preparation": "蜜炙"
             },
             {
               "rawName": "白术",

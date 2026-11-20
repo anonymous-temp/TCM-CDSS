@@ -6,6 +6,7 @@ import purposeProcessingSource from "../data/tcm-herb-purpose-processing.json" w
 import { recordedFindingReading } from "./diagnosis-safety";
 import { knownWithSameDose, originalPreparedHerbName } from "./formula-baseline-display";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "./tcm-knowledge";
+import { preferStandardHerbNames } from "./tcm-herb-identity";
 import { compositionIdentityName, governedFormulaOriginalPreparations, identifyKnownFormulaNames, type OriginalFormulaContext } from "./tcm-formula-provenance";
 
 /**
@@ -135,7 +136,7 @@ function formNameFor(base: string, prefix: string): string | undefined {
       : prefix === "蜜"
         ? [`蜜${base}`, `炙${base}`]
         : [`${prefix}${base}`];
-  return candidates.find((name) => isKnownTcmHerbName(name) && Boolean(getTcmHerbDoseLimit(name)));
+  return preferStandardHerbNames(candidates).find((name) => isKnownTcmHerbName(name) && Boolean(getTcmHerbDoseLimit(name)));
 }
 
 /** 教材明确点名的炮制品：按既有炮制表辨认，不把法半夏等当作未指定规格的原药。 */

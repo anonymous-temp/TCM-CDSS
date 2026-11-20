@@ -8,7 +8,7 @@ import { parseClinicalFacts, type ClinicalFacts } from "./clinical-facts";
 import { parseTcmTreatmentCapabilities, TCM_TREATMENT_PROJECT_CODES, type TcmTreatmentProjectCode } from "./tcm-treatment-projects";
 import { normalizeEmergencyClearanceAttestations, type EmergencyClearanceFindingAttestation } from "./emergency-clearance-contract";
 import { parseCustomerId } from "./customer-id";
-import { RECORD_SYMPTOM_KEY_SLOTS, followupConversationView, stripFollowupSkipMessages } from "./followup-conversation";
+import { RECORD_SYMPTOM_KEY_SLOTS, answeredFollowupTonguePulse, followupConversationView, stripFollowupSkipMessages } from "./followup-conversation";
 
 export type Phase =
   | "idle"
@@ -2494,6 +2494,7 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
   }
   const followup = stripFollowupSkipMessages(normalizeConversation(input.conversation));
   const followupView = followupConversationView(followup.conversation);
+  const answeredTonguePulse = answeredFollowupTonguePulse(followupView);
   const inferredQuestionOutcome = followupView.answers.length > 0 ? "answered" as const : followup.skipped ? "skipped" as const : undefined;
 
   return {
@@ -2509,8 +2510,8 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
     },
     chiefComplaint: chiefComplaint || recordStyle.lifted.chiefComplaint || "",
     symptoms: recordStyle.symptoms,
-    tongue: tongueImageRejected ? manualTongueFromHis : firstText(fields.tcmTongue, input.tongue, recordStyle.lifted.tongue),
-    pulse: firstText(fields.tcmPulse, input.pulse, recordStyle.lifted.pulse),
+    tongue: tongueImageRejected ? manualTongueFromHis : firstText(fields.tcmTongue, input.tongue, recordStyle.lifted.tongue, answeredTonguePulse.tongue),
+    pulse: firstText(fields.tcmPulse, input.pulse, recordStyle.lifted.pulse, answeredTonguePulse.pulse),
     faceNote: firstText(fields.tcmFace, input.faceNote),
     tongueImageDesc: tongueImageRejected ? undefined : stringValue(input.tongueImageDesc),
     tongueDx: tongueImageRejected ? undefined : normalizedTongueDx,

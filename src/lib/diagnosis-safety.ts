@@ -6948,7 +6948,11 @@ export function pregnancyScreenRequired(state: CaseState): boolean {
 function hasNumericPediatricWeight(text: string): boolean {
   // Must be an explicit body-weight value (体重/WT/weight/BW immediately followed by the number).
   // A bare "<n>kg" elsewhere (e.g. "体重下降5kg" weight loss) must NOT satisfy the weight requirement.
-  return /(?:体重|体重约|BW|WT|weight)\s*[:：约为]?\s*\d{1,3}(?:\.\d+)?\s*(?:kg|公斤|千克)?/i.test(normalizeClinicalText(text));
+  // 甲方 HIS 体格检查栏写「T 36.5℃，P 96次/分，W15kg」（第五十三轮：请求留存里 W10/W14/W15/W20kg 共 58 处），单写一个 W
+  // 时必须紧跟数值和重量单位，免得把别的字母缩写读成体重。
+  const normalized = normalizeClinicalText(text);
+  return /(?:体重|体重约|BW|WT|weight)\s*[:：约为]?\s*\d{1,3}(?:\.\d+)?\s*(?:kg|公斤|千克)?/i.test(normalized)
+    || /(?<![A-Za-z])W\s*[:：]?\s*\d{1,3}(?:\.\d+)?\s*(?:kg|公斤|千克)/i.test(normalized);
 }
 
 // 儿科病例可能只用定性词标注(患儿/婴儿/男童/月龄…)而无数字年龄。这类同样必须命中儿童剂量门：

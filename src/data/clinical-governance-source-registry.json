@@ -6,9 +6,9 @@
     "reproductionPolicy": "标准全文和受版权保护定义不写入运行表，只登记定位信息与必要摘要。"
   },
   "summary": {
-    "sourceCount": 38,
+    "sourceCount": 40,
     "regulatoryOrGovernmentCount": 23,
-    "projectSourceCount": 10
+    "projectSourceCount": 12
   },
   "entries": [
     {
@@ -326,6 +326,28 @@
       "publishedDate": "2026-08-10",
       "scope": "感冒/咳嗽/不寐/胃痞胃痛/头痛/痛经/痹证/中风面瘫的证型配穴；仅作医师参考证据，executable=false 边界不变，待权威方案核准后升格",
       "accessedAt": "2026-08-10"
+    },
+    {
+      "id": "SRC-HERB-PREPARATION-MORPHOLOGY",
+      "title": "饮片炮制品透明构词规则（炮制前缀＋药名、药名＋炭/片）",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "project_governed_rule",
+      "authorityTier": "project_governed_source",
+      "locator": "src/data/tcm-herb-preparation-morphology.source.json",
+      "sha256": "3bceb696438015b426f027b752f3c33ed8229a0609c80acc6f1982a5e4514e7d",
+      "scope": "只判定「炒白术、酒牛膝、地榆炭」一类写法与原药是同一味饮片，身份与剂量条目归到原药；依据《中药炮制学》炮制方法分类（本地语料第14066行）。不提供剂量依据",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-HERB-NONPHARMACOPOEIA-DOSE",
+      "title": "药典外药材参考用量表（逐条至少两条出处）",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "project_governed_reference",
+      "authorityTier": "project_governed_source",
+      "locator": "src/data/tcm-herb-nonpharmacopoeia-dose.source.json",
+      "sha256": "f9bbec698f8d9b43dcfecb230d5741bf12a5d3fedd9d3a39400ab36c7c3bc64f",
+      "scope": "只收《中国药典》2020年版一部未收载药材的煎服参考用量与别名；身份目录据其别名把同一味药的写法归到正名，用量只作参考区间",
+      "accessedAt": "2026-07-22"
     },
     {
       "id": "SRC-REFERENCE-NISHI-ACUPUNCTURE",

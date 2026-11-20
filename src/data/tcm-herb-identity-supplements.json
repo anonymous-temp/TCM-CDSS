@@ -3631,6 +3631,176 @@
       "autoResolvable": true,
       "note": "教材核对(2026-10-19)：《中药鉴定学》仙鹤草「本品为蔷薇科(Rosaceae)植物龙芽草Agrimonia pilosa Ledeb.的干燥地上部分」（本地语料 L24907）。生成的身份目录把「鹤草」解析为银柴胡、「龙芽草」解析为马鞭草（同名异物自动判定错误），组成身份比对时「仙鹤草」去掉「仙」字前缀后成了银柴胡，含仙鹤草的方剂组成全部对错（饮片代理第二轮回放发现）。三个写法一律指向仙鹤草。",
       "batch": "ADJ-WEB-20261019-ALIAS"
+    },
+    {
+      "inputName": "六曲",
+      "canonicalName": "六神曲",
+      "autoResolvable": true,
+      "batch": "ADJ-R53-PREPARATION",
+      "basis": "六曲即六神曲的简写（药典外参考用量表 tcm-herb-nonpharmacopoeia-dose.source.json 已把六曲列为六神曲的别名，剂量层早已按六神曲核对，身份目录漏登；第五十三轮名表对账发现）。"
+    },
+    {
+      "inputName": "橘络",
+      "canonicalName": "橘络",
+      "autoResolvable": true,
+      "batch": "ADJ-R53-PREPARATION",
+      "basis": "正名自身（药典未收载；《中药学》橘皮条附药「橘络」，药典外参考用量表已收 3–9g）。剂量层按参考用量核对，身份目录漏登，处方核对栏因而写「身份待核」（第五十三轮名表对账发现）。"
+    },
+    {
+      "inputName": "炒神曲",
+      "canonicalName": "炒神曲",
+      "autoResolvable": true,
+      "doseCanonicalName": "六神曲",
+      "batch": "ADJ-R53-PREPARATION",
+      "basis": "按中医师 2026-08-16 裁定（见「神曲」条：炒神曲/焦神曲无独立依据时不并入六神曲功效）单列身份，不合并到六神曲；用量按六神曲的药典外参考用量核对（剂量层此前已如此核对，身份目录漏登，处方核对栏写「身份待核」，第五十三轮名表对账发现）。"
+    },
+    {
+      "inputName": "焦神曲",
+      "canonicalName": "焦神曲",
+      "autoResolvable": true,
+      "doseCanonicalName": "六神曲",
+      "batch": "ADJ-R53-PREPARATION",
+      "basis": "按中医师 2026-08-16 裁定（见「神曲」条：炒神曲/焦神曲无独立依据时不并入六神曲功效）单列身份，不合并到六神曲；用量按六神曲的药典外参考用量核对（剂量层此前已如此核对，身份目录漏登，处方核对栏写「身份待核」，第五十三轮名表对账发现）。"
+    },
+    {
+      "inputName": "刺蓟",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "candidates": [
+        "大蓟",
+        "小蓟"
+      ],
+      "ambiguityGroup": "刺蓟-R53",
+      "basis": "第五十三轮别名核对（生成目录把「刺蓟」自动判为大蓟，属同名异物或一名多物）：古籍中刺蓟既指大蓟也指小蓟（陶弘景大蓟虎蓟、小蓟猫蓟，二者均多刺统称刺蓟）；张锡纯明言小蓟即刺蓟、药房误作大蓟；《救荒本草》称小蓟为刺蓟菜。不可自动解析为大蓟。（古籍语料为现代汉语译文） 出处：「小蓟被称为刺蓟，俗称刺尔菜」（本地语料 中医补充数据/灵丹GitHub/TCM Ancient books.txt L83836）；「天津的药房都把它当作大蓟，这是错误的」（本地语料 中医补充数据/灵丹GitHub/TCM Ancient books.txt L83836）"
+    },
+    {
+      "inputName": "地胆草",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "basis": "第五十三轮别名核对（生成目录把「地胆草」自动判为龙胆，属同名异物或一名多物）：地胆草的正名用法是菊科地胆草（苦地胆，岭南常用），与龙胆是不同植物；只有部分别名表把「地胆草」列为龙胆俗名。临床处方写地胆草绝大多数指菊科地胆草。不应自动解析为龙胆。（龙胆别名表引文取自检索结果摘要，该页证书过期/403 未能直接打开。） 出处：「Chinese Name: 地膽草 … Elephantopi Herba is the dried whole plant of Elephantopus s」（https://www.cmro.gov.hk/hkcmms/vol9/pdf_e/Elephantopi_Herba_v9_e.pdf）；「中药龙胆,别名为陵游,草龙胆,龙胆草,苦龙胆草,地胆草,胆草,山龙胆,四叶胆,水龙胆」（https://cbcb.cdutcm.edu.cn/TCMKD/herb_detail/2174?page=129）"
+    },
+    {
+      "inputName": "大戟",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "candidates": [
+        "京大戟",
+        "红大戟"
+      ],
+      "ambiguityGroup": "大戟-R53",
+      "basis": "第五十三轮别名核对（生成目录把「大戟」自动判为京大戟，属同名异物或一名多物）：炮制学把生大戟/醋大戟列为京大戟处方用名，但同书说明文献习惯以「大戟」统称京大戟与红大戟，药典自1995年起两品单列。古方（十枣汤等）一般指京大戟，京大戟毒性大；若需缺省，取京大戟为更保守一侧，但应标为非唯一解析。 出处：「【处方用名】 生大戟、炙大戟、醋大戟。」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L16610）；「故不少中医文献习惯以“大戟”统称。但《中国药典》自1995年版起已将两品种单列」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L16626）"
+    },
+    {
+      "inputName": "故纸",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": "补骨脂",
+      "autoResolvable": true,
+      "basis": "第五十三轮别名核对（生成目录把「故纸」自动判为木蝴蝶，属同名异物或一名多物）：单写「故纸」在方剂中指补骨脂（破故纸的省称，如四神丸方歌「四神故纸吴茱萸」）。木蝴蝶的别名是带限定的「云故纸」「白故纸」「千张纸」，未见单称故纸。若知识库求稳，可标为不自动解析，但绝不应指向木蝴蝶。 出处：「四神故纸吴茱萸」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L48642）；「补骨脂、破故纸」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L17024）"
+    },
+    {
+      "inputName": "木防己",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "basis": "第五十三轮别名核对（生成目录把「木防己」自动判为防己，属同名异物或一名多物）：木防己不是药典防己（粉防己 Stephania tetrandra）：商品上「木防己」指马兜铃科广防己（含马兜铃酸，2004年已停用其药用标准、以粉防己代之），植物学/中华本草的木防己则为防己科 Cocculus orbiculatus 的根，均非药典一部品种。古方木防己汤今以防己代用属替代，不是同一药，若要映射应作显 出处：「的根称为“广防己”或“木防己”」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L155076）；「国家已于2004年发布文件停用“广防己”药用标准，以“粉防己”代之」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L155076）"
+    },
+    {
+      "inputName": "枸杞根",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "basis": "第五十三轮别名核对（生成目录把「枸杞根」自动判为地骨皮，属同名异物或一名多物）：枸杞根是枸杞的根（带木心），地骨皮是根皮（药典），两者药用部位与功能不同、应区别使用；枸杞根收载于广东、上海地方标准。古方地骨即枸杞根皮一系，但现行标准下不是同一饮片。 出处：「地骨皮為《中醫藥條例》附表2及《中國藥典》(2020年版)收載的藥材，枸杞根没有被收載其中…兩者藥用部位及功能略有不同，應區別使用。」（https://www.cmro.gov.hk/files/gcmti/research/mmi/ech_search/052_CL_vs_LR_tc.pdf）；「為茄科植物 枸杞 Lycium chinense Mill. 的乾燥根」（https://www.cmro.gov.hk/files/gcmti/research/mmi/ech_search/052_CL_vs_LR_tc.pdf）"
+    },
+    {
+      "inputName": "白药",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "basis": "第五十三轮别名核对（生成目录把「白药」自动判为天花粉，属同名异物或一名多物）：「白药」在本草中至少三指：《唐本草》白药（白药子，今通行义）、栝楼根（天花粉）亦名白药、《别录》桔梗一名白药；另剪草根亦称白药，现代又有云南白药成药。不可自动解析为天花粉。（古籍语料为现代汉语译文） 出处：「白药，出自《唐本草》」（本地语料 中医补充数据/灵丹GitHub/TCM Ancient books.txt L758880）；「它的根也叫白药」（本地语料 中医补充数据/灵丹GitHub/TCM Ancient books.txt L715764）"
+    },
+    {
+      "inputName": "石榴",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "basis": "第五十三轮别名核对（生成目录把「石榴」自动判为石榴皮，属同名异物或一名多物）：单写「石榴」是植物/果实名，药用部位有果皮（药典石榴皮）、全果（酸石榴连皮捣用）、根皮（驱虫）、花（止衄）等；示例「石榴炭」「醋石榴」多指石榴皮，但裸名不能唯一定到石榴皮。 出处：「【处方用名】 石榴皮、石榴皮炭。」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L15365）；「将五枚酸石榴连皮一起捣碎」（本地语料 中医补充数据/灵丹GitHub/TCM Ancient books.txt L155386）"
+    },
+    {
+      "inputName": "矾石",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "candidates": [
+        "白矾",
+        "皂矾（绿矾）"
+      ],
+      "ambiguityGroup": "矾石-R53",
+      "basis": "第五十三轮别名核对（生成目录把「矾石」自动判为白矾，属同名异物或一名多物）：《本经》矾石多数注家指白矾（矾石散、矾石丸用白矾），但金匮硝石矾石散之矾石有皂矾一说（张锡纯等明言是皂矾不是白矾）。缺省可取白矾，但硝石矾石散应另判。 出处：「主要成分是白矾」（本地语料 中医补充数据/灵丹GitHub/TCM Ancient books.txt L134897）；「矾石就是皂矾，又叫青矾、绿矾（注意，矾石是皂矾，不是白矾」（本地语料 中医补充数据/灵丹GitHub/TCM Ancient books.txt L83498）"
+    },
+    {
+      "inputName": "竹黄",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "basis": "第五十三轮别名核对（生成目录把「竹黄」自动判为天竺黄，属同名异物或一名多物）：方剂中「竹黄」常作天竺黄省称（抱龙丸组成写天竺黄，方论写竹黄）；但「竹黄」也是真菌竹黄（竹花、赤团子）的正名，民间药用，二者不同。 出处：「是方胆星、竹黄不过为痰热而设」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L48997）；「【组成】 天竺黄一两（30g）」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L48989）"
+    },
+    {
+      "inputName": "茴香",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "candidates": [
+        "小茴香",
+        "八角茴香"
+      ],
+      "ambiguityGroup": "茴香-R53",
+      "basis": "第五十三轮别名核对（生成目录把「茴香」自动判为小茴香，属同名异物或一名多物）：炮制学把「茴香」同时列为小茴香与八角茴香的处方用名。方剂中单写茴香多指小茴香，但不能唯一解析；八角茴香非小茴香。 出处：「【处方用名】 小茴香、小茴、茴香、盐茴香。」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L16948）；「【处方用名】 八角茴香、茴香、大茴香、大八角、盐八角茴香。」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L17167）"
+    },
+    {
+      "inputName": "蓝叶",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "candidates": [
+        "蓼大青叶",
+        "大青叶"
+      ],
+      "ambiguityGroup": "蓝叶-R53",
+      "basis": "第五十三轮别名核对（生成目录把「蓝叶」自动判为蓼大青叶，属同名异物或一名多物）：「蓝」历代非一种（蓼蓝、菘蓝、马蓝等），蓝叶可指蓼蓝叶（药典蓼大青叶）或菘蓝叶（药典大青叶），马蓝叶亦作大青叶用。不可自动解析为蓼大青叶。 出处：「苏恭谓：“蓝有三种。”」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L22112）；「将菘蓝叶定为大青叶的正品，将蓼科植物蓼蓝Po1ygonum tinctorium Ait.的干燥叶定名为蓼大青叶」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L153942）"
+    },
+    {
+      "inputName": "蜀漆",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "basis": "第五十三轮别名核对（生成目录把「蜀漆」自动判为常山，属同名异物或一名多物）：蜀漆为常山（黄常山）的嫩枝叶（苗），常山为其根，二者是不同药材；蜀漆非药典一部品种。 出处：「方中蜀漆即常山的苗」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L53878）；「以常山、蜀漆为主药的截疟诸方」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L235865）"
+    },
+    {
+      "inputName": "贯仲",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "candidates": [
+        "绵马贯众",
+        "紫萁贯众"
+      ],
+      "ambiguityGroup": "贯仲-R53",
+      "basis": "第五十三轮别名核对（生成目录把「贯仲」自动判为绵马贯众，属同名异物或一名多物）：贯仲即贯众异写。贯众品种历代复杂，药典单列绵马贯众与紫萁贯众两药，各地还以荚果蕨、狗脊蕨等作贯众用。教材贯众条取绵马贯众，但裸名不能唯一解析。 出处：「贯众的品种历代复杂，除2015年版《中国药典·一部》收载的上述绵马贯众外，紫萁科植物紫萁Osmunda japonica Thunb.」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L153989）；「贯仲炭各9g」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L180346）"
+    },
+    {
+      "inputName": "车前",
+      "batch": "ADJ-R53-ALIAS",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "candidates": [
+        "车前子",
+        "车前草"
+      ],
+      "ambiguityGroup": "车前-R53",
+      "basis": "第五十三轮别名核对（生成目录把「车前」自动判为车前草，属同名异物或一名多物）：「车前」是植物名，药典车前子（种子）与车前草（全草）同出车前/平车前；方剂中单写车前多指车前子（如龙胆泻肝汤方论「通、泽、车前」）。不可自动解析为车前草。 出处：「佐以芩、栀、通、泽、车前辈大利前阴」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L47637）；「的干燥成熟种子」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L155523）"
     }
   ]
 }

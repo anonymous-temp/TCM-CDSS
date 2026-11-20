@@ -62,7 +62,7 @@ SYNDROME_TAG_ADJUDICATION_FLOOR = 488  # 233(B1) + 255(B2)
 # 不能全局归一：同一个「芍药」在桂枝汤里是白芍、在排脓散里是赤芍，猜错等于开错方向相反的药。
 # 因此这张表是 (方名, 原文药名) → 品种，而不是药名→药名。
 INGREDIENT_IDENTITY_ADJUDICATIONS = DATA_ROOT / "tcm-formula-ingredient-identity-adjudications.source.json"
-INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 237  # 76(B1) + 78(B2) + 18(B2-芍药 20260809) + 1(清燥救肺汤胡麻仁 20260929) + 64(ADJ-WEB-20260930-IDENTITY 裸药名联网回源)
+INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 244  # 76(B1) + 78(B2) + 18(B2-芍药 20260809) + 1(清燥救肺汤胡麻仁 20260929) + 64(ADJ-WEB-20260930-IDENTITY 裸药名联网回源) + 7(ADJ-R53-ALIAS-FORMULA 别名纠错后按方裁定)
 # 同名异方变体表(ADJ-HOMONYM-20260725):历史并存的不同方两版并存为不同身份(加味逍遥散模式)。
 HOMONYM_VARIANTS = DATA_ROOT / "tcm-formula-homonym-variants.source.json"
 # 目录条目级校勘通道(ADJ-COLLATION-20260809):新增 / 组成重录 / 章节伪方删除。
@@ -376,6 +376,121 @@ def official_source_indication(value: object) -> str:
     return "；".join(quoted) if quoted else text
 
 
+PREPARATION_MORPHOLOGY = DATA_ROOT / "tcm-herb-preparation-morphology.source.json"
+PREPARATION_MORPHOLOGY_REF = "SRC-HERB-PREPARATION-MORPHOLOGY"
+NONPHARMACOPOEIA_DOSE = DATA_ROOT / "tcm-herb-nonpharmacopoeia-dose.source.json"
+NONPHARMACOPOEIA_DOSE_REF = "SRC-HERB-NONPHARMACOPOEIA-DOSE"
+
+
+def _morphology() -> dict[str, Any]:
+    payload = read_json(PREPARATION_MORPHOLOGY)
+    prefixes = sorted({compact(value) for value in payload.get("prefixes", []) if compact(value)}, key=lambda value: (-len(value), value))
+    suffixes = [(compact(item.get("suffix")), compact(item.get("preparation"))) for item in payload.get("suffixes", []) if compact(item.get("suffix"))]
+    no_merge = [compact(value) for value in (payload.get("noPreparationMergeBases") or {}).get("names", []) if compact(value)]
+    return {"prefixes": prefixes, "suffixes": suffixes, "minBase": int(payload.get("minBaseLength") or 2), "noMerge": no_merge}
+
+
+def split_prepared_herb_name(raw_name: str, resolution_index: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], str] | None:
+    """同一规则的构建期实现（运行时见 src/lib/tcm-herb-identity.ts preparedHerbNameBase）：
+    前缀从长到短逐个试，再试「去后缀」与「前缀＋去「片」」；余下部分至少两个字、是可自动解析且非歧义的药名才成立。"""
+    morphology = _morphology()
+    min_base = morphology["minBase"]
+
+    no_merge = set(morphology["noMerge"])
+
+    def usable(name: str, prefix: str = "") -> dict[str, Any] | None:
+        # 不合并名单只管炮制品（炒神曲、焦神曲）；「生」是生品，等于原药本身。
+        if len(name) < min_base or is_identity_indeterminate_herb_name(name) or (name in no_merge and prefix != "生"):
+            return None
+        row = resolution_index.get(name)
+        if not row or not row.get("autoResolvable") or not row.get("canonicalName") or row.get("status") == "ambiguous":
+            return None
+        return row
+
+    for prefix in morphology["prefixes"]:
+        if not raw_name.startswith(prefix) or len(raw_name) <= len(prefix):
+            continue
+        rest = raw_name[len(prefix):]
+        # 「生熟地」「生炙草」「生熟干地黄」是生、熟（炙）两种规格并写，不是「生」＋一味药：余下部分本身以炮制字开头时不成立。
+        if prefix == "生" and (rest.startswith("熟") or any(rest.startswith(other) for other in morphology["prefixes"])):
+            continue
+        row = usable(rest, prefix)
+        if row:
+            return row, prefix
+        for suffix, _ in morphology["suffixes"]:
+            if suffix == "片" and rest.endswith(suffix):
+                row = usable(rest[: -len(suffix)], prefix)
+                if row:
+                    return row, prefix
+    for suffix, preparation in morphology["suffixes"]:
+        if raw_name.endswith(suffix) and len(raw_name) > len(suffix):
+            row = usable(raw_name[: -len(suffix)])
+            if row:
+                return row, preparation
+    return None
+
+
+def _collect_names(node: Any, keys: set[str], out: set[str], inside: bool = False) -> None:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            _collect_names(value, keys, out, key in keys)
+    elif isinstance(node, list):
+        for value in node:
+            _collect_names(value, keys, out, inside)
+    elif isinstance(node, str) and inside:
+        name = compact(node)
+        if 2 <= len(name) <= 8:
+            out.add(name)
+
+
+def system_herb_name_universe() -> set[str]:
+    """系统会写出或读到的药名：方剂目录各来源的组成、原方组成表（原写法与「炮制＋药名」）、教材组成与加减、炮制规格表、知识库药名与别名。"""
+    names: set[str] = set()
+    for path in (FORMULA_SOURCE, VERIFIED_FORMULAS, FORMULA_STANDARD_SOURCE, CATALOG_COLLATION):
+        if path.is_file():
+            _collect_names(read_json(path), {"ingredients", "composition", "ingredientNames"}, names)
+    original = DATA_ROOT / "tcm-formula-original-compositions.json"
+    if original.is_file():
+        for entry in read_json(original).get("entries", []):
+            for herb in entry.get("herbs", []):
+                base = compact(herb.get("herb"))
+                for value in (base, compact(herb.get("written"))):
+                    if value:
+                        names.add(value)
+                preparation = compact(herb.get("preparation"))
+                if base and preparation:
+                    names.add(f"{base}炭" if preparation == "炭" else f"{preparation}{base}")
+    textbook = DATA_ROOT / "tcm-textbook-syndrome-formula-table.json"
+    if textbook.is_file():
+        _collect_names(read_json(textbook), {"composition", "herbs"}, names)
+    forms = DATA_ROOT / "tcm-herb-processing-forms.source.json"
+    if forms.is_file():
+        for rule in read_json(forms).get("rules", []):
+            for value in (rule.get("form"), rule.get("herb")):
+                if compact(value):
+                    names.add(compact(value))
+    purpose = DATA_ROOT / "tcm-herb-purpose-processing.json"
+    if purpose.is_file():
+        for row in read_json(purpose).get("herbs", []):
+            herb = compact(row.get("herb"))
+            for form in row.get("forms", []):
+                prefix = compact(form.get("prefix"))
+                if not herb:
+                    continue
+                if prefix == "炭":
+                    names.update({f"{herb}炭", f"{herb[:-1]}炭"})
+                elif prefix == "蜜":
+                    names.update({f"蜜{herb}", f"炙{herb}"})
+                elif prefix:
+                    names.add(f"{prefix}{herb}")
+    if TCM_KNOWLEDGE.is_file():
+        for herb in read_json(TCM_KNOWLEDGE).get("herbs", []):
+            for value in [herb.get("name"), *(herb.get("aliases") or [])]:
+                if compact(value) and len(compact(value)) <= 8:
+                    names.add(compact(value))
+    return names
+
+
 def build_herb_catalog() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     if not HERB_MAPPING_SOURCE.is_file():
         raise SystemExit(f"Herb mapping source not found: {HERB_MAPPING_SOURCE}")
@@ -442,39 +557,54 @@ def build_herb_catalog() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
             **({"ambiguityGroup": item["ambiguityGroup"]} if item.get("ambiguityGroup") else {}),
         }
 
-    # The official formula appendix carries ordinary preparation spellings such as
-    # 黄连片、麸炒枳壳、盐菟丝子.  Resolve only transparent preparation morphology
-    # whose stripped base is already source-backed in T9; never use fuzzy matching.
-    preparation_prefixes = ("麸炒", "酒炙", "蜜炙", "盐炙", "姜炙", "醋炙", "燀", "炒", "酒", "盐", "姜", "醋", "蜜", "炙", "煅", "制", "炮", "烫")
-    standard_formula_payload = read_json(FORMULA_STANDARD_SOURCE)
+    # 炮制品透明构词（tcm-herb-preparation-morphology.source.json，运行时 tcm-herb-identity.ts 读同一份）。
+    # 第五十三轮之前这条构词只套在深圳调剂标准附录的名字上，原方组成表、炮制规格表、教材组成与加减写出的
+    # 「土炒白术、制苍术、炒升麻」身份查不到：处方核对栏写「身份待核、剂量来源无」，剂量层却按另一份前缀表早已按药典核过。
+    # 现在对系统会写出或读到的全部药名逐个应用；附录名字仍记原来的来源引用，其余记构词规则本身。
     official_ingredient_names = {
         compact(value)
-        for formula in standard_formula_payload.get("entries", [])
+        for formula in read_json(FORMULA_STANDARD_SOURCE).get("entries", [])
         for value in formula.get("ingredients", [])
         if compact(value)
     }
-    for raw_name in sorted(official_ingredient_names):
-        if raw_name in resolution_index:
+    # 药典外参考用量表（tcm-herb-nonpharmacopoeia-dose.source.json，每条至少两条出处）里的别名：剂量层早按它核对，身份目录此前不认。
+    for entry in read_json(NONPHARMACOPOEIA_DOSE).get("entries", []):
+        target = resolution_index.get(compact(entry.get("herb")))
+        if not target or not target.get("autoResolvable") or not target.get("canonicalName"):
             continue
-        candidate = raw_name
-        preparation = None
-        for prefix in preparation_prefixes:
-            if candidate.startswith(prefix) and len(candidate) > len(prefix):
-                preparation = prefix
-                candidate = candidate[len(prefix):]
-                break
-        if candidate.endswith("片") and len(candidate) > 2 and candidate not in resolution_index:
-            candidate = candidate[:-1]
-        base = resolution_index.get(candidate)
-        if not base or not base.get("autoResolvable") or not base.get("canonicalName"):
-            continue
-        resolution_index[raw_name] = {
-            "canonicalName": base["canonicalName"],
-            "status": "source_backed_preparation_form",
-            "autoResolvable": True,
-            "sourceRefs": ["SRC-SZJG-TCM-FORMULA-2011"],
-            **({"preparation": preparation} if preparation else {"preparation": "切片"}),
-        }
+        for alias in entry.get("aliases") or []:
+            alias = compact(alias)
+            if alias and alias not in resolution_index:
+                resolution_index[alias] = {
+                    "canonicalName": target["canonicalName"],
+                    "status": "source_backed_clinical_extension",
+                    "autoResolvable": True,
+                    "sourceRefs": [NONPHARMACOPOEIA_DOSE_REF],
+                    **({"doseCanonicalName": target["doseCanonicalName"]} if target.get("doseCanonicalName") else {}),
+                }
+    # 构词按不动点迭代：运行时面对的是完整的表，构建期也要在完整的表上算（炒黑姜炭先试「炒＋黑姜炭」，而黑姜炭本身也是构词行）。
+    universe = sorted((official_ingredient_names | system_herb_name_universe()) - set(resolution_index))
+    morphology_rows: dict[str, dict[str, Any]] = {}
+    for _ in range(4):
+        lookup = {**resolution_index, **morphology_rows}
+        next_rows: dict[str, dict[str, Any]] = {}
+        for raw_name in universe:
+            split = split_prepared_herb_name(raw_name, {key: value for key, value in lookup.items() if key != raw_name})
+            if not split:
+                continue
+            base, preparation = split
+            next_rows[raw_name] = {
+                "canonicalName": base["canonicalName"],
+                "status": "source_backed_preparation_form",
+                "autoResolvable": True,
+                "sourceRefs": ["SRC-SZJG-TCM-FORMULA-2011"] if raw_name in official_ingredient_names else [PREPARATION_MORPHOLOGY_REF],
+                "preparation": preparation,
+                **({"doseCanonicalName": base["doseCanonicalName"]} if base.get("doseCanonicalName") else {}),
+            }
+        if next_rows == morphology_rows:
+            break
+        morphology_rows = next_rows
+    resolution_index.update(morphology_rows)
 
     entries = []
     for standard_name, mappings in sorted(by_standard.items()):

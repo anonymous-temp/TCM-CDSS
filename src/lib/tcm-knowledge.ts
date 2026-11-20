@@ -15,6 +15,8 @@ import {
   isIdentityIndeterminateHerbName,
   isVarietyForkedHerbIdentity,
   resolveGovernedTcmHerbIdentity,
+  governedHerbPreparationPrefixes,
+  isTwoFormPreparationName,
 } from "./tcm-herb-identity";
 import { buildBm25Index } from "./retrieval/bm25";
 import { buildControlledVocabulary } from "./retrieval/cjk-analyzer";
@@ -523,8 +525,8 @@ export function isKnownTcmHerbName(value: string): boolean {
   if (canonicalHerbNameByToken.has(normalized) || CONTROLLED_STANDALONE_HERBS.has(normalized)) return true;
   const controlled = CONTROLLED_HERB_ALIASES[normalized];
   if (controlled && canonicalHerbNameByToken.has(normalizedHerbLookupToken(controlled))) return true;
-  const withoutProcessing = normalized.replace(/^(?:蜜炙|麸炒|土炒|炒|炙|醋制|酒制|盐制|姜制|煅|制|生)/, "");
-  if (withoutProcessing !== normalized && canonicalHerbNameByToken.has(withoutProcessing)) return true;
+  const withoutProcessing = knowledgeBaseAfterPreparationPrefix(normalized);
+  if (withoutProcessing && canonicalHerbNameByToken.has(withoutProcessing)) return true;
   // T9 受控饮片名解析。剂量层（canonicalKnowledgeHerbName）与功用层（getTcmHerbFunctionText）
   // 都已走这条路——桂心→肉桂、黄芩片→黄芩、山萸肉→山茱萸、麦门冬→麦冬都能解析出完整的
   // 功用、分类与剂量边界。唯独本判定不查 T9，于是同一个药名在「存在性」上答否、在「功用/剂量」
@@ -1274,8 +1276,22 @@ function canonicalKnowledgeHerbName(value: string): string {
   if (governedName) {
     return canonicalHerbNameByToken.get(normalizedHerbLookupToken(governedName)) || governedName;
   }
-  const withoutProcessing = normalized.replace(/^(?:蜜炙|麸炒|土炒|炒|炙|醋制|酒制|盐制|姜制|煅|制|生)/, "");
+  const withoutProcessing = knowledgeBaseAfterPreparationPrefix(normalized) || normalized;
   return canonicalHerbNameByToken.get(withoutProcessing) || withoutProcessing;
+}
+
+/**
+ * 身份目录与炮制构词都没接住时，按同一份受治理前缀表（tcm-herb-preparation-morphology.source.json）去掉一个炮制前缀，
+ * 余下部分是知识库药名才算（第五十三轮：此前这里与 isKnownTcmHerbName 各写一份前缀正则，与身份目录、构建期又各不相同）。
+ */
+function knowledgeBaseAfterPreparationPrefix(normalized: string): string | undefined {
+  for (const prefix of governedHerbPreparationPrefixes()) {
+    if (!normalized.startsWith(prefix) || normalized.length <= prefix.length) continue;
+    const rest = normalized.slice(prefix.length);
+    if (isTwoFormPreparationName(prefix, rest)) continue;
+    if (rest.length >= 2 && canonicalHerbNameByToken.has(rest)) return rest;
+  }
+  return undefined;
 }
 
 const commonTcmHerbNames = new Set(data.commonHerbs.map((item) => item.name));
@@ -1419,6 +1435,12 @@ export function nonPharmacopoeiaDoseReference(herb: string): Readonly<NonPharmac
   return NON_PHARMACOPOEIA_DOSE_BY_NAME.get(name)
     || NON_PHARMACOPOEIA_DOSE_BY_NAME.get(canonicalKnowledgeHerbName(name))
     || NON_PHARMACOPOEIA_DOSE_BY_NAME.get(resolveGovernedTcmHerbIdentity(name).canonicalName || "");
+}
+
+/** 受控等价剂量条目的目标药（茯神→茯苓）；没有等价条目时 undefined。 */
+export function controlledDoseEquivalentTarget(herb: string): string | undefined {
+  const name = String(herb || "").trim();
+  return CONTROLLED_HERB_DOSE_EQUIVALENTS[name]?.target ?? CONTROLLED_HERB_DOSE_EQUIVALENTS[canonicalKnowledgeHerbName(name)]?.target;
 }
 
 export function getTcmHerbDoseLimit(herb: string): TcmHerbDoseLimit | null {

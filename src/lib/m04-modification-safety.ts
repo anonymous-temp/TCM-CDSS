@@ -1,9 +1,10 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04CandidateOpposingDirectionIndices, m04HerbOpposingDirectionIssue, m04ModificationSafetyIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose, herbAdditionPopulationConflict, recordedPopulationCautions } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, dosePassesSafetySanityCeiling, doseWithinConservativeModelLimit, ordinaryHistoricalDoseDeviation, finalModificationTriggerGrounded, m04CandidateOpposingDirectionIndices, m04HerbOpposingDirectionIssue, m04ModificationSafetyIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose, herbAdditionPopulationConflict, recordedPopulationCautions } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
-import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbFunctionCategories, isKnownTcmHerbName } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, isKnownTcmHerbName } from "./tcm-knowledge";
+import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText } from "./pediatric-dose-rule";
 import { precautionWithoutAbsentHerbs, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs } from "./m04-proposal-compiler";
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
 import rxConstraints from "../data/rx-case-constraints.source.json";
@@ -335,6 +336,24 @@ const SAFETY_PRUNE_MIN_RETAINED = 3;
  * 唯一的君药不删（君药决定全方走向，交给修复轮重选），还有别的君药时与其余药味同样剔除；删后不足 3 味不删（交给修复轮）。方义随删掉的药改写，删了什么写进「慎用与不适用」。
  * 必须排在核对与签名之前（finalizeM04CandidateContent）：签名绑定的是剔除后的最终候选。
  */
+/**
+ * 合同会因剂量驳回、而编译器没有压到认可上沿的这一味：返回写给医生的原因，否则 undefined。与合同同一组判据
+ *（doseWithinConservativeModelLimit / dosePassesSafetySanityCeiling / ordinaryHistoricalDoseDeviation），不另写阈值。
+ * 医师定量类与液体药合同本就不按区间驳回；管制、濒危药材与药引辅料在上面各有处置。
+ */
+function finalizeDoseIssue(name: string, dose: string, decoctionMethod: string, pediatricDose: ReturnType<typeof pediatricDoseRuleFromGroundingText>): string | undefined {
+  const regulatory = clinicianDoseHerbClass(name);
+  if (regulatory === "controlled_or_toxic" || regulatory === "endangered_or_banned" || regulatory === "food_or_vehicle" || liquidHerbDoseRule(name)) return undefined;
+  if (!normalizeComparableDose(dose)) return "未写明剂量，未列入本方；如需使用请医生另定用量";
+  if (!dosePassesSafetySanityCeiling(name, dose)) return `写的用量${dose}明显超出常用范围，未列入本方；如需使用请医生另定用量`;
+  if (doseWithinConservativeModelLimit(name, dose, decoctionMethod, pediatricDose)) return undefined;
+  if (ordinaryHistoricalDoseDeviation({ name, dose }, decoctionMethod, pediatricDose)) return undefined;
+  const limit = getTcmHerbDoseLimit(name);
+  if (limit?.max == null) return "缺少可核对的用量依据，未列入本方；如需使用请医生另定用量";
+  const ceiling = pediatricDose ? pediatricDoseCeilingG(limit.max, pediatricDose, name) : limit.max;
+  return `写的用量${dose}超过${pediatricDose ? "儿童折算" : "《中国药典》"}上限${ceiling}g，有毒药味不由系统自动减量，未列入本方；如需使用请医生另定用量`;
+}
+
 export function dropSafetyConflictingM04CandidateHerbs(content: string, clinicalContext: string): string {
   if (!clinicalContext.trim()) return content;
   const start = content.indexOf(START_MARKER);
@@ -368,6 +387,8 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
     // 模型写了剂量整方就退成非剂量页（第二十三轮红旗集：羚角钩藤汤 2 例）。单味拿出、写明请医生另行开具；
     // 它是唯一的君药时不拿（交给修复轮重选）。
     let emperorsLeft = herbs.filter((value) => roleOf(value) === "君").length;
+    const decoctionMethod = String(recordValue(candidate.decoction)?.method || "");
+    const pediatricDose = pediatricDoseRuleFromGroundingText(clinicalContext);
     const overview = recordValue(reasoning.overview);
     const syndromeText = [overview?.primarySyndrome, ...(Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes : [])]
       .filter((value): value is string => typeof value === "string").join("；");
@@ -400,6 +421,16 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
         }
         if (roleOf(value) === "君") emperorsLeft -= 1;
         removed.push({ name, reason: "须由医生单独定量的管制或濒危药材，未列入本方，如需使用请医生另行开具" });
+        return false;
+      }
+      // 剂量这一关（第五十三轮）：合同按数值区间驳回、而编译器压不了的剂量（有毒药味不由系统自动减量；没有可核对的用量依据；
+      // 明显超出常用范围；未写剂量），这一味单味拿出、写明原因，不再修复轮原样重写后整页退成无剂量页。普通药味超上限在编译时
+      // 已按 conservativeDoseCeilingG 压到合同认可的上沿，走不到这里。君药同下面的规则（唯一君药时交给修复轮）。
+      const doseRow = recordValue(value);
+      const doseIssue = doseRow && "dose" in doseRow ? finalizeDoseIssue(name, String(doseRow.dose ?? ""), decoctionMethod, pediatricDose) : undefined;
+      if (doseIssue && (roleOf(value) !== "君" || emperorsLeft > 1)) {
+        if (roleOf(value) === "君") emperorsLeft -= 1;
+        removed.push({ name, reason: doseIssue });
         return false;
       }
       // 教材【使用注意】写明「忌用、不宜」而病历正是这种情况（脾胃虚寒、食少便溏…，herb-record-caution）：原方药味也单味拿出、写明依据
