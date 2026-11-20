@@ -1290,7 +1290,7 @@ function knowledgeBaseAfterPreparationPrefix(normalized: string): string | undef
   for (const prefix of governedHerbPreparationPrefixes()) {
     if (!normalized.startsWith(prefix) || normalized.length <= prefix.length) continue;
     const rest = normalized.slice(prefix.length);
-    if (isTwoFormPreparationName(prefix, rest)) continue;
+    if (rest.startsWith(prefix) || isTwoFormPreparationName(prefix, rest)) continue;
     if (rest.length >= 2 && canonicalHerbNameByToken.has(rest)) return rest;
   }
   return undefined;

@@ -23579,18 +23579,16 @@
   },
   "润肠丸〔《脾胃论》·肠燥便秘〕": {
    "core": [
-    "大黄",
-    "火麻仁",
-    "羌活"
+    "大黄"
    ],
    "optional": [
     "当归",
-    "桃仁"
+    "桃仁",
+    "火麻仁",
+    "羌活"
    ],
    "reasons": {
-    "大黄": "safety_defining",
-    "羌活": "collapses_into:鸡鸣散",
-    "火麻仁": "collapses_into:鸡鸣散"
+    "大黄": "safety_defining"
    }
   },
   "润肺汤": {
@@ -41426,7 +41424,7 @@
    ],
    "optional": [
     "当归",
-    "桃仁"
+    "燀燀桃仁"
    ],
    "reasons": {
     "大黄": "safety_defining"

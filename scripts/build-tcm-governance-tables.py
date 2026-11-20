@@ -62,7 +62,7 @@ SYNDROME_TAG_ADJUDICATION_FLOOR = 488  # 233(B1) + 255(B2)
 # 不能全局归一：同一个「芍药」在桂枝汤里是白芍、在排脓散里是赤芍，猜错等于开错方向相反的药。
 # 因此这张表是 (方名, 原文药名) → 品种，而不是药名→药名。
 INGREDIENT_IDENTITY_ADJUDICATIONS = DATA_ROOT / "tcm-formula-ingredient-identity-adjudications.source.json"
-INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 244  # 76(B1) + 78(B2) + 18(B2-芍药 20260809) + 1(清燥救肺汤胡麻仁 20260929) + 64(ADJ-WEB-20260930-IDENTITY 裸药名联网回源) + 7(ADJ-R53-ALIAS-FORMULA 别名纠错后按方裁定)
+INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 245  # 76(B1) + 78(B2) + 18(B2-芍药 20260809) + 1(清燥救肺汤胡麻仁 20260929) + 64(ADJ-WEB-20260930-IDENTITY 裸药名联网回源) + 8(ADJ-R53-ALIAS-FORMULA 别名纠错与叠写残片后按方裁定)
 # 同名异方变体表(ADJ-HOMONYM-20260725):历史并存的不同方两版并存为不同身份(加味逍遥散模式)。
 HOMONYM_VARIANTS = DATA_ROOT / "tcm-formula-homonym-variants.source.json"
 # 目录条目级校勘通道(ADJ-COLLATION-20260809):新增 / 组成重录 / 章节伪方删除。
@@ -411,6 +411,9 @@ def split_prepared_herb_name(raw_name: str, resolution_index: dict[str, dict[str
         if not raw_name.startswith(prefix) or len(raw_name) <= len(prefix):
             continue
         rest = raw_name[len(prefix):]
+        # 同一个炮制字叠写（炒炒白术）不是构词：余下部分自己又以同一前缀开头时不成立。
+        if rest.startswith(prefix):
+            continue
         # 「生熟地」「生炙草」「生熟干地黄」是生、熟（炙）两种规格并写，不是「生」＋一味药：余下部分本身以炮制字开头时不成立。
         if prefix == "生" and (rest.startswith("熟") or any(rest.startswith(other) for other in morphology["prefixes"])):
             continue
@@ -423,7 +426,8 @@ def split_prepared_herb_name(raw_name: str, resolution_index: dict[str, dict[str
                 if row:
                     return row, prefix
     for suffix, preparation in morphology["suffixes"]:
-        if raw_name.endswith(suffix) and len(raw_name) > len(suffix):
+        # 同一后缀叠写（荆芥穗炭炭）不是构词。
+        if raw_name.endswith(suffix) and len(raw_name) > len(suffix) and not raw_name[: -len(suffix)].endswith(suffix):
             row = usable(raw_name[: -len(suffix)])
             if row:
                 return row, preparation
@@ -458,7 +462,8 @@ def system_herb_name_universe() -> set[str]:
                     if value:
                         names.add(value)
                 preparation = compact(herb.get("preparation"))
-                if base and preparation:
+                # 原药名已带这一炮制（炮姜＋炮、焦栀子＋焦）时不再拼出叠写名。
+                if base and preparation and not (base.startswith(preparation) or (preparation == "炭" and base.endswith("炭"))):
                     names.add(f"{base}炭" if preparation == "炭" else f"{preparation}{base}")
     textbook = DATA_ROOT / "tcm-textbook-syndrome-formula-table.json"
     if textbook.is_file():

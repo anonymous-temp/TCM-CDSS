@@ -1853,6 +1853,18 @@
    ],
    "category": "original_herb_not_dispensed",
    "reason": "目录已按原方订正；原方另有水银、轻粉、铅粉，订正时有意不列入目录。原文“砂枯去砂，留锡”说明朱砂是制备后去弃的炮制辅料，不能留作散剂药味，须修 row 并删目录此项；水粉／铅粉为同物，水银、铅粉、轻粉仍保留原方表，按本任务不写入今天调剂的改后清单。"
+  },
+  {
+   "name": "鸡鸣散",
+   "book": "医学入门",
+   "extraInCatalog": [
+    "燀燀桃仁"
+   ],
+   "missingInCatalog": [
+    "桃仁"
+   ],
+   "category": "other",
+   "reason": "目录组成「燀燀桃仁」是抽取时「燀」字叠写的残片；原文「桃仁七粒」。已按方裁定为桃仁（tcm-formula-ingredient-identity-adjudications，ADJ-R53-ALIAS-FORMULA），编译与身份比对都用裁定品种（第五十三轮：炮制构词不再接受同一前缀叠写）。"
   }
  ]
 }

@@ -31,7 +31,7 @@
     },
     {
       "file": "tcm-herb-identity-catalog.json",
-      "sha256": "c395c8670a35653d89ad2e8cdf4fb18a1157a0fc698f8510bd593af7c3ab2808"
+      "sha256": "5d9beff8a217f197246eef729afa98946b420ee79c3ee37f0deb59281c89eba8"
     },
     {
       "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
@@ -343101,10 +343101,12 @@
         },
         {
           "rawName": "燀燀桃仁",
+          "adjudicatedIngredient": "桃仁",
+          "adjudicationEvidence": "《医学入门》原文：「鸡鸣散大黄一两，桃仁七粒，归尾五钱，酒煎」（原方组成表tcm-formula-original-compositions）。目录组成「燀燀桃仁」是抽取时「燀」字叠写的残片。",
+          "adjudicationBasis": "第五十三轮：炮制构词不再接受同一前缀叠写后按方裁定",
           "canonicalName": "桃仁",
-          "linkageStatus": "source_backed_preparation_form",
-          "autoResolvable": true,
-          "preparation": "燀"
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         },
         {
           "rawName": "大黄",

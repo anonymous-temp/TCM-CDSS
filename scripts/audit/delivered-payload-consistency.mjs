@@ -18,7 +18,9 @@ const jiti = createJiti(import.meta.url, { alias: { "@": `${repo}/src`, "server-
 const kb = await jiti.import(`${repo}/src/lib/tcm-knowledge.ts`);
 const identity = await jiti.import(`${repo}/src/lib/tcm-herb-identity.ts`);
 
-const PREFIXES = [...identity.governedHerbPreparationPrefixes()];
+// 旧代码树（审第五十三轮之前的输出）没有受治理前缀表：用同一份数据文件的前缀，读不到时退回常见前缀。
+const PREFIXES = identity.governedHerbPreparationPrefixes ? [...identity.governedHerbPreparationPrefixes()]
+  : ["麸炒", "土炒", "米炒", "清炒", "炒焦", "蜜炙", "酒炙", "醋炙", "盐炙", "姜炙", "醋制", "酒制", "盐制", "姜制", "炒", "焦", "煅", "蜜", "炙", "酒", "醋", "盐", "姜", "制", "炮", "煨"];
 const COURSE_TAIL = /(?:反复|持续|间断)?(?:\d+(?:\.\d+)?|[一二三四五六七八九十两半]+|X{2,})\s*(?:余|多)?\s*(?:个)?(?:天|日|周|月|年)(?:余|多)?$/u;
 const pointer = (root, ref) => {
   const [p] = String(ref || "").split(":");

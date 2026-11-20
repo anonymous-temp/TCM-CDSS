@@ -118,7 +118,8 @@ export function preparedHerbNameBase(value: unknown): { row: ResolutionRow; base
   for (const prefix of PREPARATION_PREFIXES) {
     if (!name.startsWith(prefix) || name.length <= prefix.length) continue;
     const rest = name.slice(prefix.length);
-    if (isTwoFormPreparationName(prefix, rest)) continue;
+    // 同一个炮制字叠写（炒炒白术）不是构词；「生熟地」「生炙草」是两种规格并写。
+    if (rest.startsWith(prefix) || isTwoFormPreparationName(prefix, rest)) continue;
     const direct = usable(rest, prefix);
     if (direct) return { row: direct, base: rest, preparation: prefix };
     if (rest.endsWith("片")) {
@@ -129,6 +130,8 @@ export function preparedHerbNameBase(value: unknown): { row: ResolutionRow; base
   for (const { suffix, preparation } of PREPARATION_MORPHOLOGY.suffixes) {
     if (!name.endsWith(suffix) || name.length <= suffix.length) continue;
     const base = name.slice(0, -suffix.length);
+    // 同一后缀叠写（荆芥穗炭炭）不是构词：第五十三轮实测，原方炮制改名把模型已写成「荆芥穗炭」的再接一个「炭」，此前只因这个名字认不出才没改成。
+    if (base.endsWith(suffix)) continue;
     const row = usable(base);
     if (row) return { row, base, preparation };
   }

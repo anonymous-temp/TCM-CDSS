@@ -19,6 +19,7 @@ const pruning = await jiti.import("../src/lib/m04-modification-safety.ts");
 const types = await jiti.import("../src/lib/diagnosis-types.ts");
 const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
 const surface = await jiti.import("../src/lib/delivered-surface.ts");
+const baseline = await jiti.import("../src/lib/formula-baseline-display.ts");
 
 const check = async (id, title, run) => {
   if (process.env.R1070_CHECK && process.env.R1070_CHECK !== id) return;
@@ -39,7 +40,8 @@ function systemNames() {
   }
   for (const entry of data("tcm-formula-original-compositions.json").entries) for (const herb of entry.herbs) {
     add(herb.herb); add(herb.written);
-    if (herb.preparation) add(herb.preparation === "炭" ? `${herb.herb}炭` : `${herb.preparation}${herb.herb}`);
+    const doubled = herb.herb.startsWith(herb.preparation || "\u0000") || (herb.preparation === "炭" && herb.herb.endsWith("炭"));
+    if (herb.preparation && !doubled) add(herb.preparation === "炭" ? `${herb.herb}炭` : `${herb.preparation}${herb.herb}`);
   }
   for (const row of data("tcm-textbook-syndrome-formula-table.json").rows) {
     for (const name of row.composition || []) add(name);
@@ -98,6 +100,11 @@ await check("A4", "两种规格并写（生熟地、生炙草）不当一味药�
     assert.equal(resolved.doseCanonicalName, "六神曲");
   }
   assert.equal(identity.preparedHerbNameBase("炒六神曲"), undefined, "六神曲不经构词合并");
+  // 同一炮制字叠写不是构词（第五十三轮新臂实测：原方炮制改名把模型写好的「荆芥穗炭」又接一个「炭」）。
+  for (const name of ["荆芥穗炭炭", "炒炒白术", "焦焦栀子"]) assert.equal(identity.resolveGovernedTcmHerbIdentity(name).canonicalName, undefined, name);
+  assert.equal(baseline.originalPreparedHerbName("荆芥穗炭", "炭"), undefined);
+  assert.equal(baseline.originalPreparedHerbName("炒白术", "炒"), undefined);
+  assert.equal(baseline.originalPreparedHerbName("甘草", "炙"), "炙甘草");
   // 「炒黄芩」先试「炒黄＋芩」不成立（已不收「炒黄」这个前缀），落到「炒＋黄芩」。
   assert.equal(identity.resolveGovernedTcmHerbIdentity("炒黄芩").canonicalName, "黄芩");
 });

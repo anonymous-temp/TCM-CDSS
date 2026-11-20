@@ -23,7 +23,7 @@
       "ambiguous": 526,
       "exact_standard_name": 615,
       "source_backed_clinical_extension": 488,
-      "source_backed_preparation_form": 1122,
+      "source_backed_preparation_form": 1118,
       "unique_high_confidence": 74,
       "unique_source_backed": 4657
     }
@@ -106489,15 +106489,6 @@
       ],
       "preparation": "炮"
     },
-    "炮炮姜": {
-      "canonicalName": "炮姜",
-      "status": "source_backed_preparation_form",
-      "autoResolvable": true,
-      "sourceRefs": [
-        "SRC-HERB-PREPARATION-MORPHOLOGY"
-      ],
-      "preparation": "炮"
-    },
     "炮牡蛎": {
       "canonicalName": "牡蛎",
       "status": "source_backed_preparation_form",
@@ -106735,15 +106726,6 @@
       ],
       "preparation": "焦",
       "doseCanonicalName": "栀子"
-    },
-    "焦焦栀子": {
-      "canonicalName": "焦栀子",
-      "status": "source_backed_preparation_form",
-      "autoResolvable": true,
-      "sourceRefs": [
-        "SRC-HERB-PREPARATION-MORPHOLOGY"
-      ],
-      "preparation": "焦"
     },
     "焦白术": {
       "canonicalName": "白术",
@@ -107755,15 +107737,6 @@
         "SRC-HERB-PREPARATION-MORPHOLOGY"
       ],
       "preparation": "炭"
-    },
-    "燀燀桃仁": {
-      "canonicalName": "桃仁",
-      "status": "source_backed_preparation_form",
-      "autoResolvable": true,
-      "sourceRefs": [
-        "SRC-SZJG-TCM-FORMULA-2011"
-      ],
-      "preparation": "燀"
     },
     "牙皂炭": {
       "canonicalName": "猪牙皂",
@@ -110323,15 +110296,6 @@
         "SRC-HERB-PREPARATION-MORPHOLOGY"
       ],
       "preparation": "蜜"
-    },
-    "血余炭炭": {
-      "canonicalName": "血余炭",
-      "status": "source_backed_preparation_form",
-      "autoResolvable": true,
-      "sourceRefs": [
-        "SRC-HERB-PREPARATION-MORPHOLOGY"
-      ],
-      "preparation": "炭"
     },
     "赤石脂炭": {
       "canonicalName": "赤石脂",

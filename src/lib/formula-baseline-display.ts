@@ -37,6 +37,8 @@ function baseIdentity(name: string): string {
 
 /** 原书写明、通行的炮制换成饮片名（土炒→土炒白术，炒→炒山药，酒→酒白芍，炙→炙甘草，炭→荆芥穗炭）；知识库不认或剂量边界不同的不换。 */
 export function originalPreparedHerbName(base: string, preparation: string): string | undefined {
+  // 已经写成这一规格的（荆芥穗炭、炒白术）不再叠一个炮制字。
+  if ((preparation === "炭" && base.endsWith("炭")) || base.startsWith(preparation)) return undefined;
   const candidates = [
     `${preparation}${base}`,
     preparation.endsWith("炒") && preparation.length === 2 ? `${preparation[0]}${base}` : "",

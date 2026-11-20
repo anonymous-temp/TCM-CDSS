@@ -39,8 +39,8 @@
       "id": "ADJ-R53-ALIAS-FORMULA",
       "date": "2026-11-20",
       "method": "第五十三轮把生成目录里自动判定错的别名（木防己、蜀漆、矾石、茴香…）改为歧义或不可自动落药后，原先依赖它们的方剂逐首按原方组成表与教材原文裁定这一味；判不出的不裁。",
-      "reviewed": 7,
-      "adopted": 7
+      "reviewed": 8,
+      "adopted": 8
     }
   ],
   "entries": [
@@ -2189,6 +2189,16 @@
       "resolvedIngredient": "小茴香",
       "evidence": "原方组成表（《儒门事亲》原文「黑牵牛（头末四两） 茴香（一两，炒）」）逐方核为小茴香；《中药炮制学》小茴香【处方用名】「小茴香、小茴、茴香、盐茴香」（本地语料 L16948）。茴香亦为八角茴香处方名，不作全局别名。",
       "basis": "第五十三轮别名核对后按方裁定",
+      "confidence": "high",
+      "evidenceTier": "source_text_explicit",
+      "batch": "ADJ-R53-ALIAS-FORMULA"
+    },
+    {
+      "formulaName": "鸡鸣散",
+      "rawIngredient": "燀燀桃仁",
+      "resolvedIngredient": "桃仁",
+      "evidence": "《医学入门》原文：「鸡鸣散 大黄一两，桃仁七粒，归尾五钱，酒煎」（原方组成表 tcm-formula-original-compositions）。目录组成「燀燀桃仁」是抽取时「燀」字叠写的残片。",
+      "basis": "第五十三轮：炮制构词不再接受同一前缀叠写后按方裁定",
       "confidence": "high",
       "evidenceTier": "source_text_explicit",
       "batch": "ADJ-R53-ALIAS-FORMULA"
