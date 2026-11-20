@@ -334,3 +334,12 @@ await check("B6", "证名改写不得让已签名的方剂锁定失效：心肺�
     assert.match(fs.readFileSync(`${root}/${file}`, "utf8"), /syndromeRewriteBreaksFormulaLock\(/u, file);
   }
 });
+
+await check("A8", "原书生用的药味不按用途加炮制：葛根黄芩黄连汤里葛根写「升阳止泻」照旧是葛根；同一张方当自拟方时按《中药学》「升阳止泻宜煨用」是煨葛根", () => {
+  const fixture = JSON.parse(fs.readFileSync(`${root}/scripts/fixtures/r1070/gegen-qinlian.json`, "utf8"));
+  const names = (reasoning) => surface.projectDeliveredReasoning(structuredClone(reasoning), { recordText: fixture.recordText }).formula.candidates[0].herbs.map((herb) => herb.name);
+  assert.ok(names(fixture.reasoning).includes("葛根"), JSON.stringify(names(fixture.reasoning)));
+  const devised = structuredClone(fixture.reasoning);
+  devised.formula.candidates[0].name = "自拟方"; devised.formula.candidates[0].formulaSource = "自拟方";
+  assert.ok(names(devised).includes("煨葛根"), JSON.stringify(names(devised)));
+});

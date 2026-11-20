@@ -55,7 +55,7 @@ import purposeProcessingTable from "../data/tcm-herb-purpose-processing.json" wi
 import processingFormsTable from "../data/tcm-herb-processing-forms.source.json" with { type: "json" };
 import { withoutPreparationPrefix, type OriginalFormula } from "./formula-original-composition";
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
-import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, textbookCitedOriginalSource, deliveredFormulaSource, sourceIsTextbook } from "./tcm-formula-provenance";
+import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, governedFormulaOriginalRawHerbs, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, textbookCitedOriginalSource, deliveredFormulaSource, sourceIsTextbook } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { selfTakenMedicationMentions, recordedMedicationMentions, drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTaken } from "./clinical-polarity";
@@ -1920,6 +1920,8 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
       // 命名方原书写了炮制的那一味（完带汤「白术（土炒）」）不按用途改。
       const identity = compositionIdentityName(name);
       const originalPrepared = Boolean(formulaName) && governedFormulaOriginalPreparations(formulaName.replace(/(?:加减|化裁|加味)$/u, ""), originalContext).some((entry) => entry.identity === identity && entry.preparation);
+      // 原书生用的（葛根芩连汤的葛根）不按用途加炮制；有毒药「内服须炮制」照旧走下面那条。
+      const originalRaw = Boolean(formulaName) && governedFormulaOriginalRawHerbs(formulaName.replace(/(?:加减|化裁|加味)$/u, ""), originalContext).has(identity);
       if (processing) {
         if (!originalPrepared && byPurpose(herb, name, processing, ownFunction(herb))) continue;
         const toxic = herb.isToxic === true || getTcmHerbGenerationSafetyProfile(name).isToxic;
@@ -1948,7 +1950,7 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
       // Recorded processing rules and original preparations precede generic purpose preferences.
       const fromRules = processedHerbName(name, { purposeText: purposeOf(herb), recordText, formulaName, formulaContext: originalContext });
       if (fromRules) rename(herb, fromRules);
-      else if (!originalPrepared) byPurpose(herb, name, "", ownFunction(herb));
+      else if (!originalPrepared && !originalRaw) byPurpose(herb, name, "", ownFunction(herb));
     }
   }
   for (const row of records(formula?.modifications)) {

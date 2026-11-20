@@ -373,6 +373,17 @@ export function governedFormulaOriginalPreparations(name: string, context: Origi
     .map((item) => ({ identity: compositionIdentityName(item.herb), preparation: item.preparation }));
 }
 
+/**
+ * 命名方原书里不写炮制的药味（葛根芩连汤的葛根、玉屏风散的白术）。按用途加炮制（herb-processing-forms.purposeProcessedHerbName）
+ * 让位于原书写法：原书生用的就照生用（第五十三轮：构词规则让「煨葛根」成为认得的药名后，按用途规则把葛根芩连汤里的葛根改成了
+ * 煨葛根——原方生用，葛根在方中兼解肌清热）。有毒药「内服须炮制」那一条不受影响，调用方另行处理。
+ */
+export function governedFormulaOriginalRawHerbs(name: string, context: OriginalFormulaContext = {}): Set<string> {
+  const entry = originalFormulaFor(name, context);
+  if (!entry) return new Set();
+  return new Set(entry.herbs.filter((item) => !item.preparation).map((item) => compositionIdentityName(item.herb)));
+}
+
 function cleanFormulaDisplayName(value: string): string {
   return value
     .replace(/[（(]?\s*《[^》]{2,80}》\s*[）)]?/g, "")

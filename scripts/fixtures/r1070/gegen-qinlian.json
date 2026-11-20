@@ -1,0 +1,909 @@
+{
+ "note": "甲方 10.29 病历（去标识）第五十三轮新臂的葛根黄芩黄连汤处方（葛根已还原为生品写法）与病历文本。",
+ "recordText": "患者年龄：1岁\n患者性别：女\n腹泻伴发热2天\n患者2天前因新添加辅食后出现腹泻，排便5-6次/日，为稀水样便，夹黏液，气味臭秽，量多次频，伴发热，体温37.8℃，伴口渴引饮、小便短黄、烦躁不安、纳差。无呕吐、无抽搐。曾自行服用“蒙脱石散”1次。发病以来精神稍差，睡眠欠安。\n长期居住于本地，否认疫区旅居史，生活起居规律，饮食习惯均衡，无烟酒等不良嗜好，否认粉尘、毒物、放射性物质接触史，否认冶游史\n未婚\n父母体健，否认家族遗传病史，否认家族传染病史\nW10kg，神志清，精神稍萎靡，皮肤稍干、弹性可，前囟平，腹软稍胀、无压痛，肠鸣音活跃\n无\n舌象：舌红，苔黄腻\n脉象：脉滑数\n生命体征：体温 37.8℃\n生命体征：脉搏 110次/分\n生命体征：呼吸 26次/分\n既往史：既往体健，否认过敏及慢性腹泻史\n过敏史：否认药物过敏史，否认食物过敏史",
+ "reasoning": {
+  "schemaVersion": "tcm-cdss-reasoning-v2",
+  "stage": "prescribe",
+  "clinicalReview": {
+   "status": "unavailable",
+   "unavailableReason": "not_configured",
+   "attemptCount": 0,
+   "durationMs": 0,
+   "reviewedPayloadHash": "sha256:a861532665df8c8fc9423f7a0114fad7de4c32641fe0ae6ee1439a1205104ff6"
+  },
+  "overview": {
+   "tcmDiseaseName": "泄泻",
+   "primarySyndrome": "湿热泻",
+   "primarySyndromeResolution": "resolved",
+   "primarySyndromeBasis": [
+    "排便5-6次/日，为稀水样便",
+    "气味臭秽，量多次频",
+    "口渴引饮、小便短黄",
+    "舌红，苔黄腻",
+    "脉滑数"
+   ],
+   "tcmDiseaseRationale": "以大便次数增多、粪质稀水样为主症，病程2天，故归入泄泻；未诉黏液脓血、里急后重，与痢疾相区分。",
+   "tcmDiagnosticRationale": "患儿以腹泻伴发热2天为主症，泻下稀水样便、量多次频、气味臭秽，兼发热、口渴引饮、小便短黄、烦躁不安，舌红、苔黄腻、脉滑数，为湿热蕴结肠道、传化失司，故属湿热泻；大便夹黏液为湿热熏灼肠道、脂膜受损；精神稍差、精神稍萎靡、皮肤稍干、睡眠欠安为泻下伤津、心神失养之轻象。纳差、腹稍胀、肠鸣音活跃",
+   "tcmDiseaseReferences": [
+    {
+     "evidenceId": "STD-GBT-15657-2021",
+     "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+     "sourceType": "standard"
+    }
+   ],
+   "tcmSyndromeReferences": [],
+   "tcmDifferentials": [
+    {
+     "syndrome": "伤食泻",
+     "reason": "新添加辅食后起病，需与食滞鉴别",
+     "distinguishingPoints": "本例便臭秽而非酸臭，苔黄腻脉滑数，热象明显",
+     "typicalManifestation": "大便稀溏夹乳凝块，酸臭，脘腹胀满，苔厚腻",
+     "nextCheck": "追问大便有无不消化食物残渣"
+    },
+    {
+     "syndrome": "风寒泻",
+     "reason": "外感起病需辨寒热",
+     "distinguishingPoints": "本例便臭秽、口渴尿黄、舌红苔黄腻，不支持寒证",
+     "typicalManifestation": "大便清稀夹泡沫，臭味不甚，苔薄白，脉浮紧",
+     "nextCheck": "复核有无鼻塞流涕、恶寒"
+    }
+   ],
+   "tcmDiseaseDifferentials": [
+    {
+     "diseaseName": "痢疾",
+     "reason": "均以便次增多、发热为主症",
+     "distinguishingPoints": "本例为稀水样便夹黏液，未诉脓血、里急后重",
+     "typicalManifestation": "腹痛，里急后重，下痢赤白脓血",
+     "nextCheck": "必要时查大便常规"
+    },
+    {
+     "diseaseName": "积滞",
+     "reason": "均由喂养不当诱发",
+     "distinguishingPoints": "本例以水样便量多次频为主，非酸臭不化之积滞",
+     "typicalManifestation": "",
+     "nextCheck": "观察大便性状与食欲变化"
+    }
+   ],
+   "secondarySyndromes": [],
+   "overallPathogenesis": "新添辅食伤脾，湿热蕴结肠道，传化失司而泻下臭秽量多；热灼津伤则口渴尿黄、皮肤稍干，湿热扰心则烦躁",
+   "overallTherapy": "清热利湿，生津止泻，行气消胀",
+   "recommendedFormulaDirection": "葛根黄芩黄连汤加减",
+   "recommendedFormulaNames": [
+    "葛根黄芩黄连汤"
+   ],
+   "formulaSelectionMode": "single",
+   "evidence": {
+    "evidenceLevel": "model_inference",
+    "source": "病例内推理",
+    "confidence": "中"
+   }
+  },
+  "westernDiagnosis": {
+   "primary": {
+    "name": "急性腹泻病",
+    "status": "考虑",
+    "confidence": "中",
+    "supportingFacts": [
+     "本例为1岁女婴新添辅食后急性水样便伴发热2天，排便5-6次/日，为稀水样便，夹黏液，气味臭秽，伴发热，体温37.8℃，无呕吐、无抽搐，符合急性腹泻病临床诊断；尚缺大便病原学检查，需完善以明确病因，需排除细菌性肠炎、轮状病毒肠炎。"
+    ],
+    "supportingFactKinds": [],
+    "clinicalRationale": "本例为1岁女婴新添辅食后急性水样便伴发热2天，排便5-6次/日，为稀水样便，夹黏液，气味臭秽，伴发热，体温37.8℃，无呕吐、无抽搐，符合急性腹泻病临床诊断；尚缺大便病原学检查，需完善以明确病因，需排除细菌性肠炎、轮状病毒肠炎。",
+    "limitations": [],
+    "suggestedChecks": [],
+    "guidelineReferences": [],
+    "evidence": {
+     "evidenceLevel": "model_inference",
+     "source": "病例内推理",
+     "confidence": "中"
+    }
+   },
+   "differentials": [
+    {
+     "name": "脱水",
+     "reason": "腹泻伴口渴尿少、皮肤稍干",
+     "distinguishingPoints": "精神稍萎靡、口渴引饮、小便短黄提示体液丢失，前囟平、皮肤弹性可暂不支持重度脱水",
+     "nextCheck": "评估尿量、体重及毛细血管再充盈",
+     "guidelineReferences": []
+    },
+    {
+     "name": "细菌性肠炎",
+     "reason": "黏液便伴发热需排除",
+     "distinguishingPoints": "稀水样便夹黏液、气味臭秽、低热，无脓血便记录",
+     "nextCheck": "粪便常规加隐血及病原培养",
+     "guidelineReferences": []
+    },
+    {
+     "name": "轮状病毒肠炎",
+     "reason": "婴幼儿水样便常见病因",
+     "distinguishingPoints": "水样便量多次频、伴低热，无呕吐记录",
+     "nextCheck": "粪便轮状病毒抗原检测",
+     "guidelineReferences": []
+    },
+    {
+     "name": "食物蛋白过敏",
+     "reason": "新添加辅食后起病",
+     "distinguishingPoints": "起病与辅食添加时间相关；但伴发热更支持感染",
+     "nextCheck": "追问辅食种类及皮疹表现",
+     "guidelineReferences": []
+    },
+    {
+     "name": "肠套叠",
+     "reason": "婴幼儿腹泻腹胀需警惕",
+     "distinguishingPoints": "腹软无压痛、无呕吐无抽搐，未诉阵发性哭闹",
+     "nextCheck": "观察有无阵发哭闹及果酱样便",
+     "guidelineReferences": []
+    }
+   ],
+   "candidates": [
+    {
+     "name": "急性腹泻病",
+     "likelihood": "高",
+     "keyEvidence": [
+      "新添加辅食后急性起病",
+      "稀水样便5-6次/日夹黏液",
+      "伴低热37.8℃"
+     ],
+     "againstEvidence": [
+      "无粪便常规及病原学结果",
+      "无呕吐记录"
+     ]
+    },
+    {
+     "name": "细菌性肠炎",
+     "likelihood": "中",
+     "keyEvidence": [
+      "黏液便、气味臭秽",
+      "伴发热"
+     ],
+     "againstEvidence": [
+      "无脓血便记录",
+      "粪便检查未做"
+     ]
+    },
+    {
+     "name": "轮状病毒肠炎",
+     "likelihood": "中",
+     "keyEvidence": [
+      "婴幼儿水样便量多次频",
+      "伴低热、纳差"
+     ],
+     "againstEvidence": [
+      "无呕吐记录",
+      "未行病原检测"
+     ]
+    }
+   ]
+  },
+  "pathogenesis": {
+   "summary": "湿热蕴肠，传化失司；泻下津伤，水液不足",
+   "locationDifferentiation": {
+    "items": [
+     "脾胃",
+     "肠"
+    ],
+    "details": [
+     {
+      "location": "脾胃",
+      "basis": "纳差"
+     },
+     {
+      "location": "肠",
+      "basis": "肠鸣音活跃"
+     }
+    ],
+    "resolution": "resolved",
+    "evidence": {
+     "evidenceLevel": "model_inference",
+     "source": "本例四诊与病史推断",
+     "confidence": "高"
+    }
+   },
+   "natureDifferentiation": {
+    "items": [
+     "湿热",
+     "津亏"
+    ],
+    "rootDeficiency": [
+     "津亏"
+    ],
+    "branchExcess": [
+     "湿热"
+    ],
+    "basis": "气味臭秽，量多次频；口渴引饮、小便短黄；舌红，苔黄腻；脉滑数",
+    "resolution": "resolved",
+    "evidence": {
+     "evidenceLevel": "model_inference",
+     "source": "本例四诊与病史推断",
+     "confidence": "高"
+    }
+   },
+   "symptomClusters": [
+    {
+     "symptoms": [
+      "气味臭秽",
+      "舌红，苔黄腻",
+      "脉滑数"
+     ],
+     "mechanism": "湿热蕴结肠道"
+    },
+    {
+     "symptoms": [
+      "口渴引饮",
+      "小便短黄",
+      "皮肤稍干"
+     ],
+     "mechanism": "泻下伤津"
+    }
+   ],
+   "chain": [
+    {
+     "nodeId": "P1",
+     "patientFact": "排便5-6次/日，为稀水样便",
+     "syndromeEvidence": "气味臭秽，量多次频",
+     "pathogenesis": "湿热蕴肠，传化失司",
+     "therapyDirection": "清热利湿止泻",
+     "evidence": {
+      "evidenceLevel": "kb_entry",
+      "source": "《中医儿科学》泄泻·湿热泻",
+      "confidence": "中"
+     }
+    },
+    {
+     "nodeId": "P2",
+     "patientFact": "口渴引饮、小便短黄",
+     "syndromeEvidence": "皮肤稍干",
+     "pathogenesis": "泻下津伤，水液不足",
+     "therapyDirection": "生津护液",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "本例资料",
+      "confidence": "中"
+     }
+    }
+   ],
+   "uncertainties": [
+    {
+     "item": "脱水程度",
+     "reason": "精神稍萎靡、皮肤稍干",
+     "affects": "补液与随访强度"
+    }
+   ]
+  },
+  "therapy": {
+   "overallPrinciple": "热者寒之",
+   "overallMethod": "清热利湿，生津止泻，行气消胀",
+   "subTherapies": [
+    {
+     "therapy": "清热利湿止泻",
+     "targetPathogenesis": "湿热蕴肠，传化失司",
+     "priority": "主要",
+     "evidence": {
+      "evidenceLevel": "kb_entry",
+      "source": "《中医儿科学》泄泻·湿热泻",
+      "confidence": "中"
+     }
+    },
+    {
+     "therapy": "生津护液",
+     "targetPathogenesis": "泻下津伤，水液不足",
+     "priority": "次要",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "本例资料",
+      "confidence": "中"
+     }
+    }
+   ]
+  },
+  "formula": {
+   "candidates": [
+    {
+     "name": "葛根黄芩黄连汤加减",
+     "formulaNames": [
+      "葛根黄芩黄连汤"
+     ],
+     "positioning": "首选",
+     "constructionType": "single_base",
+     "modificationStatus": "modified",
+     "baseFormulas": [
+      {
+       "name": "葛根黄芩黄连汤",
+       "source": "《伤寒论》",
+       "matchedIngredientCount": 4,
+       "totalIngredientCount": 4,
+       "minimumPreservedIngredientCount": 4,
+       "matchedRequiredIngredientCount": 4,
+       "requiredIngredientCount": 4,
+       "verificationStatus": "verified_individually"
+      }
+     ],
+     "discriminationPath": [
+      {
+       "againstFormula": "桂枝人参汤",
+       "question": "当前阳性事实更支持“热利，表证误下或食物中毒热利”，还是“寒利，中焦虚寒下利”？",
+       "status": "unknown",
+       "sourceRef": "T14-004:参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      },
+      {
+       "againstFormula": "葛根汤",
+       "question": "当前阳性事实更支持“项背强几几、无汗、恶风”，还是“热利，表证误下或食物中毒热利”？",
+       "status": "unknown",
+       "sourceRef": "T14-033:formula-patterns.md:23"
+      },
+      {
+       "againstFormula": "大青龙汤",
+       "question": "当前阳性事实更支持“热利，表证误下或食物中毒热利”，还是“表寒里热，无汗烦躁、体痛”？",
+       "status": "unknown",
+       "sourceRef": "T14-034:formula-patterns.md:24"
+      }
+     ],
+     "classicEvidence": [
+      {
+       "evidenceId": "TCMOC-864C397442C3D9A8",
+       "citation": "《退思集类方歌注》·葛根黄芩黄连汤",
+       "anchorLevel": "chapter_paragraph",
+       "excerpt": "属性：治太阳病桂枝证，医反下之，利遂不止，脉促表未解，喘而汗出者。 葛根（[具体剂量或操作已隔离]） 甘草（[具体剂量或操作已隔离]） 黄芩 黄连（各[具体剂量或操作已隔离]） 水[具体剂量或操作已隔离]，先煮葛根减[具体剂量或操作已隔离]，纳 诸药，煮取 葛根黄芩黄连汤，甘草四般治二阳。（太阳误下，邪入阳明。）解表（葛根）清里（黄芩 黄连）兼和胃（甘草），喘汗脉促利为良。（此条喘汗为轻，下利不止为重，故药亦先治其利。 但下利乃寒热虚实俱有之证。脉促急者，则为热邪无疑，表虽未解，则不当用桂枝之辛热， 故用葛根之甘凉以解表。因喘汗而利，用芩、连之苦以坚阴。甘草不特和胃，且以和表里也。 若脉",
+       "tier": "canon"
+      },
+      {
+       "evidenceId": "TCMOC-010759EF70132411",
+       "citation": "《重订广温热论》·论温热兼症疗法",
+       "anchorLevel": "chapter_paragraph",
+       "excerpt": "属性：其八兼痢∶伏邪本多自利症，表症初起，即[具体剂量或操作已隔离]稀臭水者是也，详见后自利条下；更有春夏之交， 一得伏邪，即兼下利红白，而里急后重者，名为兼痢。初起慎勿作痢治，盖痢属里症，今见伏邪之发热、头痛， 为表里俱病，先用透伏邪之法解其表，表解而里自和，其痢多有不治而愈者。若用治痢之法先清其里，里气虚 而表邪陷，轻者增其烦躁、神昏，重者遂至呕逆、昏愦而危矣。所以古人于时痢初起，专主仓廪汤，一意先 解其表，但加陈仓米以和中。俟表症解后，里热症具，方可议清议下。不但香连、承气之类初宜暂缓，即淡渗 分利，亦宜缓投于表症未解之先。若表症已解，而里积未除，则宜葛根芩连汤，加青、陈、楂、曲，清消之， 甚加枳实导滞丸缓攻之；中路可用白头翁",
+       "tier": "canon"
+      },
+      {
+       "evidenceId": "TCMOC-06A8D527FD0AA1CE",
+       "citation": "《幼幼新书》·伤寒发喘第四",
+       "anchorLevel": "chapter_paragraph",
+       "excerpt": "《圣惠》治小儿伤寒，心胸烦闷，喘促。\\x人参散方\\x 人参（去芦头） 麻黄（去根节） 甘草（炙微赤，锉。各[具体剂量或操作已隔离]） 贝母（煨微黄） 杏仁（汤浸，去皮尖、双仁， 麸炒微黄。各一分） 上件药捣，粗罗为散。每服[具体剂量或操作已隔离]，以水一小盏，煎至五分，去滓。不计时候，量儿大小分减温服。 《活人书》\\x仲景麻黄汤方\\x 麻黄（[具体剂量或操作已隔离]半，去节） 桂枝（[具体剂量或操作已隔离]） 甘草（[具体剂量或操作已隔离]，炙） 杏仁（三十五个，去皮尖） 上锉如麻豆大。每服抄[具体剂量或操作已隔离]匕，水一盏半，煮至八分，去滓温服，覆取微汗，不须 粥。加减法∶伤寒热 病药性须凉，不可太温。夏至后，麻黄汤须加知母[具",
+       "tier": "canon"
+      },
+      {
+       "evidenceId": "TCMOC-0889CAC85EBC5FF4",
+       "citation": "《景岳全书》·附诸家脉义",
+       "anchorLevel": "chapter_paragraph",
+       "excerpt": "属性：夫脉者，本乎营与卫也，而营行脉之中，卫行于脉之外，苟脏腑和平，营卫调畅，则脉无形状 之可议矣。或者六淫外袭，七情内伤，则脏腑不和，营卫乖谬，而二十四脉之名状，层出而叠见矣 。是故风寒暑湿燥火，此六淫也，外伤六淫之脉，则浮为风，紧为寒，虚为暑，细为湿，数为燥， 洪为火，此皆可以脉而别其外感之 邪也。喜怒忧思悲恐惊者，此七情也，内伤七情之脉，喜则伤心而脉缓，怒则伤肝而脉急，恐则伤 肾而脉沉，悲则气消而脉短，惊则气乱而脉动，此皆可以脉而辨其内伤之病也。然此特举其常，而 以脉病相应者为言也。 若论其变，则有脉不应病，病不应脉，变出百端，而难一一尽凭乎脉者矣。试举一二言之，如 张仲景云∶脉浮大，邪在表，为可汗。若脉浮大，心下硬，有热属脏",
+       "tier": "canon"
+      },
+      {
+       "evidenceId": "TCMOC-0C60A35C8DB7BA64",
+       "citation": "《伤寒证治准绳》·喘",
+       "anchorLevel": "chapter_paragraph",
+       "excerpt": "属性：\\x成\\x 肺主气形寒饮冷则伤肺故其气逆而上行冲冲而气急喝喝而息数张口抬肩摇身滚肚是为喘也有邪在表致气不利而 喘者麻黄汤桂枝加浓朴杏子汤有水射肺而喘者小青龙汤发汗后饮水多必喘以水灌之亦喘及伤寒心下有水气干呕发热而 咳或喘者小青龙去麻黄加杏仁是欲发散水寒也经曰喘而汗出者与葛根黄芩黄连汤以利之（此邪气内攻气逆不利因喘而汗 出见其邪气在里也虽表未解未可和之）汗出而喘者与麻黄甘草石膏汤以发之（此外邪壅盛使气不利汗出而喘不已见其邪 气在表也虽经汗下亦可发之）若伤寒止于邪气在表而喘者心腹必濡而不坚设或腹满而喘则又为可下之证经曰短腹气满而 喘有潮热者此外欲解可攻里也又汗出发润喘不休者为肺绝身汗如油喘而不休为命绝直视谵语喘满者死是皆不治之喘也",
+       "tier": "canon"
+      },
+      {
+       "evidenceId": "TCMOC-0EFDD61A515305D5",
+       "citation": "《伤寒大白》·喘逆",
+       "anchorLevel": "chapter_paragraph",
+       "excerpt": "而汗出者，葛根黄芩黄连汤。 此条误下太阳，不成结胸，而成挟热下利，喘而汗出。详注自汗门。 阳明中风。口苦咽干，腹满微喘，发热恶寒，脉浮而紧。若下之，则腹满小便难，麻黄汤主之。 发热恶寒，脉浮而紧，尚是太阳表邪。若误下之，则腹满而小便难。麻黄汤主之句，在脉 浮而紧之下。 阳明病脉浮无汗而喘者，发汗而愈，宜麻黄汤。 脉浮无汗而喘，即从太阳表邪而治，不必拘执阳明病，故曰发汗则愈。 阳明病脉浮而紧，咽燥口苦，腹满而喘，发热汗出，不恶寒反恶热，身重，白虎汤，五苓散。 上条言脉浮而紧，当散表；此言咽燥口苦，腹满，发热汗出，不恶寒，反恶热，又当用白 虎汤治咽燥，五苓散治脉浮而紧，腹满身重。 伤寒四五日，脉沉而喘满，沉为在里而反发其汗，津液越出，大",
+       "tier": "canon"
+      }
+     ],
+     "compositionLogic": [
+      {
+       "formulaName": "葛根黄芩黄连汤",
+       "summary": "组成：葛根、黄芩、黄连、炙甘草。出处：《伤寒论》。",
+       "tier": "common",
+       "sourceRefs": [
+        "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+        "formula-patterns.md:24"
+       ]
+      }
+     ],
+     "textualModifications": [],
+     "formulaSource": {
+      "evidenceLevel": "kb_entry",
+      "source": "葛根黄芩黄连汤：《伤寒论》",
+      "confidence": "中"
+     },
+     "therapyMatch": "清热利湿，生津止泻，行气消胀",
+     "applicable": "",
+     "notApplicable": "",
+     "herbs": [
+      {
+       "name": "葛根",
+       "processing": null,
+       "dose": "7g",
+       "role": "君",
+       "prescriptionRole": "君药：清热利湿止泻",
+       "targetKind": "pathogenesis_node",
+       "targetRef": "P1",
+       "structureRole": null,
+       "targetPathogenesis": "湿热蕴肠，传化失司",
+       "function": "升阳止泻",
+       "isToxic": false,
+       "verificationTier": "verified",
+       "doseSource": "governed_boundary",
+       "verificationReasons": [
+        "剂量已按儿童折算上限 7.5g（成人 10-15g × 1/2）完成规则校验"
+       ],
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "葛根黄芩黄连汤：《伤寒论》",
+        "confidence": "中"
+       }
+      },
+      {
+       "name": "黄芩",
+       "processing": null,
+       "dose": "4g",
+       "role": "臣",
+       "prescriptionRole": "臣药：清热利湿止泻",
+       "targetKind": "pathogenesis_node",
+       "targetRef": "P1",
+       "structureRole": null,
+       "targetPathogenesis": "湿热蕴肠，传化失司",
+       "function": "清热燥湿，泻火解毒",
+       "isToxic": false,
+       "verificationTier": "verified",
+       "doseSource": "governed_boundary",
+       "verificationReasons": [
+        "剂量已按儿童折算上限 5g（成人 3-10g × 1/2）完成规则校验"
+       ],
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "葛根黄芩黄连汤：《伤寒论》",
+        "confidence": "中"
+       }
+      },
+      {
+       "name": "黄连",
+       "processing": null,
+       "dose": "2g",
+       "role": "臣",
+       "prescriptionRole": "臣药：清热利湿止泻",
+       "targetKind": "pathogenesis_node",
+       "targetRef": "P1",
+       "structureRole": null,
+       "targetPathogenesis": "湿热蕴肠，传化失司",
+       "function": "清热燥湿，泻火解毒",
+       "isToxic": false,
+       "verificationTier": "verified",
+       "doseSource": "governed_boundary",
+       "verificationReasons": [
+        "剂量已按儿童折算上限 2.5g（成人 2-5g × 1/2）完成规则校验"
+       ],
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "葛根黄芩黄连汤：《伤寒论》",
+        "confidence": "中"
+       }
+      },
+      {
+       "name": "地锦草",
+       "processing": null,
+       "dose": "9g",
+       "role": "佐",
+       "prescriptionRole": "佐药：清热利湿止泻",
+       "targetKind": "pathogenesis_node",
+       "targetRef": "P1",
+       "structureRole": null,
+       "targetPathogenesis": "湿热蕴肠，传化失司",
+       "function": "清热解毒，利湿退黄",
+       "isToxic": false,
+       "verificationTier": "verified",
+       "doseSource": "governed_boundary",
+       "verificationReasons": [
+        "剂量已按儿童折算上限 10g（成人 9-20g × 1/2）完成规则校验"
+       ],
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "葛根黄芩黄连汤：《伤寒论》",
+        "confidence": "中"
+       }
+      },
+      {
+       "name": "芦根",
+       "processing": null,
+       "dose": "12g",
+       "role": "佐",
+       "prescriptionRole": "佐药：生津护液",
+       "targetKind": "pathogenesis_node",
+       "targetRef": "P2",
+       "structureRole": null,
+       "targetPathogenesis": "泻下津伤，水液不足",
+       "function": "生津止渴",
+       "isToxic": false,
+       "verificationTier": "verified",
+       "doseSource": "governed_boundary",
+       "verificationReasons": [
+        "剂量已按儿童折算上限 15g（成人 15-30g × 1/2）完成规则校验"
+       ],
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+        "confidence": "中"
+       }
+      },
+      {
+       "name": "炙甘草",
+       "processing": null,
+       "dose": "3g",
+       "role": "使",
+       "prescriptionRole": "使药：调和诸药，协调药性",
+       "targetKind": "formula_structure",
+       "targetRef": "FORMULA_STRUCTURE",
+       "structureRole": "harmonize",
+       "targetPathogenesis": "调和诸药，协调药性",
+       "function": "补脾和胃",
+       "isToxic": false,
+       "verificationTier": "verified",
+       "doseSource": "governed_boundary",
+       "verificationReasons": [
+        "剂量已按儿童折算上限 5g（成人 2-10g × 1/2）完成规则校验"
+       ],
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "葛根黄芩黄连汤：《伤寒论》",
+        "confidence": "中"
+       }
+      }
+     ],
+     "formulaAnalysis": "本方以葛根黄芩黄连汤为基础加减。煨葛根为君，升发脾胃清阳而止泻，兼清热生津，直对湿热蕴肠、传化失司；黄芩、黄连为臣，苦寒清热燥湿、厚肠止利，助君清肠中湿热；地锦草为佐，清热解毒止泻，加强清利之力；芦根为佐，清热生津，顾泻下津伤、口渴尿黄；炙甘草为使，甘缓和中、调和诸药，防苦寒伤胃。全方清利与生津并行，共奏清热利湿、生津止泻之效。",
+     "decoction": {
+      "doseCount": "3剂",
+      "method": "每日1剂，加水浸泡30分钟，武火煮沸后转文火，水煎两次（约20、15分钟），共取药液约150mL，分3次服，饭后温服",
+      "course": "3日",
+      "followUpNode": "先在3天内到医院完成评估；医生确认可以服药后，完成3剂（3日）后复诊；出现不适或症状加重时提前复诊",
+      "dosesPerDay": 1,
+      "administrationTimesPerDay": 3,
+      "soakMinutes": 30,
+      "decoctionTimes": 2,
+      "firstDecoctionMinutes": 20,
+      "secondDecoctionMinutes": 15,
+      "targetVolumeMl": 150,
+      "administration": "每日1剂，每日分3次服，饭后温服；中病即止，不宜久服",
+      "followUpAfterDoses": 3,
+      "followUpAfterDays": 3
+     }
+    }
+   ],
+   "patentAndWestern": [
+    {
+     "type": "中成药",
+     "name": "小儿广朴止泻口服液",
+     "specification": "10ml*10支",
+     "evidenceId": "LOCAL-INST-002",
+     "evidenceFingerprint": "sha256:3627714b3e0de935bfc0193070eb02dd18db0861c9722ad7c93986c9e77bf438",
+     "recommendationMode": "candidate_review",
+     "singleDose": "一次5ml",
+     "frequency": "一日3次",
+     "route": "口服",
+     "usageBoundary": "",
+     "positioning": "需医生评估",
+     "correspondingProblem": "小儿湿热泄泻、水样便伴发热纳差",
+     "evidence": {
+      "evidenceLevel": "drug_label",
+      "source": "[LOCAL-INST-002]",
+      "confidence": "中"
+     },
+     "relationship": "是否与本方汤剂同用由医生评估",
+     "riskNote": "脱水患儿可口服或静脉补液。服用时请摇匀。如与其他药物同时使用可能会发生药物相互作用，详情请咨询医师或药师。"
+    }
+   ],
+   "medicineCandidateStatus": {
+    "status": "available",
+    "reason": "已形成与本例问题匹配并绑定真实说明书条目的候选。"
+   },
+   "modifications": [
+    {
+     "trigger": "量多次频",
+     "triggerSource": {
+      "kind": "primary_syndrome_basis",
+      "sourceRef": "overview.primarySyndromeBasis[1]",
+      "sourceQuote": "气味臭秽，量多次频"
+     },
+     "targetPathogenesis": "湿热炽盛，下迫肠道",
+     "action": "加",
+     "herbName": "马齿苋",
+     "doseOrHandling": "4.5g",
+     "reason": "助清肠中湿热，热重泻频时加强止泻",
+     "riskNote": "",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "患者原文：气味臭秽，量多次频",
+      "confidence": "中"
+     }
+    },
+    {
+     "trigger": "本例已见小便短黄",
+     "targetPathogenesis": "湿热下注，膀胱气化不利，故小便短黄",
+     "action": "加",
+     "herbName": "车前子",
+     "doseOrHandling": "5g",
+     "reason": "利湿清热，使湿热从小便而去，小便自利",
+     "riskNote": "车前子包煎",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "患者原文：伴口渴引饮、小便短黄、烦躁不安、纳差",
+      "confidence": "中"
+     }
+    },
+    {
+     "trigger": "本例已见烦躁不安",
+     "targetPathogenesis": "湿热内扰，心神不宁，故烦躁不安",
+     "action": "加",
+     "herbName": "淡竹叶",
+     "doseOrHandling": "3g",
+     "reason": "清热除烦，清心利尿，缓解湿热扰心之烦躁",
+     "riskNote": "",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "患者原文：伴口渴引饮、小便短黄、烦躁不安、纳差",
+      "confidence": "中"
+     }
+    }
+   ],
+   "modificationReview": {
+    "submittedCount": 6,
+    "retainedCount": 3,
+    "droppedCount": 3,
+    "droppedReason": "纳差随主病而来，治主病即可，不另加消食药；条件所说的表现本例眼下没有，是备用加减，不列入本次加减；拟加药味没有药典或参考用量可依，不列入加减",
+    "droppedReasons": [
+     {
+      "code": "incidental_digestive",
+      "count": 1,
+      "message": "纳差随主病而来，治主病即可，不另加消食药"
+     },
+     {
+      "code": "trigger_not_present",
+      "count": 1,
+      "message": "条件所说的表现本例眼下没有，是备用加减，不列入本次加减"
+     },
+     {
+      "code": "no_dose_basis",
+      "count": 1,
+      "message": "拟加药味没有药典或参考用量可依，不列入加减"
+     }
+    ]
+   }
+  },
+  "nonPharma": {
+   "diet": "饮食清淡易消化，少量多餐；可给米汤、稀粥等，忌辛辣温燥、肥甘厚腻及甜黏之品。",
+   "lifestyle": "注意腹部保暖，及时更换尿布并清洁臀部；保证充足休息与睡眠，室内通风。",
+   "emotion": "家长多安抚陪伴，保持环境安静，避免患儿哭闹烦躁加重耗津。",
+   "exercise": "急性期以休息为主，暂不安排活动；腹泻缓解后再逐步恢复日常活动。",
+   "acupointCare": null,
+   "tcmTreatments": [
+    {
+     "projectCode": "auricular",
+     "projectName": "耳穴",
+     "availability": "clinic_available",
+     "riskLevel": "moderate",
+     "recommendationMode": "clinician_assessment",
+     "targetRef": "P1",
+     "targetPathogenesis": "湿热蕴肠，传化失司",
+     "protocolStatus": "governed_class_template_not_syndrome_tailored",
+     "tailoringStatus": "class_template_only",
+     "protocolGap": "syndrome_refinement_not_matched",
+     "pointProvenance": [
+      {
+       "point": "脾",
+       "role": "base_point",
+       "sourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+       ],
+       "authorityTier": "government_primary",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "胃",
+       "role": "base_point",
+       "sourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+       ],
+       "authorityTier": "government_primary",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "神门",
+       "role": "base_point",
+       "sourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+       ],
+       "authorityTier": "government_primary",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "交感",
+       "role": "base_point",
+       "sourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+       ],
+       "authorityTier": "government_primary",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "大肠（便秘或泄泻时按症选择）",
+       "role": "base_point",
+       "sourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+       ],
+       "authorityTier": "government_primary",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      }
+     ],
+     "sourceAuthorityTier": "regulatory_primary",
+     "treatmentContent": "按本病常规取穴，针对本例腹泻、纳差。",
+     "suggestedSitesOrPoints": [
+      "脾",
+      "胃",
+      "神门",
+      "交感",
+      "大肠（便秘或泄泻时按症选择）"
+     ],
+     "scheduleSuggestion": "单耳贴压、双耳交替；每日按压3-5次，每次1-2分钟；每3-5天更换一次。",
+     "techniqueBoundary": "小儿耳穴宜用贴压（如王不留行籽），不用毫针，按压手法宜轻。先排除急腹症、消化道出血和腹膜刺激征等急症；耳廓皮肤破损或感染时禁用。",
+     "protocolSource": "SRC-SAMR-ACUPUNCTURE-OPS、SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+     "operatorRequirement": "由受训人员辨穴并指导按压",
+     "requiredChecks": [
+      "耳部皮损感染、胶布或籽粒过敏和刺激强度"
+     ],
+     "containsMedication": false,
+     "requiresMedicationAudit": false,
+     "executable": false,
+     "clinicianReviewRequired": true
+    },
+    {
+     "projectCode": "acupuncture",
+     "projectName": "针刺疗法",
+     "availability": "clinic_available",
+     "riskLevel": "moderate",
+     "recommendationMode": "clinician_assessment",
+     "targetRef": "P1",
+     "targetPathogenesis": "湿热蕴肠，传化失司",
+     "protocolStatus": "governed_patient_specific_plan",
+     "tailoringStatus": "syndrome_tailored",
+     "adjudicationStatus": "pending_clinician_review",
+     "pointProvenance": [
+      {
+       "point": "大肠俞",
+       "role": "base_point",
+       "sourceRefs": [
+        "《针灸治疗学》(2016)",
+        "《针灸学》(2016)"
+       ],
+       "authorityTier": "project_governed_source",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "天枢",
+       "role": "base_point",
+       "sourceRefs": [
+        "《针灸治疗学》(2016)",
+        "《针灸学》(2016)"
+       ],
+       "authorityTier": "project_governed_source",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "上巨虚",
+       "role": "base_point",
+       "sourceRefs": [
+        "《针灸治疗学》(2016)",
+        "《针灸学》(2016)"
+       ],
+       "authorityTier": "project_governed_source",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "三阴交",
+       "role": "base_point",
+       "sourceRefs": [
+        "《针灸治疗学》(2016)",
+        "《针灸学》(2016)"
+       ],
+       "authorityTier": "project_governed_source",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "内庭",
+       "role": "syndrome_refinement",
+       "sourceRefs": [
+        "《针灸治疗学》(2016)",
+        "《针灸学》(2016)"
+       ],
+       "authorityTier": "project_governed_source",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "曲池",
+       "role": "syndrome_refinement",
+       "sourceRefs": [
+        "《针灸治疗学》(2016)",
+        "《针灸学》(2016)"
+       ],
+       "authorityTier": "project_governed_source",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "关元",
+       "role": "conditional_point",
+       "sourceRefs": [
+        "《针灸治疗学》(2016)",
+        "《针灸学》(2016)"
+       ],
+       "authorityTier": "project_governed_source",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      },
+      {
+       "point": "下巨虚",
+       "role": "conditional_point",
+       "sourceRefs": [
+        "《针灸治疗学》(2016)",
+        "《针灸学》(2016)"
+       ],
+       "authorityTier": "project_governed_source",
+       "adjudicationStatus": "approved",
+       "conflictNote": null
+      }
+     ],
+     "sourceAuthorityTier": "project_governed_source",
+     "treatmentContent": "治法：清热利湿，生津止泻，行气消胀。取大肠的背俞穴、募穴及下合穴为主。本例属湿热伤中，在主穴基础上加内庭、曲池。随症配穴：水样便加关元、下巨虚。",
+     "suggestedSitesOrPoints": [
+      "大肠俞（BL25·足太阳膀胱经·主治含泄泻）",
+      "天枢（ST25·足阳明胃经·主治含泄泻）",
+      "上巨虚（ST37·足阳明胃经·主治含泄泻）",
+      "三阴交（SP6·足太阴脾经·主治含泄泻）",
+      "内庭（ST44·足阳明胃经·湿热伤中加减）",
+      "曲池（LI11·手阳明大肠经·湿热伤中加减）",
+      "关元（RN4·任脉·本例有「水样便」加用）",
+      "下巨虚（ST39·足阳明胃经·本例有「水样便」加用）"
+     ],
+     "scheduleSuggestion": "急性泄泻每日治疗1~2次。",
+     "techniqueBoundary": "小儿针刺宜浅刺、快出针，一般不留针，手法宜轻；囟门未闭者头顶部腧穴不针；不能配合者改用小儿推拿或穴位贴敷。余穴毫针常规刺。补泻手法、进针深度以现场查体为准。",
+     "protocolSource": "《针灸治疗学》（高树中，杨骏主编，中国中医药出版社，2016）「泄泻」节（教材原文第10119行）；《针灸学》同名节（教材原文第115741行）",
+     "operatorRequirement": "由中医执业人员操作",
+     "requiredChecks": [
+      "出血倾向、抗凝用药、局部感染和晕针史"
+     ],
+     "containsMedication": false,
+     "requiresMedicationAudit": false,
+     "executable": false,
+     "clinicianReviewRequired": true
+    }
+   ],
+   "precautions": [
+    "服本方期间是否继续服用蒙脱石散，请由医生决定。",
+    "患儿1岁，汤药宜少量多次分服，不要强灌，不自行加量。",
+    "汤药温服，饭后服为宜；忌食辛辣温燥，少食肥甘厚腻与甜黏之品。",
+    "服后观察大便次数、尿量与精神状态，若精神更差或尿量明显减少应及时就医。",
+    "注意臀部皮肤清洁干燥，防止红臀。"
+   ]
+  },
+  "lineageAdaptation": null,
+  "management": {
+   "redFlagLoop": "患儿精神稍萎靡、呼吸26次/分，需当面复核全身状态；若出现嗜睡难唤醒、按压不褪色皮疹、呼吸费力、尿量明显减少或抽搐，立即急诊。",
+   "mustCollect": [
+    "记录24小时尿量、进水量及呕吐次数",
+    "复测体温、心率、呼吸并评估毛细血管再充盈时间",
+    "核实蒙脱石散服用剂量与频次",
+    "追问辅食种类、添加时间及有无皮疹",
+    "询问有无阵发性哭闹、果酱样便",
+    "确认有无药物过敏及既往腹泻史"
+   ],
+   "followupSafetyNet": "请在3天内到医院完成评估、核实病情；医生确认可以服药后，服完3剂药（约3天后）再复诊。若孩子出现叫不醒、精神更差、尿量明显减少、口唇干燥、反复呕吐、大便带血或高热不退，请立即就医。"
+  },
+  "contractSignatureVersion": "tcm-cdss-m04-signature-v3",
+  "contractSignature": "hmac-sha256:04de44009037071a9d7d0bb2e777837b64247cbc5f37c3e28eedfe40508c93a4"
+ }
+}
