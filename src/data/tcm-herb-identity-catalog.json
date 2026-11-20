@@ -7,7 +7,7 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "103f59a08568942d1faa25cfa8614e900568b4189ba2b161cb1539ce6c0d519a",
+    "sha256": "e8e35b904a066816e1493e483e8c9dca3545ad466b99fdb6fb1c4cf4896ac8bb",
     "rowCount": 497
   },
   "governance": {
@@ -17,13 +17,13 @@
     "scopeNote": "联网检索可用于收集权威来源和完成知识治理，但不能替代真实处方依法依规的审核职责；多目标别名保持 fail-closed。"
   },
   "summary": {
-    "standardNameCount": 655,
-    "ambiguousInputCount": 527,
+    "standardNameCount": 656,
+    "ambiguousInputCount": 526,
     "resolutionStatusCounts": {
-      "ambiguous": 527,
+      "ambiguous": 526,
       "exact_standard_name": 615,
-      "source_backed_clinical_extension": 487,
-      "source_backed_preparation_form": 1119,
+      "source_backed_clinical_extension": 488,
+      "source_backed_preparation_form": 1122,
       "unique_high_confidence": 74,
       "unique_source_backed": 4657
     }
@@ -50438,6 +50438,18 @@
       ]
     },
     {
+      "standardName": "蜀漆",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "蜂房",
       "inChp2020": true,
       "chpEntryId": "568",
@@ -90114,13 +90126,14 @@
       "autoResolvable": true
     },
     "蜀漆": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "autoResolvable": false,
+      "canonicalName": "蜀漆",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
       "sourceRefs": [
         "SRC-SZJG-TCM-FORMULA-2011",
         "SRC-NMPA-CHP-2025-INDEX"
-      ]
+      ],
+      "medicinalPart": "嫩枝叶"
     },
     "蜀脂": {
       "canonicalName": "黄芪",
@@ -105290,6 +105303,15 @@
       ],
       "preparation": "炒"
     },
+    "炒蜀漆": {
+      "canonicalName": "蜀漆",
+      "status": "source_backed_preparation_form",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-HERB-PREPARATION-MORPHOLOGY"
+      ],
+      "preparation": "炒"
+    },
     "炒蝉蜕": {
       "canonicalName": "蝉蜕",
       "status": "source_backed_preparation_form",
@@ -106144,6 +106166,15 @@
     },
     "炙蛤蚧": {
       "canonicalName": "蛤蚧",
+      "status": "source_backed_preparation_form",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-HERB-PREPARATION-MORPHOLOGY"
+      ],
+      "preparation": "炙"
+    },
+    "炙蜀漆": {
+      "canonicalName": "蜀漆",
       "status": "source_backed_preparation_form",
       "autoResolvable": true,
       "sourceRefs": [
@@ -107663,6 +107694,15 @@
     },
     "煨葛根": {
       "canonicalName": "葛根",
+      "status": "source_backed_preparation_form",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-HERB-PREPARATION-MORPHOLOGY"
+      ],
+      "preparation": "煨"
+    },
+    "煨蜀漆": {
+      "canonicalName": "蜀漆",
       "status": "source_backed_preparation_form",
       "autoResolvable": true,
       "sourceRefs": [
@@ -122971,21 +123011,6 @@
         "委陵菜",
         "翻白草"
       ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
-      "id": "TCM-HERB-IDENTITY-REVIEW-1052DF807025",
-      "inputName": "蜀漆",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [],
       "serviceLevel": {
         "triageBusinessDays": 1,
         "adjudicationBusinessDays": 5

@@ -102,10 +102,14 @@ assert.ok(
     // 用量，它们也不进处方药味表，因此不在本不变量的定义域内。但扣除不得成为藏缺口的口子——
     // 下方单独断言：每一个扣除味都必须确实缺法定剂量（否则就是把能定量的药也悄悄扣掉了）。
     const deducted = new Set(entry.manualDoseIngredientNames || []);
+    // 按方裁定过的歧义药味（木防己汤的木防己→防己、禹功散的茴香→小茴香）运行时按裁定品种编译
+    //（tcm-formula-provenance.ts compilationIngredients），这里与它同一口径。
+    const adjudicated = new Map((entry.ingredientLinks || []).filter((link) => link.adjudicatedIngredient).map((link) => [link.rawName, link.adjudicatedIngredient]));
     const ingredients = (entry.ingredients || [])
       .map((item) => (typeof item === "string" ? item : item.name || item.herb || ""))
       .filter(Boolean)
-      .filter((herb) => !deducted.has(herb));
+      .filter((herb) => !deducted.has(herb))
+      .map((herb) => adjudicated.get(herb) || herb);
     return ingredients.some((herb) => {
       const limit = getTcmHerbDoseLimit(herb);
       if (limit?.min != null && limit?.max != null) return false;

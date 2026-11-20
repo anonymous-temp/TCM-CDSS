@@ -78,7 +78,8 @@ for (const dir of process.argv.slice(2)) {
     for (const hit of auditOne(output)) {
       if (!seen.has(hit.code)) counts[hit.code] = (counts[hit.code] || 0) + 1;
       seen.add(hit.code);
-      (examples[hit.code] ||= []).length < 5 && examples[hit.code].push(`${file}: ${hit.detail}`);
+      const list = (examples[hit.code] ||= []);
+      if (list.length < 5) list.push(`${file}: ${hit.detail}`);
     }
   }
   summary[path.basename(dir)] = { counts, examples };

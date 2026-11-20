@@ -111,7 +111,8 @@ await check("A5", "构词放大的未复核别名已按核对结果改正：故�
     assert.deepEqual([...resolved.candidates].sort(), [...candidates].sort(), name);
     assert.equal(identity.resolveGovernedTcmHerbIdentity(`炒${name}`).canonicalName, undefined, `炒${name} 不得经构词落药`);
   }
-  for (const name of ["地胆草", "蜀漆", "木防己", "枸杞根"]) assert.equal(identity.resolveGovernedTcmHerbIdentity(name).canonicalName, undefined, name);
+  for (const name of ["地胆草", "木防己", "枸杞根"]) assert.equal(identity.resolveGovernedTcmHerbIdentity(name).canonicalName, undefined, name);
+  assert.equal(identity.resolveGovernedTcmHerbIdentity("蜀漆").canonicalName, "蜀漆", "蜀漆单列，不归常山");
   // 原先依赖这些别名的方剂按方裁定，剂量可编译性不丢。
   const formulas = data("tcm-formula-governed-catalog.json").entries;
   for (const [formula, raw, resolved] of [["木防己汤", "木防己", "防己"], ["禹功散", "茴香", "小茴香"], ["桂枝去芍药加蜀漆龙骨牡蛎救逆汤", "蜀漆", "常山"]]) {
@@ -225,7 +226,7 @@ await check("B5", "同一类的另两种：知识库认不出的非君药、不�
   const out = pruning.dropSafetyConflictingM04CandidateHerbs(prescription(herbs), context);
   assert.deepEqual(herbsOf(out).map((herb) => herb.name), ["大黄", "厚朴", "枳实"]);
   assert.match(out, /芒硝[^"]{0,30}不能与他药同煎/u);
-  assert.match(out, /不存在草[^"]{0,30}认不出/u);
+  assert.match(out, /不存在草[^"]{0,30}未查到这一味的规范药名/u);
   const asEmperor = herbs.map((herb) => (herb.name === "不存在草" ? { ...herb, role: "君" } : herb.name === "大黄" ? { ...herb, role: "臣" } : herb));
   assert.ok(herbsOf(pruning.dropSafetyConflictingM04CandidateHerbs(prescription(asEmperor), context)).some((herb) => herb.name === "不存在草"));
 });

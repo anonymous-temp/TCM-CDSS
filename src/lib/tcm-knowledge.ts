@@ -391,7 +391,9 @@ const CONTROLLED_EXACT_HERB_DOSE_LIMITS: Record<string, TcmHerbDoseLimit> = {
 };
 // 椒目（2026-10-19）：花椒的种子，教材列为花椒的附药、功效与花椒不同（苦寒，利水消肿、降气平喘）。身份目录此前把它归成花椒，
 // 现由 tcm-herb-identity-supplements（批次 ADJ-WEB-20261019-ALIAS）归为独立的一味；知识库无它的条目，在这里登记为已收录。
-const CONTROLLED_STANDALONE_HERBS = new Set(["茯神", "生地黄", "椒目"]);
+// 蜀漆（2026-11-20 第五十三轮）：常山的嫩枝叶，《中药学》功效归类表收为一味（常山条附药）。生成的身份目录把它归成常山（根），
+// 别名核对后单列；知识库无它的剂量条目——方剂里的蜀漆按方裁定为常山编译（桂枝去芍药加蜀漆龙骨牡蛎救逆汤、蜀漆散），单写蜀漆无可核对用量。
+const CONTROLLED_STANDALONE_HERBS = new Set(["茯神", "生地黄", "椒目", "蜀漆"]);
 const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   人参: "大补元气，复脉固脱，补脾益肺，生津养血，安神益智",
   黄芪: "补气升阳，固表止汗，利水消肿，生津养血，托毒排脓，敛疮生肌",

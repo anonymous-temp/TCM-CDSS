@@ -3774,9 +3774,10 @@
     {
       "inputName": "蜀漆",
       "batch": "ADJ-R53-ALIAS",
-      "canonicalName": null,
-      "autoResolvable": false,
-      "basis": "第五十三轮别名核对（生成目录把「蜀漆」自动判为常山，属同名异物或一名多物）：蜀漆为常山（黄常山）的嫩枝叶（苗），常山为其根，二者是不同药材；蜀漆非药典一部品种。 出处：「方中蜀漆即常山的苗」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L53878）；「以常山、蜀漆为主药的截疟诸方」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L235865）"
+      "canonicalName": "蜀漆",
+      "autoResolvable": true,
+      "basis": "第五十三轮别名核对（单列为独立一味，与椒目同例；不再归到常山）（生成目录把「蜀漆」自动判为常山，属同名异物或一名多物）：蜀漆为常山（黄常山）的嫩枝叶（苗），常山为其根，二者是不同药材；蜀漆非药典一部品种。 出处：「方中蜀漆即常山的苗」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L53878）；「以常山、蜀漆为主药的截疟诸方」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L235865）",
+      "medicinalPart": "嫩枝叶"
     },
     {
       "inputName": "贯仲",
