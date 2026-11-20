@@ -79,6 +79,9 @@ await check("A3", "构建期与运行时同一条构词：入表的构词行，�
     compared += 1;
   }
   assert.ok(compared >= 500, `构词入表行数异常：${compared}`);
+  // 构建期入表本身也要在（运行时兜底会掩盖构建期漏掉的名字，而方剂剂量可编译性是构建期按入表结果算的）。
+  for (const name of ["土炒白术", "制苍术", "炒升麻"]) assert.ok((rawIndex[name]?.sourceRefs || []).includes("SRC-HERB-PREPARATION-MORPHOLOGY"), `${name} 未在构建期入表`);
+  assert.ok(data("tcm-formula-governed-catalog.json").entries.find((entry) => entry.name === "连朴饮")?.doseCompilationEligible, "连朴饮（制厚朴、姜炒川连）应可编译");
   // 不在任何表里的写法：「盐炒泽泻」——运行时兜底。
   const probe = ["盐炒泽泻", "姜炒竹茹", "酒炒丹参"].find((name) => !(name in rawIndex));
   assert.ok(probe, "探针名意外全部入表，换一个");
@@ -205,6 +208,32 @@ await check("B4", "合同驳回而编译器不压的非君药（有毒药味超�
   assert.ok(herbsOf(pruning.dropSafetyConflictingM04CandidateHerbs(prescription(asEmperor), context)).some((herb) => herb.name === "半夏"));
   const withinRange = herbs.map((herb) => (herb.name === "半夏" ? { ...herb, name: "法半夏", dose: "9g" } : herb));
   assert.ok(herbsOf(pruning.dropSafetyConflictingM04CandidateHerbs(prescription(withinRange), context)).some((herb) => herb.name === "法半夏"));
+  // 没有 dose 键的行（单元夹具、旧快照）不按缺剂量拿掉：编译出的药味行一律带 dose 键。
+  const noDoseKey = [...withinRange, { name: "桔梗", role: "佐", function: "宣肺祛痰" }];
+  assert.equal(herbsOf(pruning.dropSafetyConflictingM04CandidateHerbs(prescription(noDoseKey), context)).length, 5);
+});
+
+await check("B5", "同一类的另两种：知识库认不出的非君药、不能与他药同煎的非君药（芒硝）定稿时单味拿出；君药照旧交给修复轮", () => {
+  const context = "患者年龄：45岁\n患者性别：男\n主诉：腹胀便秘3天";
+  const herbs = [
+    { name: "大黄", role: "君", dose: "10g", function: "泻下攻积" },
+    { name: "厚朴", role: "臣", dose: "12g", function: "行气消胀" },
+    { name: "枳实", role: "臣", dose: "10g", function: "破气消积" },
+    { name: "芒硝", role: "佐", dose: "9g", function: "软坚泻下" },
+    { name: "不存在草", role: "佐", dose: "9g", function: "x" },
+  ];
+  const out = pruning.dropSafetyConflictingM04CandidateHerbs(prescription(herbs), context);
+  assert.deepEqual(herbsOf(out).map((herb) => herb.name), ["大黄", "厚朴", "枳实"]);
+  assert.match(out, /芒硝[^"]{0,30}不能与他药同煎/u);
+  assert.match(out, /不存在草[^"]{0,30}认不出/u);
+  const asEmperor = herbs.map((herb) => (herb.name === "不存在草" ? { ...herb, role: "君" } : herb.name === "大黄" ? { ...herb, role: "臣" } : herb));
+  assert.ok(herbsOf(pruning.dropSafetyConflictingM04CandidateHerbs(prescription(asEmperor), context)).some((herb) => herb.name === "不存在草"));
+});
+
+await check("A7", "几种炮制写法都认得时取药典正名：炮制栏蜜炙＋甘草并进药名是炙甘草，不是构词出来的蜜甘草", () => {
+  assert.equal(surface.processedNameFromColumn("甘草", "蜜炙"), "炙甘草");
+  assert.deepEqual(identity.preferStandardHerbNames(["蜜甘草", "炙甘草"]), ["炙甘草", "蜜甘草"]);
+  assert.equal(surface.processedNameFromColumn("黄芩", "酒炙"), "酒黄芩");
 });
 
 const gateMissing = (input) => safety.withSafetyGate(types.normalizeCaseStateInput(input)).safetyGate.missingItemCodes || [];
@@ -227,6 +256,7 @@ await check("C2", "接口调用方回答我们的舌象/脉象追问：作答补
   assert.deepEqual([types.normalizeCaseStateInput(ask("舌脉情况如何？", "舌淡苔白，脉细弱"))].map((s) => [s.tongue, s.pulse])[0], ["舌淡苔白", "脉细弱"]);
   // 反例。
   assert.equal(types.normalizeCaseStateInput(ask("舌象更接近下列哪一种？", "本次未取得该信息")).tongue, undefined);
+  for (const answer of ["舌象看不清", "舌苔没看清楚", "舌象未能查看"]) assert.equal(types.normalizeCaseStateInput(ask("舌象更接近下列哪一种？", answer)).tongue, undefined, answer);
   assert.equal(types.normalizeCaseStateInput(ask("舌象更接近下列哪一种？", "舌红少津", { tongue: "舌淡红，苔薄白" })).tongue, "舌淡红，苔薄白");
   assert.equal(types.normalizeCaseStateInput(ask("大便情况如何？", "大便偏稀，苔腻")).tongue, undefined);
 });

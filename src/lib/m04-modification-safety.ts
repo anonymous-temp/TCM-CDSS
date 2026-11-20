@@ -11,6 +11,7 @@ import rxConstraints from "../data/rx-case-constraints.source.json";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { herbAnyRecordCautionConflict, herbRecordCautionIsHard } from "./herb-record-caution";
 import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose";
+import { decoctionRuleForHerb } from "./herb-decoction-rules";
 import { appendCaseSafetyNote } from "./candidate-boundary-text";
 import { specialPopulationConflictLabel } from "./special-population-labels";
 
@@ -342,6 +343,9 @@ const SAFETY_PRUNE_MIN_RETAINED = 3;
  * 医师定量类与液体药合同本就不按区间驳回；管制、濒危药材与药引辅料在上面各有处置。
  */
 function finalizeDoseIssue(name: string, dose: string, decoctionMethod: string, pediatricDose: ReturnType<typeof pediatricDoseRuleFromGroundingText>): string | undefined {
+  // 同一类的另两种（合同同样逐味驳回、修复提示也是「去掉这一味」）：知识库认不出的药名；不能与他药同煎的（芒硝、朱砂一类）。
+  if (!isKnownTcmHerbName(name)) return "知识库认不出这一味的身份，无法核对用量与配伍，未列入本方；如需使用请医生另行开具";
+  if (decoctionRuleForHerb(name)?.prohibited.includes("同煎")) return "不能与他药同煎，未列入本方；如需使用请医生另行开具（冲服或溶化）";
   const regulatory = clinicianDoseHerbClass(name);
   if (regulatory === "controlled_or_toxic" || regulatory === "endangered_or_banned" || regulatory === "food_or_vehicle" || liquidHerbDoseRule(name)) return undefined;
   if (!normalizeComparableDose(dose)) return "未写明剂量，未列入本方；如需使用请医生另定用量";
