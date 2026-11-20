@@ -55,7 +55,7 @@ import purposeProcessingTable from "../data/tcm-herb-purpose-processing.json" wi
 import processingFormsTable from "../data/tcm-herb-processing-forms.source.json" with { type: "json" };
 import { withoutPreparationPrefix, type OriginalFormula } from "./formula-original-composition";
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
-import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, governedFormulaOriginalRawHerbs, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, textbookCitedOriginalSource, deliveredFormulaSource, sourceIsTextbook } from "./tcm-formula-provenance";
+import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, textbookCitedOriginalSource, deliveredFormulaSource, sourceIsTextbook } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { selfTakenMedicationMentions, recordedMedicationMentions, drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTaken } from "./clinical-polarity";
@@ -80,7 +80,7 @@ import { patentMedicineCompositionIdentities, patentMedicineDuplication } from "
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName, patentMedicineLabelIsTonic, tonicMedicineCategory, TOPICAL_MEDICATION_FORM } from "./local-patent-medicine-candidates";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
-import { internalMustProcessHerb, isGovernedPreparedHerbName, processedHerbName, purposeProcessedHerbName, withProcessedHerbMentions } from "./herb-processing-forms";
+import { internalMustProcessHerb, isGovernedPreparedHerbName, processedHerbName, purposeProcessedHerbName, rawFormPurposeStated, withProcessedHerbMentions } from "./herb-processing-forms";
 import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose";
 import { settleWesternDiagnosisBasis, withoutUnrecordedTestCitations } from "./recorded-test-claims";
 import { withoutLabelPlaceholders } from "./instruction-record-pool";
@@ -1846,6 +1846,13 @@ export function processedNameFromColumn(name: string, processing: string): strin
  *（命名方原文的炮制优先，其次《中药炮制学》按病历与这味药在方中的功用选）。加减行另看所引教材条目原文写的炮制（「加…煅龙骨、煅牡蛎」）。
  * 方义、煎服法、注意事项、加减理由里的生品名同步换掉。改出来的名字都是知识库认得、剂量边界不变的饮片名。
  */
+/** 命名方《方剂学》方解里说到这味药的句子（以「。」分句，句中写着药名）。 */
+function commentaryClausesFor(formulaName: string, herbName: string): string {
+  const commentary = formulaTextbookCommentary(formulaName) || "";
+  if (!commentary || !herbName) return "";
+  return commentary.split(/[。；]/u).filter((sentence) => sentence.includes(herbName)).join("。");
+}
+
 function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurfaceOptions, originalContext: OriginalFormulaContext = {}, finalHerbs: ReadonlySet<Json> = new Set()): void {
   const formula = record(reasoning.formula);
   const recordText = options?.recordText || "";
@@ -1920,8 +1927,8 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
       // 命名方原书写了炮制的那一味（完带汤「白术（土炒）」）不按用途改。
       const identity = compositionIdentityName(name);
       const originalPrepared = Boolean(formulaName) && governedFormulaOriginalPreparations(formulaName.replace(/(?:加减|化裁|加味)$/u, ""), originalContext).some((entry) => entry.identity === identity && entry.preparation);
-      // 原书生用的（葛根芩连汤的葛根）不按用途加炮制；有毒药「内服须炮制」照旧走下面那条。
-      const originalRaw = Boolean(formulaName) && governedFormulaOriginalRawHerbs(formulaName.replace(/(?:加减|化裁|加味)$/u, ""), originalContext).has(identity);
+      // 命名方《方剂学》方解写到了这味药生用的用途（葛根芩连汤「外解肌表之邪…」）时不按用途加炮制；有毒药「内服须炮制」照旧走下面那条。
+      const originalRaw = Boolean(formulaName) && rawFormPurposeStated(name, commentaryClausesFor(formulaName.replace(/(?:加减|化裁|加味)$/u, ""), name));
       if (processing) {
         if (!originalPrepared && byPurpose(herb, name, processing, ownFunction(herb))) continue;
         const toxic = herb.isToxic === true || getTcmHerbGenerationSafetyProfile(name).isToxic;

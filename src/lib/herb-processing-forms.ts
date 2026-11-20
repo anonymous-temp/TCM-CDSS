@@ -194,6 +194,18 @@ function defaultMustProcessPrefix(row: PurposeHerbRow): string {
   return /醋炙/u.test(row.internalMustProcess?.quote || "") ? "醋" : "制";
 }
 
+/**
+ * 这段文字（命名方《方剂学》方解里说这味药的那几句）是否写到了这味药生品的用途（第五十三轮）：葛根芩连汤方解写葛根「外解肌表之邪，
+ * 内清阳明之热，又升发脾胃清阳而止泻」——「解肌」是生用的用途，方中葛根就不按「升阳止泻宜煨用」改煨葛根。方解只写炮制品用途
+ *（补中益气汤「白术补气健脾」）或没有方解（当归饮子）时照常按用途选规格（何首乌补益精血仍是制何首乌）。只看区分规格的词（几个规格共有的不算）。
+ */
+export function rawFormPurposeStated(name: string, text: string): boolean {
+  const row = PURPOSE_HERBS.get(String(name || "").trim());
+  if (!row || !text) return false;
+  const raw = scoreForms(row, text).find((score) => score.prefix === "");
+  return Boolean(raw && raw.units > 0);
+}
+
 /** 教材写明内服须炮制的药（半夏、附子、川乌、天南星…）。 */
 export function internalMustProcessHerb(name: string): boolean {
   return Boolean(PURPOSE_HERBS.get(String(name || "").trim())?.internalMustProcess);

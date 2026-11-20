@@ -340,11 +340,16 @@ await check("B6", "证名改写不得让已签名的方剂锁定失效：心肺�
   assert.ok(renameAt > 0 && surfaceText.slice(Math.max(0, renameAt - 200), renameAt).includes("if (compositeWouldBreakSignedFormulaLock(reasoning, primary, secondaries, rule.composite, recordText)) continue;"), "交付面合称改名前核锁定");
 });
 
-await check("A8", "原书生用的药味不按用途加炮制：葛根黄芩黄连汤里葛根写「升阳止泻」照旧是葛根；同一张方当自拟方时按《中药学》「升阳止泻宜煨用」是煨葛根", () => {
+await check("A8", "命名方方解写到生用用途的药味不按用途加炮制：葛根黄芩黄连汤方解写葛根「外解肌表之邪」，葛根照旧；同一张方当自拟方时按《中药学》「升阳止泻宜煨用」是煨葛根；方解只写炮制品用途或没有方解时照常按用途", async () => {
   const fixture = JSON.parse(fs.readFileSync(`${root}/scripts/fixtures/r1070/gegen-qinlian.json`, "utf8"));
   const names = (reasoning) => surface.projectDeliveredReasoning(structuredClone(reasoning), { recordText: fixture.recordText }).formula.candidates[0].herbs.map((herb) => herb.name);
   assert.ok(names(fixture.reasoning).includes("葛根"), JSON.stringify(names(fixture.reasoning)));
   const devised = structuredClone(fixture.reasoning);
   devised.formula.candidates[0].name = "自拟方"; devised.formula.candidates[0].formulaSource = "自拟方";
   assert.ok(names(devised).includes("煨葛根"), JSON.stringify(names(devised)));
+  const pf = await jiti.import("../src/lib/herb-processing-forms.ts");
+  assert.equal(pf.rawFormPurposeStated("葛根", "方中重用葛根为君，甘辛而凉，主入阳明经，外解肌表之邪，内清阳明之热，又升发脾胃清阳而止泻升津"), true);
+  assert.equal(pf.rawFormPurposeStated("白术", "佐以白术补气健脾，助脾运化"), false);
+  assert.equal(pf.rawFormPurposeStated("葛根", ""), false);
+  assert.equal(pf.purposeProcessedHerbName("葛根", "", "升阳止泻", 15)?.name, "煨葛根", "按用途规则本身照常");
 });
