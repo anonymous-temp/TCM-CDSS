@@ -1133,7 +1133,9 @@ function wrapPrescribeJsonObject(
     const compiled = compileM04JsonObjectContent(trimmed, prior, caseState, trustedMedicineCandidates, instructionRecords);
     if (!compiled) {
       console.warn("[tcm-cdss:model] M04 proposal compilation rejected", {
-        reason: m04ProposalIssueCode(parsed, prior) || "proposal_prior_missing",
+        reason: m04ProposalIssueCode(parsed, prior) || (prior ? "compile_returned_nothing" : "proposal_prior_missing"),
+        priorPresent: Boolean(prior),
+        priorStage: prior?.stage,
         regimenShape: m04ProposalRegimenShape(parsed),
       });
       return content;

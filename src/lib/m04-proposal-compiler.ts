@@ -3544,19 +3544,23 @@ export function compileM04JsonObjectContent(
   trustedMedicineCandidates: readonly EvidenceBoundMedicineProposal[] = [],
   instructionRecords?: InstructionRecordPool,
 ): ClinicalReasoningResultV2 | undefined {
+  let parsed: { schemaVersion?: unknown };
   try {
-    const parsed = JSON.parse(content.trim()) as { schemaVersion?: unknown };
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+    parsed = JSON.parse(content.trim()) as { schemaVersion?: unknown };
+  } catch {
+    return undefined;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+  try {
     // M04 is intentionally an untrusted, minimal proposal. Accepting a complete V2 object here
     // would let the provider replace M03-owned overview/pathogenesis/therapy fields and bypass the
     // server compiler. Legacy full-V2 responses must be regenerated through the proposal contract.
     return compileM04Proposal(parsed, prior, caseState, trustedMedicineCandidates, instructionRecords);
   } catch (error) {
     // 第五十一轮生产冒烟一次「proposal_prior_missing」实为编译抛错（本地复现不出），只记错误类型与首个栈帧，不记内容。
-    if (!(error instanceof SyntaxError)) {
-      const frame = error instanceof Error ? String(error.stack || "").split("\n").find((line) => /\.(?:ts|js):\d+/u.test(line))?.trim().slice(0, 160) : undefined;
-      console.warn("[tcm-cdss:telemetry] m04_proposal_compile_error", { name: error instanceof Error ? error.name : typeof error, message: error instanceof Error ? error.message.slice(0, 160) : undefined, frame });
-    }
+    // 第五十三轮：JSON 解析单独处理后，编译里抛出的 SyntaxError（例如动态正则）也记下——此前它被当成 JSON 错误略过。
+    const frames = error instanceof Error ? String(error.stack || "").split("\n").filter((line) => /\.(?:ts|js):\d+/u.test(line)).slice(0, 3).map((line) => line.trim().slice(0, 160)) : undefined;
+    console.warn("[tcm-cdss:telemetry] m04_proposal_compile_error", { name: error instanceof Error ? error.name : typeof error, message: error instanceof Error ? error.message.slice(0, 160) : undefined, frames });
     return undefined;
   }
 }
