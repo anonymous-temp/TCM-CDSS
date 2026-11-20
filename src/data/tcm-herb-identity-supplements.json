@@ -3802,6 +3802,14 @@
       ],
       "ambiguityGroup": "车前-R53",
       "basis": "第五十三轮别名核对（生成目录把「车前」自动判为车前草，属同名异物或一名多物）：「车前」是植物名，药典车前子（种子）与车前草（全草）同出车前/平车前；方剂中单写车前多指车前子（如龙胆泻肝汤方论「通、泽、车前」）。不可自动解析为车前草。 出处：「佐以芩、栀、通、泽、车前辈大利前阴」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L47637）；「的干燥成熟种子」（本地语料 中医补充数据/灵丹GitHub/TCM Educational Materials.txt L155523）"
+    },
+    {
+      "inputName": "麸炒神曲",
+      "canonicalName": "麸炒神曲",
+      "autoResolvable": true,
+      "doseCanonicalName": "六神曲",
+      "batch": "ADJ-R53-PREPARATION",
+      "basis": "与炒神曲、焦神曲同例（中医师 2026-08-16：炒制神曲无独立依据时不并入六神曲功效）：单列身份，用量按六神曲的药典外参考用量核对。第五十三轮新臂审计发现剂量层按六神曲核过、身份目录不认。"
     }
   ]
 }

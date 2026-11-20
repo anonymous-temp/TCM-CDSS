@@ -121,7 +121,10 @@ export function compileHerbVerification(name: string, dose: string, method: stri
     };
   }
 
-  if (!doseLimit || doseLimit.min == null || doseLimit.max == null || doseLimit.sourceConflict) {
+  // 分用途冲突（石斛 6–12g 与鲜品另列）只在合同也驳回时才写「不能标为已核验」（第五十三轮）：合同按主条目与相合的分途径区间
+  // 认可了这个剂量时，处方核对栏若仍写「剂量来源无」，就是同一件事两处各说各的（审计 P1：p100c C013/C031 石斛 12g）。
+  if (!doseLimit || doseLimit.min == null || doseLimit.max == null ||
+    (doseLimit.sourceConflict && !doseWithinConservativeModelLimit(name, dose, method, pediatric))) {
     return {
       verificationTier: "unverified_dose",
       doseSource: "none",
@@ -189,7 +192,8 @@ export function compileHerbVerification(name: string, dose: string, method: stri
     // 医生看得到这一条，不能写内部口径词（甲方 2026-08-12）。
     verificationReasons: [pediatric
       ? `剂量已按儿童折算上限 ${pediatricDoseCeilingG(doseLimit.max, pediatric, name)}g（成人 ${doseLimit.min}-${doseLimit.max}g × ${pediatric.fractionText}）完成规则校验`
-      : `剂量在 ${doseLimit.min}-${doseLimit.max}g 的标准区间内`],
+      : `剂量在 ${doseLimit.min}-${doseLimit.max}g 的标准区间内`,
+    ...(doseLimit.sourceConflict ? ["该药另有分用途用量（如鲜品），已按本次用途的药典区间核对"] : [])],
     isToxic: false,
   };
 }

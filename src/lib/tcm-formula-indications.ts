@@ -1246,6 +1246,24 @@ export function lockedFormulaNamesIncludeModelTrustedOnly(reasoning: unknown, fo
 }
 
 /** Recheck a signed M03 formula identity before M04; stale/tampered snapshots fail closed. */
+/**
+ * 辨证结论改写会不会让已签名的方剂锁定失效（第五十三轮）。M03 在原证名下核过锁定方的正向充分性，其后的证名改写（证素闭合晋升合称、
+ * 交付面国标合称）若让同一判据不再成立，开方阶段按交付的证名重核就作废整页，而 M04 改不了 M03（甲方 10.29 病历 c22：心肺气虚证下
+ * 锁定七福饮，晋升成气血两虚证后七福饮正向充分性不足，无剂量页）。改写前成立、改写后不成立时返回 true，调用方据此不做这次改写。
+ * 改写前就不成立的不归它管（那是锁定本身的问题，由 M04 合同照旧处理）。
+ */
+export function syndromeRewriteBreaksFormulaLock(reasoning: unknown, rewrite: (copy: Record<string, unknown>) => void, clinicalSourceText = ""): boolean {
+  const overview = (reasoning as { overview?: { recommendedFormulaNames?: unknown } } | null)?.overview;
+  const locked = Array.isArray(overview?.recommendedFormulaNames)
+    ? overview!.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+    : [];
+  if (!locked.length) return false;
+  if (namedFormulaPositiveSufficiencyIssue(reasoning, locked, clinicalSourceText)) return false;
+  const copy = structuredClone(reasoning) as Record<string, unknown>;
+  rewrite(copy);
+  return Boolean(namedFormulaPositiveSufficiencyIssue(copy, locked, clinicalSourceText));
+}
+
 export function namedFormulaPositiveSufficiencyIssue(
   reasoning: unknown,
   formulaNames: readonly string[],

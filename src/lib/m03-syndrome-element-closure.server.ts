@@ -1,4 +1,5 @@
 import "server-only";
+import { syndromeRewriteBreaksFormulaLock } from "./tcm-formula-indications";
 
 import promotion from "../data/tcm-syndrome-element-promotion.source.json" with { type: "json" };
 import deficiencyLexicon from "../data/tcm-deficiency-element-lexicon.source.json" with { type: "json" };
@@ -319,14 +320,15 @@ export function nationalElementCompositeName(rule: { composite: string } | undef
   return rule && resolveNationalStandardTcmSyndromeTerm(rule.composite) ? rule.composite : undefined;
 }
 
-function promote(root: Json, unit: LedgerElement, verdict: CriteriaVerdict): boolean {
+function promote(root: Json, unit: LedgerElement, verdict: CriteriaVerdict, recordText = ""): boolean {
   if (verdict.verdict !== "pass" || !verdict.strict) return false;
   const overview = object(root.overview)!;
   if (covered(unit, entailedElements(names(root)))) return false;
   const primary = text(overview.primarySyndrome);
   const rule = unit.type === "location" ? organRule(root, unit) : promotion.rules.find((row) => row.element === unit.type && row.primary.includes(primary));
   const composite = nationalElementCompositeName(rule);
-  if (composite) { rename(root, composite); return true; }
+  // 晋升合称不得让已签名的方剂锁定失效（syndromeRewriteBreaksFormulaLock）；失效时改走立兼证（同样要不失效）。
+  if (composite && !syndromeRewriteBreaksFormulaLock(root, (copy) => rename(copy as Json, composite), recordText)) { rename(root, composite); return true; }
   const entryName = verdict.entry || unit.entryName;
   const name = resolveNationalStandardTcmSyndromeTerm(entryName) ? entryName : unit.secondaryName || entryName;
   // D3 对已独立过辨证要点的证素立兼证；不再因同属本病的教材分型而挡掉（如汗证的营卫不和）。
@@ -334,6 +336,7 @@ function promote(root: Json, unit: LedgerElement, verdict: CriteriaVerdict): boo
   if (!resolveNationalStandardTcmSyndromeTerm(name) || secondaryStructurallyInvalid(primary, name)) return false;
   const secondaries = strings(overview.secondarySyndromes);
   if (secondaries.includes(name) || secondaries.length >= 6) return false;
+  if (syndromeRewriteBreaksFormulaLock(root, (copy) => { const o = object(copy.overview); if (o) o.secondarySyndromes = [...strings(o.secondarySyndromes), name]; }, recordText)) return false;
   const alreadyTreats = typesIn(text(object(root.therapy)?.overallMethod), false, true).has(unit.type);
   const governed = (promotion as { secondaryMethods?: Record<string, string> }).secondaryMethods?.[name];
   const method = governed && governedFourCharacterMethodTerms().includes(governed) ? governed : unit.method;
@@ -454,7 +457,7 @@ export function applyElementSupportDecision(content: string, decision: ClosureDe
   }
   for (const { unit, verdict } of decision.elements) {
     if (verdict.verdict === "fail") changed = withdraw(root, unit, appendExtractedFindings) || changed;
-    else if (verdict.verdict === "pass") changed = promote(root, unit, verdict) || changed;
+    else if (verdict.verdict === "pass") changed = promote(root, unit, verdict, decision.context.recordText) || changed;
   }
   // 沿用七条已核对合称（包括其兼证吸收规则），教材方与治法保持原行。
   if (changed && !decision.protectedByPrimary && compositeSyndromeRename(root, decision.context.recordText)) changed = true;

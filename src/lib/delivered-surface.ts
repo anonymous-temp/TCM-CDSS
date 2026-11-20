@@ -85,6 +85,7 @@ import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose
 import { settleWesternDiagnosisBasis, withoutUnrecordedTestCitations } from "./recorded-test-claims";
 import { withoutLabelPlaceholders } from "./instruction-record-pool";
 import { resolveTcmDiseaseName } from "./clinical-terminology";
+import { syndromeRewriteBreaksFormulaLock } from "./tcm-formula-indications";
 import { governedHerbPreparationPrefixes, governedTcmHerbAdjudicatedCanonical, preferStandardHerbNames, preparedHerbNameBase, resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { DELIVERED_METHOD_ITEM_CAP, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import { governedFourCharacterMethodTerms, governedTreatmentMethodOccurrencesInText, resolveNationalStandardTcmSyndromeTerm, treatmentMethodCoveredBy, type TreatmentPrincipleEntry } from "./clinical-governance-tables";
@@ -2015,6 +2016,15 @@ export function applyGovernedCompositeName(overview: Json, primary: string, seco
  * 去掉这条兼证：兼证已过辨证要点核对，不再要求病位依据条数（第四十轮，11.05 病历3 复测一次得心脾两虚证、一次得「心血不足证＋脾气虚证」）。
  * 多条兼证须全部属同一合称，且另一脏或病性有成组证据。返回改名；没改返回 undefined。
  */
+/**
+ * 合称改名不得让已签名的方剂锁定失效（第五十三轮）：M03 在原证名下核过「这张方对证」（namedFormulaPositiveSufficiencyIssue），
+ * 合称改名在其后发生；开方阶段按交付的证名重核同一判据，不过就作废整页（甲方 10.29 病历 c22：心肺气虚证兼血虚证下锁定七福饮，
+ * 交付改成气血两虚证，开方合同判七福饮正向充分性不足，M04 改不了 M03，整页退成无剂量页）。原证名下锁定成立而改名后不成立时，不改名。
+ */
+function compositeWouldBreakSignedFormulaLock(reasoning: Json, primary: string, secondaries: readonly string[], composite: string, recordText: string): boolean {
+  return syndromeRewriteBreaksFormulaLock(reasoning, (copy) => applyGovernedCompositeName(record(copy.overview)!, primary, secondaries, composite), recordText);
+}
+
 export function compositeSyndromeRename(reasoning: Json, recordText: string, requireGrouped = false): { from: string; to: string } | undefined {
   const overview = record(reasoning.overview);
   const pathogenesis = record(reasoning.pathogenesis);
@@ -2053,6 +2063,7 @@ export function compositeSyndromeRename(reasoning: Json, recordText: string, req
       if (new Set(signs).size < 2 && closureSigns < MIN_RECORD_SIGNS) continue;
     }
     if (!resolveNationalStandardTcmSyndromeTerm(rule.composite)) continue;
+    if (compositeWouldBreakSignedFormulaLock(reasoning, primary, secondaries, rule.composite, recordText)) continue;
     applyGovernedCompositeName(overview, primary, secondaries, rule.composite);
     // 气阴两虚、气血两虚这类合称多出的证素要有对应治法（第五十一轮）：总治法里还没有这一项时补在末尾。
     const therapy = record(reasoning.therapy);

@@ -1,0 +1,244 @@
+{
+ "note": "甲方 10.29 病历 c22（去标识）：第五十三轮生产代码臂的已签名辨证结果（心肺气虚证兼血虚证，锁定七福饮）与病历文本。",
+ "recordText": "患者年龄：70岁\n患者性别：男\n神疲乏力、气短、心悸1年余\n患者1年余前渐起神疲乏力，伴肢体倦怠、气短懒言、心悸健忘、头晕目眩、面色萎黄、爪甲色淡、毛发枯槁、畏寒肢冷、动则气喘。曾自行服用“归脾丸”、“十全大补丸”后症状稍缓。发病以来体重略降。\n长期居住于本地，生活起居规律，无烟酒等不良嗜好，否认粉尘、毒物、放射性物质接触史，饮食习惯均衡，否认冶游史\n适龄婚育，配偶体健\n否认家族遗传病史，否认家族传染病史\n无\n舌象：舌淡胖，边有齿痕，苔薄白\n脉象：脉沉细弱\n生命体征：体温 36.5℃\n生命体征：脉搏 72次/分\n生命体征：呼吸 18次/分\n生命体征：血压 120/80mmHg\n既往史：冠心病、骨质疏松\n过敏史：否认药物过敏史，否认食物过敏史",
+ "reasoning": {
+  "stage": "diagnose",
+  "overview": {
+   "tcmDiseaseName": "虚劳",
+   "primarySyndrome": "心肺气虚证",
+   "primarySyndromeResolution": "resolved",
+   "primarySyndromeBasis": [
+    "神疲乏力、气短、心悸1年余",
+    "气短懒言",
+    "动则气喘",
+    "心悸健忘、头晕目眩",
+    "舌淡胖，边有齿痕，苔薄白",
+    "脉沉细弱"
+   ],
+   "tcmDiseaseRationale": "患者以神疲乏力、气短、心悸为主症，病程1年余呈慢性虚损演变，符合虚劳脏腑气血亏虚之定义；心悸虽为表现之一；但以全身虚衰为主，故归虚劳而非单纯心悸。",
+   "tcmDiagnosticRationale": "患者以神疲乏力、气短、心悸为主症，病位在心，属心肺气虚证。神疲乏力、气短懒言、动则气喘、肢体倦怠，为心气亏虚、宗气不足、推动无力；心悸健忘，为心气不足、心神失养；头晕目眩、面色萎黄、爪甲色淡、毛发枯槁，为脾虚化源不足、血虚失荣；畏寒肢冷，为阳气不足、温煦失职；体重略降，为脾气虚弱、肌肉失养；舌淡胖、边有齿痕、苔薄白，脉沉细弱，为气虚阳弱之征。综合诸症，以心气虚为主，兼见血虚、阳虚之象。",
+   "tcmDiseaseReferences": [
+    {
+     "evidenceId": "STD-GBT-15657-2021",
+     "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+     "sourceType": "standard"
+    }
+   ],
+   "tcmSyndromeReferences": [
+    {
+     "evidenceId": "STD-GBT-16751-2-2021",
+     "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医临床诊疗术语 第2部分: 证候: GB/T 16751.2-2021[S]. 2021.",
+     "sourceType": "standard"
+    }
+   ],
+   "tcmDifferentials": [
+    {
+     "syndrome": "心阳虚证",
+     "reason": "均有心悸、畏寒肢冷",
+     "distinguishingPoints": "未诉明显心胸憋闷疼痛，舌不紫暗，脉沉细弱而非沉迟",
+     "typicalManifestation": "心悸、胸闷痛、形寒肢冷、面色苍白，舌淡紫暗，脉沉迟",
+     "nextCheck": "复查舌质色泽与脉象迟数"
+    },
+    {
+     "syndrome": "心血虚证",
+     "reason": "均有心悸健忘、面色不华",
+     "distinguishingPoints": "本例兼气短懒言、动则气喘等气虚表现突出，非单纯血虚",
+     "typicalManifestation": "心悸怔忡、健忘失眠、面色不华，舌淡脉细",
+     "nextCheck": "结合舌脉与气虚程度复核"
+    },
+    {
+     "syndrome": "肾阳虚证",
+     "reason": "均有畏寒肢冷、舌淡胖",
+     "distinguishingPoints": "本例未诉腰膝酸软、夜尿频多等肾虚定位表现",
+     "typicalManifestation": "腰膝酸软、畏寒肢冷、夜尿多，舌淡胖脉沉迟",
+     "nextCheck": "追问腰膝与二便情况"
+    }
+   ],
+   "tcmDiseaseDifferentials": [
+    {
+     "diseaseName": "心悸",
+     "reason": "本例有心悸表现，需与心悸病区分",
+     "distinguishingPoints": "本例以神疲乏力、气短、动则气喘等全身虚衰为主，心悸为伴随表现，病程呈慢性虚损",
+     "typicalManifestation": "病人自觉心中悸动不安，甚至不能自主",
+     "nextCheck": "动态心电图了解心悸性质"
+    },
+    {
+     "diseaseName": "肺胀",
+     "reason": "本例有气短、动则气喘，需与肺系病鉴别",
+     "distinguishingPoints": "未诉咳嗽咳痰、胸闷如塞，气喘为动则加重而非持续咳喘",
+     "typicalManifestation": "喘息气促，咳嗽咳痰，胸部膨满，胸闷如塞，或唇甲紫绀，心悸浮肿，甚至出现喘脱、昏迷",
+     "nextCheck": "胸部影像与肺功能评估"
+    }
+   ],
+   "secondarySyndromes": [
+    "血虚证"
+   ],
+   "overallPathogenesis": "久病耗伤，心肺气虚则宗气不足、推动无力，故神疲乏力、气短懒言、动则气喘；脾虚化源不足，血虚不能上荣，故面色萎黄、爪甲色淡、头晕目眩；阳气不足失于温煦，故畏寒肢冷，舌淡胖、脉沉细弱",
+   "overallTherapy": "益气养心，健脾养血，温阳复脉",
+   "recommendedFormulaDirection": "七福饮加减",
+   "recommendedFormulaNames": [
+    "七福饮"
+   ],
+   "formulaSelectionMode": "single",
+   "evidence": {
+    "evidenceLevel": "model_inference",
+    "source": "病例内推理",
+    "confidence": "中"
+   }
+  },
+  "therapy": {
+   "overallPrinciple": "虚则补之",
+   "overallMethod": "益气养心，健脾养血，温阳复脉",
+   "subTherapies": [
+    {
+     "therapy": "益气养心",
+     "targetPathogenesis": "心肺气虚，宗气不足，心失所养",
+     "priority": "主要",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "本例资料",
+      "confidence": "中"
+     }
+    },
+    {
+     "therapy": "健脾益气，养血荣络",
+     "targetPathogenesis": "脾虚化源不足，血虚不能上荣",
+     "priority": "次要",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "本例资料",
+      "confidence": "中"
+     }
+    },
+    {
+     "therapy": "温阳益气，助阳复脉",
+     "targetPathogenesis": "阳气不足，温煦失职",
+     "priority": "次要",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "本例资料",
+      "confidence": "中"
+     }
+    }
+   ]
+  },
+  "pathogenesis": {
+   "summary": "心肺气虚，宗气不足，心失所养；脾虚化源不足，血虚不能上荣；阳气不足，温煦失职",
+   "locationDifferentiation": {
+    "items": [
+     "心",
+     "脾",
+     "肺"
+    ],
+    "details": [
+     {
+      "location": "心",
+      "basis": "心悸健忘"
+     },
+     {
+      "location": "脾",
+      "basis": "肢体倦怠；面色萎黄"
+     },
+     {
+      "location": "肺",
+      "basis": "气短懒言；动则气喘"
+     }
+    ],
+    "resolution": "resolved",
+    "evidence": {
+     "evidenceLevel": "model_inference",
+     "source": "本例四诊与病史推断",
+     "confidence": "高"
+    }
+   },
+   "natureDifferentiation": {
+    "items": [
+     "气虚",
+     "血虚",
+     "阳虚"
+    ],
+    "rootDeficiency": [
+     "气虚",
+     "血虚",
+     "阳虚"
+    ],
+    "branchExcess": [],
+    "basis": "患者1年余前渐起神疲乏力，伴肢体倦怠、气短懒言、心悸健忘、头晕目眩、面色萎黄、爪甲色淡、毛发枯槁、畏寒肢冷、动则气喘；舌象：舌淡胖，边有齿痕，苔薄白",
+    "resolution": "resolved",
+    "evidence": {
+     "evidenceLevel": "model_inference",
+     "source": "本例四诊与病史推断",
+     "confidence": "高"
+    }
+   },
+   "symptomClusters": [
+    {
+     "symptoms": [
+      "气短懒言",
+      "肢体倦怠",
+      "动则气喘"
+     ],
+     "mechanism": "气虚推动无力"
+    },
+    {
+     "symptoms": [
+      "面色萎黄",
+      "爪甲色淡",
+      "头晕目眩"
+     ],
+     "mechanism": "血虚失于濡养"
+    }
+   ],
+   "chain": [
+    {
+     "nodeId": "P1",
+     "patientFact": "神疲乏力、气短、心悸1年余",
+     "syndromeEvidence": "气短懒言；动则气喘；脉沉细弱",
+     "pathogenesis": "心肺气虚，宗气不足，心失所养",
+     "therapyDirection": "益气养心",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "本例资料",
+      "confidence": "中"
+     }
+    },
+    {
+     "nodeId": "P2",
+     "patientFact": "面色萎黄、爪甲色淡",
+     "syndromeEvidence": "头晕目眩；毛发枯槁；舌淡胖",
+     "pathogenesis": "脾虚化源不足，血虚不能上荣",
+     "therapyDirection": "健脾益气，养血荣络",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "本例资料",
+      "confidence": "中"
+     }
+    },
+    {
+     "nodeId": "P3",
+     "patientFact": "畏寒肢冷",
+     "syndromeEvidence": "舌淡胖；边有齿痕；脉沉细弱",
+     "pathogenesis": "阳气不足，温煦失职",
+     "therapyDirection": "温阳益气，助阳复脉",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "本例资料",
+      "confidence": "中"
+     }
+    }
+   ],
+   "uncertainties": [
+    {
+     "item": "体重下降原因",
+     "reason": "需排除消耗性疾病",
+     "affects": "辨病与进一步检查方向"
+    },
+    {
+     "item": "畏寒肢冷与血虚表现并存",
+     "reason": "心气虚与心阳虚、气血两虚尚需舌脉动态复核，尚待核实",
+     "affects": "证候细节与随证加减"
+    }
+   ]
+  }
+ }
+}

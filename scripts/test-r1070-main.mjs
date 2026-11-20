@@ -20,6 +20,7 @@ const types = await jiti.import("../src/lib/diagnosis-types.ts");
 const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
 const surface = await jiti.import("../src/lib/delivered-surface.ts");
 const baseline = await jiti.import("../src/lib/formula-baseline-display.ts");
+const indications = await jiti.import("../src/lib/tcm-formula-indications.ts");
 
 const check = async (id, title, run) => {
   if (process.env.R1070_CHECK && process.env.R1070_CHECK !== id) return;
@@ -66,6 +67,9 @@ await check("A2", "甲方病历 10 的土炒白术、制苍术，以及线上出
     assert.notEqual(verification.verificationTier, "identity_pending", `${name}：${JSON.stringify(verification)}`);
     assert.notEqual(verification.doseSource, "none", name);
   }
+  // 分用途冲突的药（石斛另有鲜品用量）：合同认可的剂量，核对栏不写「剂量来源无」；超出时照旧未核验。
+  assert.equal(compiler.compileHerbVerification("石斛", "12g", "水煎服").doseSource, "governed_boundary");
+  assert.equal(compiler.compileHerbVerification("石斛", "40g", "水煎服").verificationTier, "unverified_dose");
   // 反例：真正不认得的名字照旧是身份待核。
   assert.equal(compiler.compileHerbVerification("不存在草", "9g", "水煎服").verificationTier, "identity_pending");
 });
@@ -94,7 +98,7 @@ await check("A3", "构建期与运行时同一条构词：入表的构词行，�
 
 await check("A4", "两种规格并写（生熟地、生炙草）不当一味药；中医师裁定不合并的炒神曲/焦神曲各自单列", () => {
   for (const name of ["生熟地", "生炙草", "生熟干地黄"]) assert.equal(identity.resolveGovernedTcmHerbIdentity(name).canonicalName, undefined, name);
-  for (const name of ["炒神曲", "焦神曲"]) {
+  for (const name of ["炒神曲", "焦神曲", "麸炒神曲"]) {
     const resolved = identity.resolveGovernedTcmHerbIdentity(name);
     assert.equal(resolved.canonicalName, name);
     assert.equal(resolved.doseCanonicalName, "六神曲");
@@ -314,4 +318,19 @@ await check("D4", "「本例已见」后面不带病程（本例已见夜间遗�
   // 辨证阶段不动。
   const diagnose = { stage: "diagnose", formula: null };
   assert.equal(surface.withDerivedPrescriptionBookkeeping(diagnose), diagnose);
+});
+
+await check("B6", "证名改写不得让已签名的方剂锁定失效：心肺气虚证兼血虚证下锁定七福饮，改成气血两虚证后开方合同会判锁定方不对证、整页作废——改写前后各核一次，失效就不改", () => {
+  const fixture = JSON.parse(fs.readFileSync(`${root}/scripts/fixtures/r1070/c22-qifuyin-lock.json`, "utf8"));
+  const toComposite = (copy) => { copy.overview.primarySyndrome = "气血两虚证"; copy.overview.secondarySyndromes = []; };
+  assert.equal(indications.namedFormulaPositiveSufficiencyIssue(fixture.reasoning, ["七福饮"], fixture.recordText), undefined, "原证名下锁定成立");
+  assert.equal(indications.syndromeRewriteBreaksFormulaLock(fixture.reasoning, toComposite, fixture.recordText), true);
+  // 反例：没有锁定方、或改写不影响锁定（只改兼证次序）时照常改。
+  const unlocked = structuredClone(fixture.reasoning); unlocked.overview.recommendedFormulaNames = [];
+  assert.equal(indications.syndromeRewriteBreaksFormulaLock(unlocked, toComposite, fixture.recordText), false);
+  assert.equal(indications.syndromeRewriteBreaksFormulaLock(fixture.reasoning, (copy) => { copy.overview.secondarySyndromes = [...copy.overview.secondarySyndromes]; }, fixture.recordText), false);
+  // 两个改写者都走这道核对（源码层面：晋升合称与交付面合称都调用它）。
+  for (const file of ["src/lib/m03-syndrome-element-closure.server.ts", "src/lib/delivered-surface.ts"]) {
+    assert.match(fs.readFileSync(`${root}/${file}`, "utf8"), /syndromeRewriteBreaksFormulaLock\(/u, file);
+  }
 });

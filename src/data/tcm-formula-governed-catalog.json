@@ -31,7 +31,7 @@
     },
     {
       "file": "tcm-herb-identity-catalog.json",
-      "sha256": "5d9beff8a217f197246eef729afa98946b420ee79c3ee37f0deb59281c89eba8"
+      "sha256": "1c4c9898ce156b3e765da5a9e872ed4d58b76c3f09fe131cc7d6f7ba7e4cc29e"
     },
     {
       "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
@@ -196192,8 +196192,10 @@
         },
         {
           "rawName": "麸炒神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "麸炒神曲",
+          "doseCanonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -275290,8 +275292,10 @@
         },
         {
           "rawName": "麸炒神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "麸炒神曲",
+          "doseCanonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -285225,8 +285229,10 @@
         },
         {
           "rawName": "麸炒神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "麸炒神曲",
+          "doseCanonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "泽泻",

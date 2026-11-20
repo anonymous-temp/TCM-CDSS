@@ -7,8 +7,8 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "e8e35b904a066816e1493e483e8c9dca3545ad466b99fdb6fb1c4cf4896ac8bb",
-    "rowCount": 497
+    "sha256": "de091c5fecc596783c36c210ed6087c35d7c687e88ee538d14038c71bb2ac986",
+    "rowCount": 498
   },
   "governance": {
     "status": "generated_mapping_plus_source_backed_clinical_extensions",
@@ -17,12 +17,12 @@
     "scopeNote": "联网检索可用于收集权威来源和完成知识治理，但不能替代真实处方依法依规的审核职责；多目标别名保持 fail-closed。"
   },
   "summary": {
-    "standardNameCount": 656,
+    "standardNameCount": 657,
     "ambiguousInputCount": 526,
     "resolutionStatusCounts": {
       "ambiguous": 526,
       "exact_standard_name": 615,
-      "source_backed_clinical_extension": 488,
+      "source_backed_clinical_extension": 489,
       "source_backed_preparation_form": 1118,
       "unique_high_confidence": 74,
       "unique_source_backed": 4657
@@ -63716,6 +63716,18 @@
       ]
     },
     {
+      "standardName": "麸炒神曲",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "麻黄",
       "inChp2020": true,
       "chpEntryId": "506",
@@ -101948,6 +101960,16 @@
     },
     "焦神曲": {
       "canonicalName": "焦神曲",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "六神曲"
+    },
+    "麸炒神曲": {
+      "canonicalName": "麸炒神曲",
       "status": "source_backed_clinical_extension",
       "autoResolvable": true,
       "sourceRefs": [
