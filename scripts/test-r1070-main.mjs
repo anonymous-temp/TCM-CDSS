@@ -107,6 +107,8 @@ await check("A4", "两种规格并写（生熟地、生炙草）不当一味药�
   // 同一炮制字叠写不是构词（第五十三轮新臂实测：原方炮制改名把模型写好的「荆芥穗炭」又接一个「炭」）。
   for (const name of ["荆芥穗炭炭", "炒炒白术", "焦焦栀子"]) assert.equal(identity.resolveGovernedTcmHerbIdentity(name).canonicalName, undefined, name);
   assert.equal(baseline.originalPreparedHerbName("荆芥穗炭", "炭"), undefined);
+  // 剂量层的兜底同一条：叠写名不按去掉一个前缀后的药查用量。
+  for (const name of ["炮炮姜", "焦焦栀子"]) { assert.equal(kb.isKnownTcmHerbName(name), false, name); assert.equal(kb.getTcmHerbDoseLimit(name), null, name); }
   assert.equal(baseline.originalPreparedHerbName("炒白术", "炒"), undefined);
   assert.equal(baseline.originalPreparedHerbName("甘草", "炙"), "炙甘草");
   // 「炒黄芩」先试「炒黄＋芩」不成立（已不收「炒黄」这个前缀），落到「炒＋黄芩」。
@@ -329,10 +331,13 @@ await check("B6", "证名改写不得让已签名的方剂锁定失效：心肺�
   const unlocked = structuredClone(fixture.reasoning); unlocked.overview.recommendedFormulaNames = [];
   assert.equal(indications.syndromeRewriteBreaksFormulaLock(unlocked, toComposite, fixture.recordText), false);
   assert.equal(indications.syndromeRewriteBreaksFormulaLock(fixture.reasoning, (copy) => { copy.overview.secondarySyndromes = [...copy.overview.secondarySyndromes]; }, fixture.recordText), false);
-  // 两个改写者都走这道核对（源码层面：晋升合称与交付面合称都调用它）。
-  for (const file of ["src/lib/m03-syndrome-element-closure.server.ts", "src/lib/delivered-surface.ts"]) {
-    assert.match(fs.readFileSync(`${root}/${file}`, "utf8"), /syndromeRewriteBreaksFormulaLock\(/u, file);
-  }
+  // 两个改写者在改名之前都走这道核对（源码层面钉住改名语句前的那一道判断）。
+  const closure = fs.readFileSync(`${root}/src/lib/m03-syndrome-element-closure.server.ts`, "utf8");
+  assert.match(closure, /if \(composite && !syndromeRewriteBreaksFormulaLock\(root, \(copy\) => rename\(copy as Json, composite\), recordText\)\) \{ rename\(root, composite\); return true; \}/u, "晋升合称前核锁定");
+  assert.match(closure, /if \(syndromeRewriteBreaksFormulaLock\(root, \(copy\) => \{[^\n]*secondarySyndromes[^\n]*\}, recordText\)\) return false;/u, "立兼证前核锁定");
+  const surfaceText = fs.readFileSync(`${root}/src/lib/delivered-surface.ts`, "utf8");
+  const renameAt = surfaceText.indexOf("    applyGovernedCompositeName(overview, primary, secondaries, rule.composite);");
+  assert.ok(renameAt > 0 && surfaceText.slice(Math.max(0, renameAt - 200), renameAt).includes("if (compositeWouldBreakSignedFormulaLock(reasoning, primary, secondaries, rule.composite, recordText)) continue;"), "交付面合称改名前核锁定");
 });
 
 await check("A8", "原书生用的药味不按用途加炮制：葛根黄芩黄连汤里葛根写「升阳止泻」照旧是葛根；同一张方当自拟方时按《中药学》「升阳止泻宜煨用」是煨葛根", () => {
