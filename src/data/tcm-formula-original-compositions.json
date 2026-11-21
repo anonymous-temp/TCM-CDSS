@@ -17523,7 +17523,8 @@
    "name": "六味地黄汤",
    "book": "小儿药证直诀",
    "aliases": [
-    "地黄丸"
+    "地黄丸",
+    "六味地黄丸"
    ],
    "tier": "original_text",
    "herbs": [
@@ -60213,6 +60214,9 @@
   {
    "name": "明目地黄丸",
    "book": "审视瑶函",
+   "aliases": [
+    "明目地黄汤"
+   ],
    "tier": "original_text",
    "herbs": [
     {
@@ -66683,7 +66687,8 @@
    "name": "栝楼薤白半夏汤",
    "book": "金匮要略",
    "aliases": [
-    "栝蒌薤白半夏汤"
+    "栝蒌薤白半夏汤",
+    "瓜蒌薤白半夏汤"
    ],
    "tier": "original_text",
    "herbs": [
@@ -92255,6 +92260,9 @@
    "name": "王氏清暑益气汤",
    "book": "温热经纬",
    "variant": "王孟英（梦隐）所定清暑益气方",
+   "aliases": [
+    "清暑益气汤"
+   ],
    "tier": "original_text",
    "herbs": [
     {
@@ -95734,6 +95742,9 @@
   {
    "name": "生铁落饮",
    "book": "医学心悟",
+   "aliases": [
+    "程氏生铁落饮"
+   ],
    "citedBooks": [
     "医学心语"
    ],
@@ -135508,6 +135519,9 @@
   {
    "name": "镇肝息风汤",
    "book": "医学衷中参西录",
+   "aliases": [
+    "镇肝熄风汤"
+   ],
    "tier": "original_text",
    "herbs": [
     {

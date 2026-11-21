@@ -119,6 +119,9 @@ const ALLOWLIST = new Map([
   ["src/lib/herb-processing-forms.ts",
     "炮制品选择（2026-11-08 第三十七轮）：规则、炮制前缀与方名后缀都在 tcm-herb-processing-forms.source.json（逐条带《中药炮制学》行号）；" +
     "代码里只剩方名「加减/化裁/加味」后缀这一个构词式守卫（与 formula-analysis-review、delivered-surface 同一写法）。属语言学层。"],
+  ["src/lib/formula-name-spellings.ts",
+    "方名的等价写法（2026-11-21 第五十四轮，原在 tcm-formula-provenance 的 formulaFragmentSpellings，挪出来让方名识别、主治覆盖与锁定查找共用）：" +
+    "只有瓜蒌的三种写法（栝蒌/栝楼/瓜蒌）与「汤作丸散」两条方名构词式，属方名书写层，不是临床词表。"],
   ["src/lib/active-bleeding-treatment.ts",
     "活动性出血时的治法与用药规则（2026-11-08 第三十七轮）：治法项里的活血/化瘀/逐瘀/破血一类动词（原在 tcm-formula-provenance，挪来与治法过滤共用一处），" +
     "是治法表述的动宾构词，与 tcm-therapy-phrasing 同属语言学层；活血化瘀药名单取自 tcm-herb-function-categories.json，不在代码里列。"],

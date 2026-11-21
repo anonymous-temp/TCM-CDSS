@@ -1,5 +1,6 @@
 import { textbookDiseaseIndicationTerms, textbookFormulaRowsForDisease, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { evaluateTextbookFormulaUse } from "./textbook-formula-stage";
+import { sameFormulaNameSpelling } from "./formula-name-spellings";
 import { SERVER_LABELED_GROUNDING_LINE } from "./diagnosis-safety";
 import { formulaBaselineDisplayNames, originalFormulaForCatalogEntry } from "./formula-baseline-display";
 import { jingfangRelationFormulaIdentityNames } from "./jingfang-patterns";
@@ -1182,12 +1183,12 @@ export function formulaCoversDiseaseOrComplaint(reasoning: unknown, name: string
   const identity = normalizedFormulaIdentity(name);
   const exact = textbookRowForSyndrome(disease, source?.overview?.primarySyndrome || "");
   const decision = evaluateTextbookFormulaUse(exact, clinicalSourceText);
-  if (decision?.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity) ||
-    evaluateTextbookFormulaUse(exact, clinicalSourceText, { formulaNames: [name] })?.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity)) return true;
-  if (exact?.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity) &&
-    !decision?.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity)) return false;
-  const diseaseRows = disease ? textbookFormulaRowsForDisease(disease).filter((row) => row.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity)) : [];
-  if (diseaseRows.length) return diseaseRows.some((row) => evaluateTextbookFormulaUse(row, clinicalSourceText)!.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity));
+  if (decision?.formulas.some((formula) => sameFormulaNameSpelling(formula, identity)) ||
+    evaluateTextbookFormulaUse(exact, clinicalSourceText, { formulaNames: [name] })?.formulas.some((formula) => sameFormulaNameSpelling(formula, identity))) return true;
+  if (exact?.formulas.some((formula) => sameFormulaNameSpelling(formula, identity)) &&
+    !decision?.formulas.some((formula) => sameFormulaNameSpelling(formula, identity))) return false;
+  const diseaseRows = disease ? textbookFormulaRowsForDisease(disease).filter((row) => row.formulas.some((formula) => sameFormulaNameSpelling(formula, identity))) : [];
+  if (diseaseRows.length) return diseaseRows.some((row) => evaluateTextbookFormulaUse(row, clinicalSourceText)!.formulas.some((formula) => sameFormulaNameSpelling(formula, identity)));
   const entry = ENTRIES.find((item) => [item.name, ...item.aliases].some((alias) => normalizedFormulaIdentity(alias) === identity));
   if (!entry) return false;
   const indications = [...entry.indications, ...entry.functions].join("；");

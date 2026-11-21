@@ -25,7 +25,8 @@ import { lineageAffinitiesForFormula } from "./tcm-formula-lineage-affinity";
 import { LINEAGE_LENS_SUBJECT, lineageLensSubject } from "./tcm-lineages";
 import { formulaInCommonTier, formulaLockTierEnabled } from "./tcm-formula-tier";
 import { compositionLogicWithBaselineNames } from "./formula-baseline-display";
-import { formulaCitationAdjudication, canonicalFormulaBook, originalFormula, originalHerbAcceptedSubstitutes, originalHerbNamesEquivalent, textbookCitedFormulaBooks, textbookRowFormulaBook, type OriginalFormula } from "./formula-original-composition";
+import { formulaNameSpellings, sameFormulaNameSpelling } from "./formula-name-spellings";
+import { formulaCitationAdjudication, canonicalFormulaBook, originalFormula, originalFormulasNamed, originalHerbAcceptedSubstitutes, originalHerbNamesEquivalent, textbookCitedFormulaBooks, textbookRowFormulaBook, type OriginalFormula } from "./formula-original-composition";
 import {
   formulaDiscriminationPaths,
   textualModificationsForFormulaNames,
@@ -291,16 +292,75 @@ export function governedDosageFormVariantComposition(name: string): string[] {
   return composition.length >= 3 && composition.length <= 8 ? composition : [];
 }
 
+/**
+ * 这个方名按目录条目名查不到、按同方异写才查到时，那条编译行的组成（组成身份名，第五十四轮）。按名字直接查到或查不到都返回空。
+ * 教材行没有分方组成时，合方里这首方的药靠它补进来（痛风·湿热阻痹「四妙散合宣痹汤」：教材只列宣痹汤的药，四妙散按原方表登记的
+ * 同书异写认到目录「四妙丸」；此前它锁不上，走的是 governedDosageFormVariantComposition 那一路）。
+ */
+export function governedAlternateWritingComposition(name: string): string[] {
+  if (governedFormulaCompilationRowByName(name)) return [];
+  const row = governedFormulaCompilationRowByAlias(name);
+  return row ? [...new Set(compilationIngredients(row).map((item) => compositionIdentityName(item)).filter(Boolean))] : [];
+}
+
 /** 该方中系统不编制用量、需医师单独开具并经审方复核的味（可为空）。 */
 export function formulaManualDoseIngredients(name: string): string[] {
   return [...(governedFormulaCompilationRow(name)?.manualDoseIngredientNames || [])];
 }
 
-function governedFormulaCompilationRow(value: string): GovernedFormulaCompilationRow | undefined {
+function governedFormulaCompilationRowByName(value: string): GovernedFormulaCompilationRow | undefined {
   const exact = governedFormulaCompilationByExactName.get(exactFormulaIdentityName(value));
   if (exact) return exact;
   const candidates = governedFormulaCompilationCandidatesByNormalizedName.get(normalizeFormulaName(value)) || [];
   return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+const governedFormulaCompilationRowsByAlias = new Map<string, GovernedFormulaCompilationRow[]>();
+for (const entry of governedFormulaCompilationRows as ReadonlyArray<GovernedFormulaCompilationRow & { aliases?: string[] }>) {
+  for (const alias of entry.aliases || []) {
+    const key = exactFormulaIdentityName(alias);
+    if (!key) continue;
+    governedFormulaCompilationRowsByAlias.set(key, [...(governedFormulaCompilationRowsByAlias.get(key) || []), entry]);
+  }
+}
+
+/**
+ * 同一首方的另一种写法查到受治理编译行（第五十四轮）。教材写「葛根芩连汤」「镇肝息风汤」「麻杏石甘汤」「生脉饮」「六味地黄汤」，
+ * 目录收的是「葛根黄芩黄连汤」「镇肝熄风汤」「麻黄杏仁甘草石膏汤」「生脉散」「六味地黄丸」。名称目录认得这些写法（方名照常识别），
+ * 锁定却只按目录条目自己的名字查，于是辨证阶段锁不上、开方阶段没有组成基准，方名与药味每次重抽都可能不同（2026-11-21 甲方病历13
+ * 强制重生成三次：两次「菟丝子散合桑螵蛸散加减」12、11 味，一次「菟丝子散加减」10 味）。教材 1390 个证型里 220 个代表方锁不上，
+ * 写法不同是其中一类。只认两处已经登记的同方异写，不按字形猜：
+ *  · 目录条目自己登记的别名（麻杏石甘汤、加味逍遥散）；
+ *  · 原方组成表把这个写法登记为某条目的方名或异写，且目录里那个名字的编译行就是同一本书的（原方表逐条对过原文）。
+ * 几条都对得上时不取（同名异方）。
+ */
+function governedFormulaCompilationRowByAlias(value: string): GovernedFormulaCompilationRow | undefined {
+  const found = new Set<GovernedFormulaCompilationRow>(governedFormulaCompilationRowsByAlias.get(exactFormulaIdentityName(value)) || []);
+  // 方名识别认同一首方用的那张写法表（栝蒌/瓜蒌、汤作丸散），查编译行时同样用：识别把「瓜蒌牛蒡汤」认成名录的「栝蒌牛蒡汤」，
+  // 目录收的是「瓜蒌牛蒡汤」，两边各用一种写法时锁不上。
+  for (const spelling of formulaNameSpellings(exactFormulaIdentityName(value))) {
+    const row = governedFormulaCompilationRowByName(spelling);
+    if (row) found.add(row);
+  }
+  for (const original of originalFormulasNamed(value)) {
+    for (const name of [original.name, ...(original.aliases || [])]) {
+      const row = governedFormulaCompilationRowByName(name);
+      if (row && canonicalFormulaBook(row.source) === original.book) found.add(row);
+    }
+  }
+  return found.size === 1 ? [...found][0] : undefined;
+}
+
+function governedFormulaCompilationRow(value: string): GovernedFormulaCompilationRow | undefined {
+  return governedFormulaCompilationRowByName(value) || governedFormulaCompilationRowByAlias(value);
+}
+
+/**
+ * 编译基准上记的方名：按目录条目名直接查到的用条目名（此前的行为）；按同方异写查到的保留问的那个写法，
+ * 让辨证阶段锁定的方名、开方阶段候选方名与基准方名是同一个写法（教材写「葛根芩连汤」，医生看到的也是它）。
+ */
+function governedFormulaReferenceName(value: string, row: GovernedFormulaCompilationRow): string {
+  return governedFormulaCompilationRowByName(value) ? row.name : exactFormulaIdentityName(value).replace(/(?:加减|化裁|加味)$/u, "");
 }
 
 const TEXTBOOK_FORMULA_SOURCES = (textbookFormulaSourcesJson as { formulas: Record<string, { source: string; composition?: string[] }> }).formulas;
@@ -719,19 +779,8 @@ function knownFormulaFragment(fragment: string): boolean {
   return normalizedOfficialClassics.has(fragment) || normalizedVerifiedSupplements.has(fragment) || (fragment.length >= 3 && normalizedCatalog.has(fragment));
 }
 
-/**
- * 方名的等价写法（2026-10-18），只在原写法认不出时才换着认，认出的是目录里那条的写法：
- *  · 瓜蒌的三种写法：教材写「栝蒌薤白半夏汤」，国家经典名方目录写「瓜蒌薤白半夏汤」，名录写「栝楼薤白白酒汤」；
- *  · 丸散方作汤剂：教材写「知柏地黄汤」「杞菊地黄汤」，目录收的是「知柏地黄丸」「杞菊地黄丸」（同一首方改作汤剂）。
- */
-function formulaFragmentSpellings(fragment: string): string[] {
-  const spellings = /栝蒌|栝楼|瓜蒌/u.test(fragment)
-    ? [fragment, ...["瓜蒌", "栝楼", "栝蒌"].map((spelling) => fragment.replace(/栝蒌|栝楼|瓜蒌/gu, spelling))]
-    : [fragment];
-  return spellings.flatMap((spelling) => /汤$/u.test(spelling) && spelling.length >= 4
-    ? [spelling, `${spelling.slice(0, -1)}丸`, `${spelling.slice(0, -1)}散`]
-    : [spelling]);
-}
+/** 方名的等价写法：见 formula-name-spellings.ts（方名识别、主治覆盖与教材代表方判断共用）。 */
+const formulaFragmentSpellings = formulaNameSpellings;
 
 function knownFormulaMatches(normalized: string): Array<{ name: string; start: number }> {
   const matches: Array<{ name: string; start: number }> = [];
@@ -868,7 +917,7 @@ export function formulaCompilationReferences(names: string[]): FormulaCompilatio
       : governed.sourceClass === "official_local_formula_standard"
         ? "local_formula_catalog"
         : "verified_reference_catalog";
-    return [compilationReference(governed.name, {
+    return [compilationReference(governedFormulaReferenceName(formulaName, governed), {
       source: governed.source,
       ingredients: compilationIngredients(governed),
     }, origin)];
@@ -1230,7 +1279,10 @@ export function executableFormulaCompilationReferences(names: string[]): Formula
  * generation until the missing identities/boundaries are adjudicated in T8/T9. */
 export function formulaNamesWithoutExecutableDoseCompilation(names: string[]): string[] {
   const executable = new Set(executableFormulaCompilationReferences(names).map((item) => item.formulaName));
-  return [...new Set(names.map((name) => governedFormulaCompilationRow(name)?.name).filter((name): name is string => Boolean(name)))]
+  return [...new Set(names.map((name) => {
+    const row = governedFormulaCompilationRow(name);
+    return row ? governedFormulaReferenceName(name, row) : undefined;
+  }).filter((name): name is string => Boolean(name)))]
     .filter((name) => !executable.has(name));
 }
 
@@ -1740,7 +1792,7 @@ export function selectM03TcmFormulaIdentity(input: {
   const barred = names.some((name) => {
     if (!input.caseSafety) return false;
     if (input.caseSafety.activeBleeding && BLOOD_MOVING_FORMULA_NAME.test(name)) return true;
-    const herbs = [...new Set(formulaCompilationReferences([name])[0]?.ingredients || (exactRow?.formulas.includes(name) ? exactRow.composition : []) || [])];
+    const herbs = [...new Set(formulaCompilationReferences([name])[0]?.ingredients || (exactRow?.formulas.some((formula) => sameFormulaNameSpelling(formula, name)) ? exactRow.composition : []) || [])];
     const count = herbs.filter(input.caseSafety.barredHerb).length;
     return count >= 3 || herbs.length > 0 && count * 3 >= herbs.length;
   });
@@ -1751,12 +1803,12 @@ export function selectM03TcmFormulaIdentity(input: {
     ? lineageFormulaSyndromeSupportedNames({ overview: { primarySyndrome: input.syndrome, tcmDiseaseName: input.disease } }, names, input.clinicalSourceText) : new Set<string>();
   const coveredNames = formulaNamesCoveringCase({ overview: { tcmDiseaseName: input.disease, primarySyndrome: input.syndrome } }, names, input.clinicalSourceText);
   const lockable = names.filter((name) => coveredNames.has(normalizedFormulaIdentity(name)) && formulaCompilationReferences([name]).length === 1 &&
-    (exactRow?.formulas.includes(name) || Boolean(jingfangPatternForSignedSyndrome(input.syndrome, direction)) ||
+    (exactRow?.formulas.some((formula) => sameFormulaNameSpelling(formula, name)) || Boolean(jingfangPatternForSignedSyndrome(input.syndrome, direction)) ||
       lineageSupported.has(normalizedFormulaIdentity(name)) ||
       formulaFunctionsPositivelyAligned(lockableFormulaCatalogFunctions(name), methodIds)) &&
-    !(exactRow?.formulas.includes(name) && textbookCitedFormulaIsGovernedHomonym(name, exactRow.id)));
+    !(exactRow?.formulas.some((formula) => sameFormulaNameSpelling(formula, name)) && textbookCitedFormulaIsGovernedHomonym(name, exactRow.id)));
   const locked = mode === "combined" && lockable.length !== names.length ? [] : lockable;
-  const textbookNamed = names.length > 0 && names.every((name) => exactRow?.formulas.includes(name));
+  const textbookNamed = names.length > 0 && names.every((name) => exactRow?.formulas.some((formula) => sameFormulaNameSpelling(formula, name)));
   if (names.length > 0 && locked.length === 0 && !textbookNamed) direction = "按已锁定病机与治法辨证组方";
   // Direction is a server-owned identity, not an unchecked channel for doses or instructions.
   direction = locked.length > 0 || textbookNamed
@@ -1804,7 +1856,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const textbookDecision = evaluateTextbookFormulaUse(textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || "")), clinicalSourceText || "", { barredHerb: caseSafety?.barredHerb });
     const textbookRowForLock = textbookDecision?.row;
     const governedEntryIsOtherBooksHomonym = (name: string): boolean => {
-      if (!textbookRowForLock || !textbookRowForLock.formulas.includes(name)) return false;
+      if (!textbookRowForLock || !textbookRowForLock.formulas.some((formula) => sameFormulaNameSpelling(formula, name))) return false;
       // 只按原方组成表里教材写的那本书的原方判（教材常用药不参与，第四十三轮消风散）。
       return textbookCitedFormulaIsGovernedHomonym(name, textbookRowForLock.id);
     };
@@ -1816,7 +1868,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     // 组方并沿用这个方名，只是没有目录基准可以逐味核对。其余锁不住的方名照旧改写为辨证组方。
     const textbookRowForDirection = textbookDecision?.row;
     const textbookNamed = Boolean(textbookRowForDirection) && identifiedNames.length > 0 &&
-      identifiedNames.every((name) => textbookDecision!.formulas.includes(name));
+      identifiedNames.every((name) => textbookDecision!.formulas.some((formula) => sameFormulaNameSpelling(formula, name)));
     const governedDirection = identifiedNames.length > 0 && recommendedFormulaNames.length === 0 && !textbookNamed
       ? "按已锁定病机与治法辨证组方"
       : direction;
@@ -3286,7 +3338,8 @@ export function textbookFormulaOriginalSource(
     const usable = (source: string | undefined) => Boolean(source) && (index === 0 || (judged && !MODERN_STANDARD_SOURCE.test(source!)));
     const official = normalizedOfficialClassics.get(name);
     if (official && usable(official.variant.source) && agrees(official.variant.ingredients)) return official.variant.source;
-    const reference = formulaCompilationReferences([name])[0];
+    // 借另一剂型（index>0）只认目录条目本名：同方异写的解析会把「加味逍遥饮」认到原方表里《审视瑶函》暴盲方那一条（第五十四轮）。
+    const reference = index === 0 || governedFormulaCompilationRowByName(name) ? formulaCompilationReferences([name])[0] : undefined;
     if (reference && usable(reference.source) && agrees(reference.ingredients)) return reference.source;
     // 校勘补收的不可锁定条目：教材组成成形时与它共两味；合方行（组成是并集）时它的药除一味外都在并集里（鸡内金这类佐药教材常不列）。
     if (index === 0 && wanted.size >= 3) {
@@ -3433,9 +3486,17 @@ export function originalBookFormulaIngredients(formulaName: string, context: Ori
  * 黄芪本是原方药味，评审判配伍表述错误；此前查不到组成，方义核对整句放过）。都查不到时为空。
  */
 export function formulaEditClaimBaseIngredients(formulaName: string, context: OriginalFormulaContext = {}): string[] {
-  const own = [...originalBookFormulaIngredients(formulaName, context), ...(formulaCompilationReferences([formulaName])[0]?.ingredients || [])];
-  if (own.length > 0) return own;
   const normalized = normalizeFormulaName(String(formulaName || ""));
+  const compiled = formulaCompilationReferences([formulaName])[0]?.ingredients || [];
+  // 按同方异写认到另一剂型的编译行（十全大补丸 → 目录《局方》十全大补汤，第五十四轮）：汤剂条目里的生姜、大枣是煎服的药引，丸剂没有。
+  // 与下面「目录查不到、借另一剂型」同一取法：只留名录里这个方名下也有的味（第四十二轮：药引汤剂算、丸剂不算）。
+  const governedRow = governedFormulaCompilationRow(formulaName);
+  const form = (name: string) => normalizeFormulaName(name).match(/[汤丸散饮]$/u)?.[0];
+  const crossForm = Boolean(governedRow) && !governedFormulaCompilationRowByName(formulaName) && form(formulaName) !== form(governedRow!.name);
+  const namedHere = crossForm ? new Set(formulaNameVariantIngredients(normalized).map((name) => compositionIdentityName(name)).filter(Boolean)) : undefined;
+  const ownCompiled = namedHere && namedHere.size > 0 ? compiled.filter((name) => namedHere.has(compositionIdentityName(name))) : compiled;
+  const own = [...originalBookFormulaIngredients(formulaName, context), ...ownCompiled];
+  if (own.length > 0) return own;
   if (!/[汤丸散饮]$/u.test(normalized)) return [];
   const named = new Set(formulaNameVariantIngredients(normalized).map((name) => compositionIdentityName(name)).filter(Boolean));
   if (named.size === 0) return [];

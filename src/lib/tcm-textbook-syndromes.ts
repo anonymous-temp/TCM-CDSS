@@ -739,9 +739,12 @@ function diseasesNamed(diseaseName: string, ageYears?: number): TextbookDisease[
   const split = splitTextbookDiseaseSubtype(diseaseName);
   const parent = split.subtype ? split.disease : subtypeParentDisease(diseaseName);
   const wanted = compact(parent || diseaseName).replace(/类病$/u, "");
-  if (wanted.length < 2) return [];
+  if (!wanted) return [];
   const order = bookOrderFor(ageYears);
   const exact = DISEASES.filter((disease) => [disease.disease, ...disease.aliases].map(compact).includes(wanted));
+  // 单字病名（疖、痈、疣、癣，中医外科学的节名）只认精确同名，不做包含匹配。此前单字一律返回空，这几节的教材行一个都查不到：
+  // 疖·热毒蕴结证锁不上五味消毒饮、没有教材治法与加减（2026-11-21 第五十四轮，留出例 h22 每次重抽都是自拟方）。
+  if (wanted.length < 2 && exact.length === 0) return [];
   const loose = exact.length > 0 ? exact : DISEASES.filter((disease) => {
     const name = compact(disease.disease);
     return name.length >= 2 && (wanted.includes(name) || name.includes(wanted));

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "nihaisha-fusion-manifest-v1",
-  "generatedAt": "2026-11-20",
+  "generatedAt": "2026-11-21",
   "sources": [
     {
       "path": "参考/nihaisha-nishi-tcm-main/references/pdf-evidence/evidence-cards.jsonl",
@@ -32,8 +32,8 @@
     },
     {
       "path": "src/data/tcm-formula-governed-catalog.json",
-      "sha256": "c8beec88aa64b60b02c68ee8a10c5b5794867c8c436879f1c7f4fff8839af659",
-      "records": 3018
+      "sha256": "8d04d4a82748130531b2ccec387769f959258c4f08cb1e250a127a2840b60ff7",
+      "records": 3085
     }
   ],
   "evidence": {
@@ -46,7 +46,7 @@
     "shanghanUniqueClauseAnchors": 333,
     "shanghanCoverageOf398": 0.8367,
     "jinguiAnchorPolicy": "chapter_paragraph_only",
-    "runtimeFormulaCount": 626,
+    "runtimeFormulaCount": 631,
     "runtimeRetrievalPolicy": "full_record_scan_no_prebuilt_index",
     "runtimeScannableRecords": 55127
   },
@@ -171,16 +171,16 @@
       "bytes": 212236
     },
     "tcm-classic-text-evidence.jsonl": {
-      "sha256": "48c9139ba1e538103683a585a37fd35171d9aabbf48d1ab2479425ea9bdc66c7",
-      "bytes": 44414496
+      "sha256": "e42712868517e47fd0f1ac1862aa3f83d0bf4a2a5125b22889200f5ec0c3c72b",
+      "bytes": 44414648
     },
     "tcm-classic-text-evidence-quarantine.jsonl": {
-      "sha256": "c7ab1ad86091ae0b47db8a00146dea907bf5fbb8be8270c853668a15dcb3ed5b",
-      "bytes": 409391
+      "sha256": "f8cc32b5f2fa143a00d5d96eb1b2fd695c983b83c7468b64c7034d2cfff56468",
+      "bytes": 409402
     },
     "tcm-classic-formula-evidence.json": {
-      "sha256": "a115fe3718f3dd4a6e989343e32017bc5cda298f9223243a3c12416804d6cc82",
-      "bytes": 1149858
+      "sha256": "40349ec501f83c91f3331c04d949b5ed95e23d4d3d3e397256127de9b1c9590f",
+      "bytes": 1155173
     }
   }
 }

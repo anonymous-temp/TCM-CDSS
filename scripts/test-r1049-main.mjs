@@ -394,11 +394,10 @@ await check("12.2 加减理由去无依据功效时不留残句：「散寒湿�
 });
 
 // ───── 13 校勘补收的不可锁定条目作出处 ─────
-await check("13.1 合方行的代表方在目录里只有校勘补收、不可锁定的条目时，出处取该条目（菟丝子散《太平圣惠方》卷五十八），组成对不上时不取；可锁定条目照旧", async () => {
+await check("13.1 合方行的代表方出处取目录条目（菟丝子散《太平圣惠方》卷五十八）；第五十四轮起该条可锁定（方的身份按方名＋出处判），出处照旧", async () => {
   const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
   const row = textbook.textbookRowForSyndrome("遗尿", "下元虚寒证");
   assert.equal(provenance.textbookFormulaOriginalSource("菟丝子散", row.composition, { compositionIsUnion: true }), "《太平圣惠方》卷五十八");
-  assert.equal(provenance.textbookFormulaOriginalSource("菟丝子散", ["黄连", "黄芩", "栀子"], { compositionIsUnion: true }), undefined);
   assert.equal(provenance.textbookFormulaOriginalSource("菟丝子散", ["菟丝子", "肉苁蓉", "五味子", "附子"]), "《太平圣惠方》卷五十八");
   assert.equal(provenance.textbookFormulaOriginalSource("桑螵蛸散", row.composition, { compositionIsUnion: true }), "《本草衍义》");
 });
