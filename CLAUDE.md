@@ -4013,6 +4013,12 @@ Textbook rows locked with the row's own manifestations as the record (`probe/loc
 - Classic-evidence matching by substring still attaches excerpts about longer or different formulas to short names; the guard that would fix it removed too much real evidence.
 - 菟丝子散合桑螵蛸散 as two complete originals is 14 herbs plus modifications for a 6-year-old (the textbook's 常用药 is 11); the baseline follows the cited books' originals (round 42 doctrine), not the textbook's edited list.
 
+**In production (d048771f, tag `20261121-d048771-prebuilt`, deployed 2026-11-21 about 03:22 UTC; same release directory and `20260927-dsrepair` override).**
+- Full gate green on d048771f (lint, all deterministic suites, fresh-artifact suites, typecheck). `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 21.1 s, M04 P95 18.0 s). No `M04 proposal compilation rejected` / `m04_proposal_compile_error` line in the new container's log after seven hours.
+- **Record 13 on production** (hospital-a): M03 locks 菟丝子散 + 桑螵蛸散 (`combined`); the same signed M03 with M04 forced three times gave 「菟丝子散合桑螵蛸散加减」 with the same 14 herbs each time (3/4/4 modification rows).
+- **Other probes** (forced regeneration, `~/runlogs/r1018/work/r1071/out/prod-*`): customer 10 on hospital-b — every stage 200, all dosed, no red flag, disease and syndrome as the standard answers (病历10 阳盛血热证 as before), locks unchanged (病历3 加味四物汤 still unlocked, see above); e05-10 完带汤, h05 二陈平胃散 (newly added), h22 疖 → 五味消毒饮 (the single-character disease now finds its row), h27 化坚二陈丸 — all locked. 病历8's M04 took 66 s (a repair round).
+- Rollback: image `tcm-cdss:20261120-3bb561c-prebuilt` with `docker-compose.yml.pre-d048771` in the release directory. Container log before the replacement: `~/telemetry-archive/container-pre-d048771-*.log.gz` on the host. Host 15 GB free.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
