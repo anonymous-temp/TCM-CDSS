@@ -50,7 +50,7 @@ await check("R2", "辨证阶段范围：病名、主证、兼证不许改；revi
   assert.equal(r.overview.primarySyndrome, "肝气犯胃证");
   assert.equal(r.pathogenesis.overallPathogenesis, "肝郁气滞，横逆犯胃，胃失和降");
   const notReviewed = review.applyFinalReviewPatch("diagnose", diagnose(), { 辨证依据: "改写" }, new Set());
-  assert.deepEqual(notReviewed.rejected, ["辨证依据:not_reviewed"]);
+  assert.deepEqual(notReviewed.rejected, ["辨证依据:out_of_scope"]);
 });
 await check("R3", "西医病名只许加或去「待查」，换成别的病不写", () => {
   const r = diagnose();
