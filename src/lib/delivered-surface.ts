@@ -2503,19 +2503,22 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     // 「本方用X原方」只核了药味（第四十六轮逐字复核：八正散原方大黄煨、灯心为引，凉血地黄汤原方黄芩等炒黑、用归尾，处方都没有照用）：
     // 原方写明的炮制、药用部位、药引本方没有照用时，开头改说「本方药味同X原方」，并把没照用的几项写出来（originalFormulaDeliveryNotes）。
     // 放在方义药名对齐之后：对齐会把「归尾」改成药味表里的「当归」。
+    // 第五十五轮（11/22 对照实验）：药味与原方相同、但原方写明的炮制、药用部位或药引本方没有照用时，不再称「原方」。
+    // 第四十六、四十八轮的写法「本方药味同X原方（原方Y炒用，本方未照用）」评审与甲方都读成自相矛盾（甲方 11.05 先例：称原方而炮制与原方不一判错）；
+    // 新病历 40 例里模型原样输出的方义（「以X为基础加减」）这一项反比现状高 10 个点。现在只有逐项相同才写「本方用X原方」，
+    // 其余方义开头写「本方以X为基础」：不称原方、也不称加减（第三十三轮复核：药味逐味相同而方名标「加减」同样判不符），方名不动；
+    // 原方药引仍由煎服法那一句交代（omittedGuideHerbNote）。再投影一次结果不变。
     if (original === true && typeof candidate.formulaAnalysis === "string" && typeof candidate.name === "string") {
       const label = candidate.name.trim();
       const notes = originalFormulaDeliveryNotes(label, records(candidate.herbs), originalContext, String(record(candidate.decoction)?.method || ""));
       const openings = [`本方用${label}原方`, `本方药味同${label}原方`];
       const opening = openings.find((text) => String(candidate.formulaAnalysis).startsWith(text));
-      if (opening) {
-        const tail = candidate.formulaAnalysis.slice(opening.length).replace(/^（原方[^）]*）/u, "");
-        const unfollowed = notes.filter((note) => !note.startsWith(ORIGINAL_PREPARATION_CHANGE_LEAD));
-        const changed = notes.filter((note) => note.startsWith(ORIGINAL_PREPARATION_CHANGE_LEAD));
-        const parts = [...(unfollowed.length > 0 ? [`原方${unfollowed.join("，")}，本方未照用`] : []), ...changed];
-        candidate.formulaAnalysis = notes.length > 0
-          ? `本方药味同${label}原方（${parts.join("；")}）${tail}`
-          : `本方用${label}原方${tail}`;
+      const tail = opening ? candidate.formulaAnalysis.slice(opening.length).replace(/^（原方[^）]*）/u, "") : "";
+      if (notes.length > 0) {
+        // 旧括注里点到的药（「原方当归用归尾」）随括注一起去掉后可能就没人讲了：按药味表补讲，否则再投影一次才补上（不幂等）。
+        if (opening) candidate.formulaAnalysis = withEveryHerbExplained(`本方以${label}为基础${tail}`, records(candidate.herbs));
+      } else if (opening) {
+        candidate.formulaAnalysis = `本方用${label}原方${tail}`;
       }
     }
     // 方义说「去原方中…之品」而处方其实保留了原方全部药味（2026-10-17：甲方标准病历 1、4、10，三次生成里 4 次，独立评审判陈述失实）。

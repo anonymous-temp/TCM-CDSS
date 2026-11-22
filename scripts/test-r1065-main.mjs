@@ -67,20 +67,21 @@ await check('4.3', '有病程门槛的病：依据明说未确立时不去掉待
 const surface = await jiti.import('../src/lib/delivered-surface.ts');
 const projectRx = (name, herbs, analysis, method) => surface.projectDeliveredReasoning({ schemaVersion: 'tcm-cdss-reasoning-v2', stage: 'prescribe', overview: {},
   formula: { candidates: [{ name, herbs: herbs.map((n) => ({ name: n, dose: '9g' })), formulaAnalysis: analysis, decoction: { method } }] }, nonPharma: null }).formula.candidates[0];
-await check('5.1', '原书没写炮制、本方用了炮制品：写「原方作X，本方用Y」，不进「原方…本方未照用」', async () => {
+// 第五十五轮改口径：与原方有任何一项差别（本方用了原书没写的炮制、原书炮制或药引本方没照用）都不称原方，开头「本方以X为基础」，不再写括注。
+await check('5.1', '原书没写炮制、本方用了炮制品：不称原方，开头「本方以X为基础」，没有「原方作X，本方用Y」括注', async () => {
   const y = projectRx('异功散', ['人参', '土炒白术', '茯苓', '甘草', '陈皮'], '本方用异功散原方，人参为君。', '每日1剂，水煎两次，共取药液约400mL，分2次温服');
-  assert.match(y.formulaAnalysis, /^本方药味同异功散原方（原方作白术，本方用土炒白术）/u);
-  assert.doesNotMatch(y.formulaAnalysis, /改用[^）]*本方未照用/u);
+  assert.match(y.formulaAnalysis, /^本方以异功散为基础，人参为君/u);
+  assert.doesNotMatch(y.formulaAnalysis, /原方作|本方未照用/u);
   const t = projectRx('天麻钩藤饮', ['天麻', '钩藤', '石决明', '栀子', '黄芩', '川牛膝', '盐杜仲', '益母草', '桑寄生', '首乌藤', '茯神'], '本方用天麻钩藤饮原方，天麻、钩藤为君。', '每日1剂，水煎两次，共取药液约400mL，分2次服');
-  assert.match(t.formulaAnalysis, /（原方作杜仲，本方用盐杜仲）/u);
+  assert.match(t.formulaAnalysis, /^本方以天麻钩藤饮为基础/u);
   // 再投影一次不变（括注开头仍是「（原方」，开头改写会先剥掉旧括注）。
   const again = surface.projectDeliveredReasoning({ schemaVersion: 'tcm-cdss-reasoning-v2', stage: 'prescribe', overview: {}, formula: { candidates: [y] }, nonPharma: null }).formula.candidates[0];
   assert.equal(again.formulaAnalysis, y.formulaAnalysis);
 });
-await check('5.2', '用法只写到一部分原书药引时，方义括注把药引写全；全写到了不再提（R33 口径）', async () => {
+await check('5.2', '原书药引本方没照用：煎服法照旧交代药引，方义不称原方（第五十五轮起不再写药引括注）', async () => {
   const w = projectRx('胃苓汤', ['陈皮', '厚朴', '苍术', '白术', '茯苓', '泽泻', '猪苓', '肉桂', '甘草'], '本方用胃苓汤原方，陈皮、厚朴为君。', '每日1剂，水煎两次，共取药液约500mL，分2次服');
   assert.match(w.decoction.method, /原方以乌梅为引/u);
-  assert.match(w.formulaAnalysis, /以紫苏、乌梅为引，本方未照用/u);
+  assert.match(w.formulaAnalysis, /^本方以胃苓汤为基础，陈皮、厚朴为君/u);
   assert.deepEqual(surface.originalFormulaDeliveryNotes('缓肝理脾汤', [], {}, '原方以煨姜、大枣为引，煎时可酌加'), []);
 });
 console.log(JSON.stringify({ failed })); process.exitCode = failed ? 1 : 0;

@@ -101,10 +101,10 @@ await check("2.2 原方写明、本方未照用的炮制、药用部位、药引
   assert.ok(liangxue.includes("当归用归尾") && liangxue.includes("黄芩、槐角、地榆炒炭"), liangxue.join("；"));
   assert.ok(surface.originalFormulaDeliveryNotes("参苓白术散", H(["莲子", "薏苡仁", "砂仁", "桔梗", "白扁豆", "茯苓", "人参", "炙甘草", "白术", "山药"])).includes("以大枣为引"));
 });
-await check("2.3 交付面：开头改说「本方药味同X原方（原方…，本方未照用）」，幂等；对照：丸散制备的焙炒（柴胡疏肝散陈皮醋、枳壳麸炒）不写", () => {
+await check("2.3 交付面：原书炮制本方未照用时（第五十五轮起）开头写「本方以X为基础」、不称原方，幂等；对照：丸散制备的焙炒（柴胡疏肝散陈皮醋、枳壳麸炒）不算差别，仍「本方用X原方」", () => {
   const out = project(prescribe({ name: "八正散", herbs: H(["车前子", "瞿麦", "萹蓄", "滑石", "栀子", "炙甘草", "木通", "大黄"]), formulaAnalysis: "本方以八正散为基础加减。滑石、木通为君。" }));
   // r48 C3：煎服法已列灯心草药引，方义不能再称该药引未照用。
-  assert.equal(out.formula.candidates[0].formulaAnalysis, "本方药味同八正散原方（原方大黄煨用，本方未照用）。滑石、木通为君。");
+  assert.equal(out.formula.candidates[0].formulaAnalysis, "本方以八正散为基础。滑石、木通为君。");
   assert.match(out.formula.candidates[0].decoction.method, /灯心草/);
   assert.deepEqual(project(out), out);
   const chaihu = project(prescribe({ name: "柴胡疏肝散", herbs: H(["柴胡", "陈皮", "川芎", "香附", "枳壳", "白芍", "甘草"]), formulaAnalysis: "本方用柴胡疏肝散原方。柴胡为君。" }));

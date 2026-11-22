@@ -138,3 +138,21 @@ await check("C4", "交付面合称：心肺气虚证兼血虚证、病性列血�
   const qiOnly = deficiencyReasoning(); qiOnly.overview.secondarySyndromes = []; qiOnly.pathogenesis.natureDifferentiation.items = ["气虚"];
   assert.equal(surface.compositeSyndromeRename(qiOnly, "患者年龄：60岁\n神疲乏力、气短懒言、动则气喘半年\n舌淡，脉弱"), undefined);
 });
+
+// ───── D 「原方」只在逐项相同时说 ─────
+await check("D1", "与原方有一项差别（原书炮制本方未照用：八正散大黄煨）：方义开头「本方以X为基础」、方名不动、没有「药味同…原方（…本方未照用）」；逐项相同仍「本方用X原方」；再投影不变", () => {
+  const rx = (name, herbs, analysis) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},
+    formula: { candidates: [{ name, herbs: herbs.map((herb) => ({ name: herb, dose: "9g", role: "佐" })), formulaAnalysis: analysis, decoction: { method: "水煎服，以灯心草为引" } }] }, nonPharma: null });
+  const out = surface.projectDeliveredReasoning(rx("八正散", ["车前子", "瞿麦", "萹蓄", "滑石", "栀子", "炙甘草", "木通", "大黄"], "本方用八正散原方。滑石、木通为君。"));
+  const c = out.formula.candidates[0];
+  assert.equal(c.name, "八正散");
+  assert.ok(c.formulaAnalysis.startsWith("本方以八正散为基础。滑石、木通为君"), c.formulaAnalysis);
+  assert.doesNotMatch(c.formulaAnalysis, /药味同|本方未照用|原方作/u);
+  assert.deepEqual(surface.projectDeliveredReasoning(structuredClone(out)), out, "幂等");
+  // 旧版缓存里的括注点到当归（「原方当归用归尾」）：括注去掉后当归要补讲，一次到位、再投影不变。
+  const cached = surface.projectDeliveredReasoning(rx("补阳还五汤", ["黄芪", "当归", "赤芍", "地龙", "川芎", "红花", "桃仁"], "本方药味同补阳还五汤原方（原方当归用归尾，本方未照用）。黄芪益气。"));
+  assert.match(cached.formula.candidates[0].formulaAnalysis, /当归/u);
+  assert.deepEqual(surface.projectDeliveredReasoning(structuredClone(cached)), cached, "括注去掉后一次补讲到位");
+  const exact = surface.projectDeliveredReasoning(rx("柴胡疏肝散", ["柴胡", "陈皮", "川芎", "香附", "枳壳", "白芍", "甘草"], "本方用柴胡疏肝散原方。柴胡为君。")).formula.candidates[0];
+  assert.ok(exact.formulaAnalysis.startsWith("本方用柴胡疏肝散原方"), exact.formulaAnalysis);
+});
