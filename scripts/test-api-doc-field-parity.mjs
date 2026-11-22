@@ -75,6 +75,8 @@ const CONDITIONAL = new Map([
   ["overview.tcmSyndromeReferences[]", "仅在形成中医证候时由服务端绑定受治理辨证标准"],
   // 2026-08-10 ⑪：protocolGapNote 只在 protocolGap 命中受控映射时下发（HIS 方案出参，
   // 非 M04 原始响应字段；此处登记是为了让文档路径校验通过）。
+  // 2026-11-22 第五十五轮交付核对：真实出参里按本例定制的卡片不带 protocolGap，文档原先没写触发条件。
+  ["nonPharma.tcmTreatments[].protocolGap", "仅当 protocolStatus 不是按本例定制的方案时输出"],
   ["nonPharma.tcmTreatments[].protocolGapNote", "仅 HIS 方案出参；且仅当 protocolGap 命中受控映射时输出"],
 ]);
 
