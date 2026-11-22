@@ -45,6 +45,7 @@ import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdenti
 import { clinicalReviewNotPerformedAttestation } from "@/lib/clinical-review-binding";
 import { applyDeliveredSurfaceToContent } from "./delivered-surface";
 import { activeBleedingInGroundingText, clinicalGroundingText, sanitizeUngroundedRedFlagNegations, trustedInputText } from "./diagnosis-safety";
+import { finalConsistencyReview, finalConsistencyReviewMode } from "./final-consistency-review.server";
 import type { FormulaReferenceCaseSafety } from "@/lib/tcm-formula-provenance";
 
 /** 教材锚定用的本例安全事实（见 withDeterministicFormulaReferences）：与开方核对同一判据、同一份接地正文。 */
@@ -2942,6 +2943,34 @@ async function callPrimaryTextModelStream(
         fallback: () => opts.structuredStage === "diagnose" ? opts.truncateFallback || "" : renderM04DeliveryCheckpoint(undefined, opts.structuredPriorReasoning, "contract_rejected", opts.structuredDoseWithheldReasons || []),
       }) : undefined;
       const projectEmissionSurface = (content: string) => applyDeliveredSurfaceToContent(content, { m03ElementAllows, herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState), patientSex: String((opts.structuredCaseState as { patient?: { sex?: unknown } } | undefined)?.patient?.sex || "") });
+      // 定稿前一致性通读（第五十五轮；CDSS_FINAL_CONSISTENCY_REVIEW=on 时）：在交付面投影之前按范围改写，随后照常投影、过合同、签名。
+      // 改写后过不了结构与安全合同的整份放弃（原样交付）。
+      const reviewEmissionConsistency = async (content: string): Promise<string> => {
+        const stage = opts.structuredStage;
+        if (finalConsistencyReviewMode() !== "on" || (stage !== "diagnose" && stage !== "prescribe") || !opts.structuredCaseState) return content;
+        let split: ReturnType<typeof splitDeliveryContent>;
+        try { split = splitDeliveryContent(content, stage); } catch { return content; }
+        if (split.kind !== "reasoning" || !split.candidate.structured || typeof split.candidate.structured !== "object") return content;
+        const root = split.candidate.structured as Record<string, unknown>;
+        if (root.stage !== stage) return content;
+        const result = await finalConsistencyReview(stage, root, {
+          recordText: clinicalGroundingText(opts.structuredCaseState),
+          redFlag: content.includes("<!-- CDSS_SAFETY_ADVISORY -->"),
+          prior: opts.structuredPriorReasoning as unknown as Record<string, unknown> | undefined,
+          signal: upstreamController.signal,
+        });
+        if (!result) return content;
+        const next = rerenderDelivery(joinDeliveryContent({ ...split.candidate, structured: result.reasoning }, split.kind));
+        const reasoning = structuredReasoningFromContent(next);
+        const unsafe = !reasoning || Boolean(reasoningV2SchemaIssueCode(reasoning)) || (stage === "diagnose"
+          ? Boolean(m03SafetyContractIssue(reasoning, opts.structuredClinicalContext || "", isSafetyRejection))
+          : Boolean(m04SafetyContractIssue(reasoning, opts.structuredPriorReasoning, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: opts.structuredClinicalContext || "", waiveTherapyCoverageAnnotated: true })));
+        if (unsafe) {
+          console.warn("[tcm-cdss:telemetry] final_consistency_review_rejected", { stage, applied: result.applied });
+          return content;
+        }
+        return next;
+      };
       const rationaleAuthor = opts.structuredStage === "diagnose" && opts.structuredCaseState
         ? createFinalRationaleAuthor({
             state: opts.structuredCaseState,
@@ -5743,6 +5772,7 @@ async function callPrimaryTextModelStream(
           let emissionM04Attestation = m04AttestationWithScope;
           let m03SurfaceAccepted = false;
           if (!truncated && transformed.ok && (opts.structuredStage === "diagnose" || opts.structuredStage === "prescribe")) {
+            emissionContent = await reviewEmissionConsistency(emissionContent);
             const surfaced = projectEmissionSurface(emissionContent);
             if (surfaced !== emissionContent) {
               // 辨证结果随载荷重渲染可见正文（与上面的特异性投影同一做法），正文之前的服务端前置区（安全警示横幅、

@@ -26,6 +26,7 @@ const CJK = "\\u4e00-\\u9fa5";
  * 新增条目需要同时说明为什么该词表无法归入受治理来源。
  */
 const ALLOWLIST = new Map([
+  ["src/lib/final-consistency-review.server.ts", "定稿前一致性通读（2026-11-22 第五十五轮）给读稿人的草稿字段名（辨病依据、病位、病机链、方义、中成药…）与改写范围白名单：是接口字段的中文标签，不是临床词表，不参与任何临床判定；字段与结构化路径一一对应，改范围只改这两张表。"],
   ["src/lib/herb-powder-route-dose.ts", "《中药学》【用法用量】行文里冲服/吞服/研末/研粉的给药写法形态，只用来认出教材写的一次用量与煎法栏是不是冲服类，用量数值本身来自教材 usage 字段（2026-11-17 第四十九轮）。"],
   ["src/lib/analysis-element-closure.ts", "否定词的形态守卫（无/非/不属/未见/尚无/并非/不是/否认/排除…），闭集，只决定证素字样前面是不是否定写法（与 m03-element-support 同一组，2026-11-15 第四十六轮）。证素与辨证要点取 tcm-analysis-element-closure.source.json 与《中医诊断学》要点表。迁移计划：否定词形态并入 clinical-polarity 的受治理否定词表后改读共享常量。"],
   ["src/lib/m03-analysis-alignment.server.ts", "辨证分析与结论对齐核对（2026-11-14 第四十五轮）：证素词形归并闭集（郁→气滞、瘀→血瘀、积滞→食积，虚/亏/不足/衰作本虚标记）与「支持/故属」这类判断语气标记。证素本身取 tcm-nature-lexicon，这里只把写法归到同一证素，不新增临床判据。迁移计划：词形并入 tcm-nature-lexicon.source.json 的别名列时移出。"],
