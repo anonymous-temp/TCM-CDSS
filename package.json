@@ -428,6 +428,7 @@
     "test:r1069-main": "node --max-old-space-size=1280 scripts/test-r1069-main.mjs",
     "test:r1070-main": "node --max-old-space-size=1536 scripts/test-r1070-main.mjs",
     "test:r1071-main": "node --max-old-space-size=2000 scripts/test-r1071-main.mjs",
+    "test:r1073-main": "node --max-old-space-size=2000 scripts/test-r1073-main.mjs",
     "test:r1067-rationale3": "node --max-old-space-size=1280 scripts/test-r1067-rationale3.mjs"
   },
   "dependencies": {

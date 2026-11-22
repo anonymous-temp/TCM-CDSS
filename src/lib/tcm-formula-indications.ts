@@ -1265,6 +1265,42 @@ export function syndromeRewriteBreaksFormulaLock(reasoning: unknown, rewrite: (c
   return Boolean(namedFormulaPositiveSufficiencyIssue(copy, locked, clinicalSourceText));
 }
 
+/**
+ * 证名改写（合称晋升、立兼证）让已锁定的方剂不再对证时，按新证名重选，而不是放弃改名（2026-11-22 第五十五轮）。
+ * 第五十三轮为防整页作废，锁定方在新证名下不过正向充分性就不改名：甲方 10.29 点名的「气血两虚误判为心气虚证」
+ *（c22：分析已列气虚、血虚、阳虚三组表现，教材虚劳·心气虚行锁了七福饮）于是一直停在「心肺气虚证兼血虚证」。
+ * 重选与 M03 选方同一套检索与判据：新证名下正向充分、覆盖病名或主诉、可锁定身份（常用度分层）的第一首。
+ * 返回 undefined：锁定在改写后仍成立（或本来就不成立），照常改写；返回 null：会失效且找不到替代，不改写；
+ * 返回 { formulaNames }：改写，并把锁定方与选方方向换成这首。
+ */
+export function formulaRelockAfterSyndromeRewrite(
+  reasoning: unknown,
+  rewrite: (copy: Record<string, unknown>) => void,
+  clinicalSourceText = "",
+): { formulaNames: string[] } | null | undefined {
+  const overview = (reasoning as { overview?: { recommendedFormulaNames?: unknown } } | null)?.overview;
+  const locked = Array.isArray(overview?.recommendedFormulaNames)
+    ? overview!.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+    : [];
+  if (!locked.length) return undefined;
+  if (namedFormulaPositiveSufficiencyIssue(reasoning, locked, clinicalSourceText)) return undefined;
+  const copy = structuredClone(reasoning) as Record<string, unknown>;
+  rewrite(copy);
+  if (!namedFormulaPositiveSufficiencyIssue(copy, locked, clinicalSourceText)) return undefined;
+  const pick = retrieveTcmFormulaCandidatesForReasoning(copy as FormulaReasoningProjection, ENTRIES.length)
+    .find((entry) => entry.positiveSufficiency && entry.identityLockEligible && formulaCoversDiseaseOrComplaint(copy, entry.name, clinicalSourceText) &&
+      !namedFormulaPositiveSufficiencyIssue(copy, [entry.name], clinicalSourceText));
+  return pick ? { formulaNames: [pick.name] } : null;
+}
+
+/** 按 formulaRelockAfterSyndromeRewrite 的结果改写锁定方与选方方向（「七福饮加减」→「八珍汤加减」）。 */
+export function applyFormulaRelock(reasoning: Record<string, unknown>, relock: { formulaNames: string[] }): void {
+  const overview = reasoning.overview as Record<string, unknown> | undefined;
+  if (!overview) return;
+  overview.recommendedFormulaNames = [...relock.formulaNames];
+  overview.recommendedFormulaDirection = `${relock.formulaNames.join("合")}加减`;
+}
+
 export function namedFormulaPositiveSufficiencyIssue(
   reasoning: unknown,
   formulaNames: readonly string[],

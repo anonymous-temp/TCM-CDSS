@@ -14,7 +14,7 @@ import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with
 import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowForModifications, textbookModificationRemovals, textbookRowProvenance, textbookRowCitable, textbookFormulaRowsForDisease } from "./tcm-textbook-syndromes";
 import { GOVERNED_NEUTRAL_SYNDROME_NAMES } from "./clinical-terminology";
 import { powderRouteDoseLimit } from "./herb-powder-route-dose";
-import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, mindSymptomsProminentInRecord, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
+import { incidentalSleepModificationBlocked, incidentalSleepSedativeModification, incidentalSleepTriggerModification, mindSymptomsProminentInRecord, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
 
 import { z } from "zod";
 import {
@@ -2964,8 +2964,8 @@ export function topUpModificationRow(
   if (notFinding && !(notFinding === "main_symptom" && (strengthening || context.authored))) return reject(`not_finding:${notFinding}`);
   if (modificationTriggerTonguePulseOnly(row.trigger)) return reject("tongue_pulse_only");
   // 补写的行同样不为顺带的睡眠差加安神药（与编译阶段同一判据；2026-11-14 第四十五轮甲方标准病历3「本例已见睡眠差：加酸枣仁」，甲方 10.26 点过名）。
-  if (incidentalSleepTriggerModification({ trigger: row.trigger, herbName, reason: row.reason }, prior) &&
-    !mindSymptomsProminentInRecord(recordText, caseState?.chiefComplaint || "", "")) return reject("incidental_sleep");
+  if (incidentalSleepModificationBlocked({ trigger: row.trigger, herbName, reason: row.reason }, prior,
+    { textbookListed: Boolean(source), recordText, chiefComplaint: caseState?.chiefComplaint || "" })) return reject("incidental_sleep");
   // 偶见纳差不加消食药（与编译阶段同一判据，第四十六轮）。
   if (incidentalAppetiteDigestiveModification({ trigger: row.trigger, herbName }, prior, caseState?.chiefComplaint || "")) return reject("incidental_appetite");
   if (!isKnownTcmHerbName(canonicalTcmHerbIdentity(herbName))) return reject("unknown_herb");
@@ -3313,8 +3313,8 @@ export function compileM04Proposal(
       dropReasons.push("direction_conflict");
       return [];
     }
-    if (item.actionType === "add" && (incidentalSleepTriggerModification(item, prior) ||
-      (!textbookSource && incidentalSleepSedativeModification(item, prior)))) {
+    if (item.actionType === "add" && incidentalSleepModificationBlocked(item, prior,
+      { textbookListed: Boolean(textbookSource), recordText: modificationRecordText, chiefComplaint: caseState?.chiefComplaint || "" })) {
       dropReasons.push("incidental_sedative");
       return [];
     }

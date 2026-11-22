@@ -268,7 +268,10 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
   // 排除性诊断的依据还要排除器质性疾病时，病名未确立（第五十一轮：「原发性痛经」依据写「尚需盆腔超声排除子宫内膜异位症…等器质性疾病」）。
   const exclusionName = [...establishmentWords.exclusionDiagnosisWords, ...((establishmentWords as { organicExclusionBasisNames?: string[] }).organicExclusionBasisNames || [])].some((word) => core.includes(word));
   const organicStillToExclude = exclusionName && /(?:尚需|仍需|还需|需|尚未|未)[^。；;]{0,24}排除[^。；;]{0,30}器质/u.test(cleaned);
-  const explicitlyNotEstablished = !known && !treated && (new RegExp(certaintyPolicy.clinicalNotEstablishedPattern, "u").test(cleaned) || organicStillToExclude);
+  // 依据句自己说病程未到门槛（「病程1月未达2月门槛」），要点表又没有病程门槛可判（courseMet 未定）：病名跟依据句走（第五十五轮，11.05 病例12）。
+  // 表里有门槛且已满足时，这类说法反过来按与病历不符删掉（下面 unmetCoursePattern 那条）。
+  const courseUnmetByBasis = criteria?.courseMet === undefined && new RegExp(certaintyPolicy.unmetCoursePattern, "u").test(cleaned);
+  const explicitlyNotEstablished = !known && !treated && (new RegExp(certaintyPolicy.clinicalNotEstablishedPattern, "u").test(cleaned) || organicStillToExclude || courseUnmetByBasis);
   const pending = criteria && !criteria.clinicalOnly ? criteria.pending || explicitlyNotEstablished
     : criteria?.clinicalOnly ? explicitlyNotEstablished ||
       (!known && !treated && basisSaysNameNotEstablished(cleaned.split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part)).join("。"), core))

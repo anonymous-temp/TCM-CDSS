@@ -322,7 +322,7 @@ await check("D4", "「本例已见」后面不带病程（本例已见夜间遗�
   assert.equal(surface.withDerivedPrescriptionBookkeeping(diagnose), diagnose);
 });
 
-await check("B6", "证名改写不得让已签名的方剂锁定失效：心肺气虚证兼血虚证下锁定七福饮，改成气血两虚证后开方合同会判锁定方不对证、整页作废——改写前后各核一次，失效就不改", () => {
+await check("B6", "证名改写不得让已签名的方剂锁定失效：心肺气虚证兼血虚证下锁定七福饮，改成气血两虚证后开方合同会判锁定方不对证、整页作废——改写前后各核一次；第五十五轮起失效时按新证名重选锁定方（八珍汤），找不到可锁定的替代才不改", () => {
   const fixture = JSON.parse(fs.readFileSync(`${root}/scripts/fixtures/r1070/c22-qifuyin-lock.json`, "utf8"));
   const toComposite = (copy) => { copy.overview.primarySyndrome = "气血两虚证"; copy.overview.secondarySyndromes = []; };
   assert.equal(indications.namedFormulaPositiveSufficiencyIssue(fixture.reasoning, ["七福饮"], fixture.recordText), undefined, "原证名下锁定成立");
@@ -331,13 +331,18 @@ await check("B6", "证名改写不得让已签名的方剂锁定失效：心肺�
   const unlocked = structuredClone(fixture.reasoning); unlocked.overview.recommendedFormulaNames = [];
   assert.equal(indications.syndromeRewriteBreaksFormulaLock(unlocked, toComposite, fixture.recordText), false);
   assert.equal(indications.syndromeRewriteBreaksFormulaLock(fixture.reasoning, (copy) => { copy.overview.secondarySyndromes = [...copy.overview.secondarySyndromes]; }, fixture.recordText), false);
-  // 两个改写者在改名之前都走这道核对（源码层面钉住改名语句前的那一道判断）。
+  // 第五十五轮：失效时按新证名重选（甲方 10.29 点名「气血两虚误判为心气虚证」），重选的方在新证名下对证。
+  const relock = indications.formulaRelockAfterSyndromeRewrite(fixture.reasoning, toComposite, fixture.recordText);
+  assert.deepEqual(relock, { formulaNames: ["八珍汤"] });
+  const relocked = structuredClone(fixture.reasoning); toComposite(relocked); indications.applyFormulaRelock(relocked, relock);
+  assert.equal(indications.namedFormulaPositiveSufficiencyIssue(relocked, ["八珍汤"], fixture.recordText), undefined);
+  // 两个改写者在改名之前都走这道核对（源码层面钉住改名语句前的那一道判断）：晋升合称走重选，立兼证仍是失效就不立。
   const closure = fs.readFileSync(`${root}/src/lib/m03-syndrome-element-closure.server.ts`, "utf8");
-  assert.match(closure, /if \(composite && !syndromeRewriteBreaksFormulaLock\(root, \(copy\) => rename\(copy as Json, composite\), recordText\)\) \{ rename\(root, composite\); return true; \}/u, "晋升合称前核锁定");
+  assert.match(closure, /const relock = formulaRelockAfterSyndromeRewrite\(root, \(copy\) => rename\(copy as Json, composite\), recordText\);\s*if \(relock !== null\) \{ rename\(root, composite\); if \(relock\) applyFormulaRelock\(root, relock\); return true; \}/u, "晋升合称前核锁定、失效则重选");
   assert.match(closure, /if \(syndromeRewriteBreaksFormulaLock\(root, \(copy\) => \{[^\n]*secondarySyndromes[^\n]*\}, recordText\)\) return false;/u, "立兼证前核锁定");
   const surfaceText = fs.readFileSync(`${root}/src/lib/delivered-surface.ts`, "utf8");
   const renameAt = surfaceText.indexOf("    applyGovernedCompositeName(overview, primary, secondaries, rule.composite);");
-  assert.ok(renameAt > 0 && surfaceText.slice(Math.max(0, renameAt - 200), renameAt).includes("if (compositeWouldBreakSignedFormulaLock(reasoning, primary, secondaries, rule.composite, recordText)) continue;"), "交付面合称改名前核锁定");
+  assert.ok(renameAt > 0 && surfaceText.slice(Math.max(0, renameAt - 400), renameAt).includes("if (relock === null) continue;"), "交付面合称改名前核锁定、找不到替代才不改");
 });
 
 await check("A8", "命名方方解写到生用用途的药味不按用途加炮制：葛根黄芩黄连汤方解写葛根「外解肌表之邪」，葛根照旧；同一张方当自拟方时按《中药学》「升阳止泻宜煨用」是煨葛根；方解只写炮制品用途或没有方解时照常按用途", async () => {

@@ -1,5 +1,5 @@
 import "server-only";
-import { syndromeRewriteBreaksFormulaLock } from "./tcm-formula-indications";
+import { applyFormulaRelock, formulaRelockAfterSyndromeRewrite, syndromeRewriteBreaksFormulaLock } from "./tcm-formula-indications";
 
 import promotion from "../data/tcm-syndrome-element-promotion.source.json" with { type: "json" };
 import deficiencyLexicon from "../data/tcm-deficiency-element-lexicon.source.json" with { type: "json" };
@@ -327,8 +327,11 @@ function promote(root: Json, unit: LedgerElement, verdict: CriteriaVerdict, reco
   const primary = text(overview.primarySyndrome);
   const rule = unit.type === "location" ? organRule(root, unit) : promotion.rules.find((row) => row.element === unit.type && row.primary.includes(primary));
   const composite = nationalElementCompositeName(rule);
-  // 晋升合称不得让已签名的方剂锁定失效（syndromeRewriteBreaksFormulaLock）；失效时改走立兼证（同样要不失效）。
-  if (composite && !syndromeRewriteBreaksFormulaLock(root, (copy) => rename(copy as Json, composite), recordText)) { rename(root, composite); return true; }
+  // 晋升合称后锁定方不再对证时按新证名重选（formulaRelockAfterSyndromeRewrite，第五十五轮）；找不到可锁定的替代才改走立兼证（同样要不失效）。
+  if (composite) {
+    const relock = formulaRelockAfterSyndromeRewrite(root, (copy) => rename(copy as Json, composite), recordText);
+    if (relock !== null) { rename(root, composite); if (relock) applyFormulaRelock(root, relock); return true; }
+  }
   const entryName = verdict.entry || unit.entryName;
   const name = resolveNationalStandardTcmSyndromeTerm(entryName) ? entryName : unit.secondaryName || entryName;
   // D3 对已独立过辨证要点的证素立兼证；不再因同属本病的教材分型而挡掉（如汗证的营卫不和）。

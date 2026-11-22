@@ -29,7 +29,7 @@ export function signedScopeInvolvesMind(prior: SignedScopeLike): boolean {
  * 君臣佐使表，加减行此前不经过它。判据与主方同源：证名、病名不涉心神；触发条件说的是睡眠；拟加的药归安神药类，
  * 或这条加减自己写的理由就是安神。教材在本证型下列明的加减（条件与药味都对得上）不在此列。
  */
-const SLEEP_TRIGGER = /眠|寐|夜啼|夜醒|易醒|早醒|多梦|睡/u;
+const SLEEP_TRIGGER = /眠|寐|夜啼|夜醒|易醒|早醒|多梦|睡|卧不安/u;
 /**
  * 睡眠或心神的表现在病历里不止顺带一句（第三十五轮 c25：心悸怔忡、失眠多梦，方中酸枣仁与治法「宁心安神」都被当顺带去掉；评审判方义与症状脱节）：
  * 肯定写着两种以上，或写在主诉里。甲方 10.12 点名的是「睡眠差」这样顺带一提的情况，这条不动它。
@@ -101,7 +101,7 @@ export function incidentalSleepSedativeModification(
  * 是心血不足（评审判过通过），「若阴虚火旺，兼见五心烦热、躁动失眠：加知母」治的是火旺。
  * 不收「寐深难以唤醒」「因寐不醒」——那是遗尿的睡得太沉，石菖蒲醒神正对。
  */
-const SLEEP_LOSS_TRIGGER = /难眠|不能入眠|不眠|失眠|少寐|不寐|多梦|夜啼|入睡困难|难以入睡|影响入睡|夜寐不安|寐不安|睡眠不实|睡不安|易醒|早醒|眠差|寐差/u;
+const SLEEP_LOSS_TRIGGER = /难眠|不能入眠|不眠|失眠|少寐|不寐|多梦|夜啼|入睡困难|难以入睡|影响入睡|夜寐不安|寐不安|卧不安|睡眠不实|睡不安|睡不好|睡不踏实|睡眠(?:欠佳|不佳|较差|一般)|易醒|早醒|眠差|寐差/u;
 const SLEEP_COMPANION_ITEM = /^(?:烦躁|心烦|虚烦|烦热|躁扰|哭闹)$/u;
 const TRIGGER_ITEM_FILLER = /^(?:若|如|兼见|症见|伴有|伴|或)+|(?:者|明显|加重|较甚|尤甚|甚|等)+$/gu;
 function sleepOnlyTrigger(trigger: string): boolean {
@@ -117,6 +117,23 @@ export function incidentalSleepTriggerModification(
   prior: SignedScopeLike,
 ): boolean {
   return sleepOnlyTrigger(item.trigger) && incidentalSleepSedativeModification(item, prior);
+}
+
+/**
+ * 随证加减的一行是不是「为顺带的睡眠差加安神药」：编译期的模型行、补写行、定稿后专写行用同一个判据（2026-11-22 第五十五轮）。
+ * 此前编译期用宽判据（incidentalSleepSedativeModification，按理由与药的类别）、补写行只用窄判据（incidentalSleepTriggerModification，
+ * 只认几种睡眠写法），而窄判据不认「睡眠欠佳」「夜卧不安」：甲方 10.26 病历1 感冒「睡眠欠佳：加远志」、10.29 积滞「夜卧不安：加酸枣仁」
+ * 都是补写行带进来的（11/22 交付核对）。教材在本证型下列明的那条加减（textbookListed）只按窄判据判，与编译期相同；
+ * 病历里心神表现本身突出的（mindSymptomsProminentInRecord）两处都不拦。
+ */
+export function incidentalSleepModificationBlocked(
+  item: { trigger: string; herbName: string; reason?: string },
+  prior: SignedScopeLike,
+  context: { textbookListed?: boolean; recordText?: string; chiefComplaint?: string; presentHistory?: string } = {},
+): boolean {
+  if (mindSymptomsProminentInRecord(context.recordText || "", context.chiefComplaint || "", context.presentHistory || "")) return false;
+  if (incidentalSleepTriggerModification(item, prior)) return true;
+  return !context.textbookListed && incidentalSleepSedativeModification(item, prior);
 }
 
 /**
