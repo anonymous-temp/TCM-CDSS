@@ -4038,6 +4038,42 @@ The user asked whether the build can be delivered: rerun every record of the cus
 - Minor: 11 of 27 modification triggers in the 10.26 set lack the documented 「本例已见」 prefix (content is verbatim record text); `usageBoundary` is an empty string for 13 patent medicines whose label has no course sentence (doc §5 allows it).
 - Model judgement the judge names: 「湿重于热」 with heat signs (10.29 暑湿, customer-named, round-41 residual), 「头晕目眩：加白芍」 (customer-named, round-52 residual), 当归 added during the ectopic-rupture bleed, 病机 columns contradicting the chain (the long-standing weakest item).
 
+### 11/22 round 55: why the rounds never end — a same-day comparison, three customer-named classes, 「原方」 wording, an optional final review (2026-11-22)
+
+The user asked why the rounds never converge, and whether it is the model. My answer was three layers: (1) deepseek-flash's stable capability limits, with rules patching around them; (2) the machinery built for that making its own errors; (3) an acceptance with no end point (17 records, 95% lines). The user agreed, kept deepseek-flash, and asked for everything except a model change, comparison first. Material: `~/runlogs/r1018/work/r1073/` (`gen.sh`, `scripts/capture-als.mjs` (attributes every model call to its record with AsyncLocalStorage; the old fingerprint capture mixed up the 10.29 variants that share a 现病史), `scripts/extract-raw.mjs`, `scripts/make-raw-arm.py`, `scripts/readthrough.mjs`, `scripts/compare.py`, `judge.sh`, `sets/fresh40.json` (40 new records written by a separate agent), `cp/`, `验收终点建议（草稿，供用户定）.md`). Suites `test:r1073-main`, `test:r1073-review`.
+
+**The comparison.** One production-code run (d048771 = a0) over 112 records — the customer's three evaluations (62 request variants) + standard 10 + the 40 new records — with every model call captured, so every arm is paired on the same draws. qwen4-max with the customer-view rubric (`r1069/judge-accept.mjs`, 「欠妥算过」; the panel omits empty server fields so the raw arm isn't penalised for formatting).
+
+| Arm | Failures | Records with no failure |
+|---|---|---|
+| a0 current pipeline | 137 | 32 |
+| raw first-pass model output (only syntax repair and label-field fill) | 236 | 17 |
+| raw + one deepseek-flash read-through | 159 | 22 |
+| a0 + read-through allowed to edit everything | ~worse (74 vs 67 on 68 customer records: deleted modification rows, changed standard names) | |
+| a0 + narrow read-through (analysis, 治法, Western certainty, 方义, medicines, herb text) | 108 | 47 |
+| b1 = this round's deterministic changes (replay) | 114 | 44 |
+| b2 = b1 + production-integrated review (rationale fields in scope) | 105 | 49 |
+| b3 = b1 + production-integrated review, final scope | 92 | 49 |
+
+- **Post-processing is worth keeping overall** (raw is far worse on 西医, 配伍, 特殊人群, 随症加减, 中成药, 随访), but **on the 40 new records raw output beats the current pipeline on 病机 (77.5 vs 57.5), 治则治法 (100 vs 87.5), 出处方义 (90 vs 80) and 中医鉴别** — rules tuned on the customer's records damage those items on unseen records. Current pipeline on the new records: 3/40 with no failure.
+- What the current pipeline writes there: 病机 notes the server adds (「可信度低」「病位“胃”尚缺直接的病历依据」「unresolved」「没有可稳定归纳的病性」, chain evidence labelled with a textbook); 方义 「药味同X原方（原方Y炒用，本方未照用）」 (fixed this round); red-flag over-calls (below).
+- Raw M04 doses never exceeded the ChP ceiling (0/72), but one raw prescription had 附子+姜半夏 (十八反) — the safety layer stays in any design.
+- Read-through in thinking mode: 28–36 s per call, too slow.
+- Raw-arm construction trap: the instruction-record pool's `usageBoundary` is an internal placeholder (「说明书用法字段已与本候选的说明书条目及指纹绑定」) that the server replaces later; copy the delivered value or the judge fails 中成药 for engineering text.
+
+**Fixed (each with a test and counter-proofs).**
+- **Incidental sedatives** — one predicate `incidentalSleepModificationBlocked` for compile-stage model rows, top-up rows and post-final authored rows (the top-up path only had the narrow trigger check, which did not know 睡眠欠佳/夜卧不安). Prominent mind symptoms now exempt in both places.
+- **Western name vs basis** — the governed `clinicalNotEstablishedPattern` gains 「(诊断)尚不/尚未/不能确立」「诊断依据不足」「需/待完善/复核…确诊」, and an unmet course stated by the basis counts when the criteria row has no course threshold (`courseUnmetByBasis`). Replay over 470 saved outputs: 6 names changed, all 小儿厌食症/2型糖尿病/慢性失眠 of that kind.
+- **Composite names vs formula lock** — `formulaRelockAfterSyndromeRewrite` (tcm-formula-indications): when a rename would invalidate the locked formula, re-select with the same retrieval and sufficiency check M03 uses (positive sufficiency, lock-eligible tier, covers disease/chief complaint); refuse only when nothing qualifies. Both rename sites (element closure, delivered-surface composite) use it. `心肺气虚证`/`肺脾气虚证` join the 气血两虚证 rule (the location composite fired first and the blood-deficiency rule never matched). 10.29 c22: 心肺气虚证兼血虚证 + 七福饮 → 气血两虚证 + 八珍汤; replay 4/470, all that record's variants.
+- **「原方」** — 「本方用X原方」 only when herbs, original preparations, parts and guide herbs all match; any difference opens 「本方以X为基础」 (neither 原方 nor 加减: round 33's judge faulted 「加减」 on an identical herb list). Guide herbs still go in the usage line; herbs named only in the dropped parenthetical are re-explained in the same pass (idempotence). 26/111 prescriptions carried the old wording.
+- **Not changed:** 治则 derivation — only one new-record failure was the derivation itself (风热乘脾 read as deficiency); the others were red-flag over-calls, and the derivation carries the customer's 10.26 标本兼治 fix.
+
+**Optional final consistency review** (`final-consistency-review.server.ts`, `CDSS_FINAL_CONSISTENCY_REVIEW=on`, **default off**). One deepseek-flash call per stage just before the delivered-surface projection, so projection, safety contracts and signing apply to its output; edits that fail schema or the M03/M04 safety contract are dropped (`final_consistency_review_rejected`). Scope: diagnose — 病位, 病性, overall pathogenesis, chain (same length), pending items (delete/rewrite only), 治法 (four-character items, no repeats), TCM differentials (not fewer), Western basis, Western name (only ± 「待查」); prescribe — 方义 (must still explain every herb it explained), patent medicines (delete only), herb function text and same-identity processing names. Names, syndromes, formula, modifications, precautions, care and follow-up are out of scope. 辨病依据/辨证依据 were in scope in b2 and moved out for b3 (the review rewrote them awkwardly, 「以既定证名反推」, 6 broken vs 2 fixed; the round-50 final rationale owns them). Each call p50 2.7 s, p90 4.4 s. With the final scope (b3): customer records 48 → 47 failures, new records 66 → 45 (records with no failure 6 → 10 of 40). P0 audit all zero, red-flag decisions unchanged. Items still under the customer's lines on b3: 中医诊断 94.6, 中医鉴别 87.5, 随症加减 87.5; 病机 84.8.
+
+**Found by the new records, not fixed (stop rule):** four red-flag over-calls in 36 non-emergency records — 「胸口发闷」 inside a 3-month phlegm headache → acute chest pain; postpartum bleeding 3–4 pads/day with Hb 105 → massive bleeding; 「下肢无力」 in 2-year osteoporotic back pain → neurological emergency; purulent tonsillitis dysphagia (no trismus, drooling or voice change; uvula midline) → deep-neck infection + upper-GI obstruction. And the server-written 病机 confidence/reason notes above.
+
+**Measurement notes.** Judge throughput with qwen4-max was 2–4 per minute at concurrency 16; never run two judge processes on the same arm. In memo-replay arms, a changed M03 changes the M04 prompt and M04 is redrawn live, so stage latency differences between arms are not the new step's cost — read the call's own time from the trace.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
