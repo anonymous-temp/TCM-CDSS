@@ -431,6 +431,9 @@
     "test:r1073-main": "node --max-old-space-size=2000 scripts/test-r1073-main.mjs",
     "test:r1073-review": "node --max-old-space-size=2000 scripts/test-r1073-review.mjs",
     "test:r1074-main": "node --max-old-space-size=2000 scripts/test-r1074-main.mjs",
+    "test:r1075-salvage": "node --max-old-space-size=2500 scripts/test-r1075-salvage.mjs",
+    "test:r1075-western-section-names": "node --max-old-space-size=2000 scripts/test-r1075-western-section-names.mjs",
+    "test:r1075-same-source-herbs": "node --max-old-space-size=2000 scripts/test-r1075-same-source-herbs.mjs",
     "test:r1067-rationale3": "node --max-old-space-size=1280 scripts/test-r1067-rationale3.mjs"
   },
   "dependencies": {

@@ -1,0 +1,3758 @@
+{
+ "note": "第五十七轮开方保底测试底稿：生产 f91806f 对新病历 f06/f31 的已交付 M03/M04 结构化结果（合成病历，无真实患者信息）。f27：第五十七轮本轮代码对留出集 f27（儿童毒热闭肺）的交付结果，方名表改回目录条目名写法、去掉剥离标记，作同方异写的合同核对底稿。",
+ "cases": {
+  "f06": {
+   "record": "{\"现病史\": \"患者3月来反复头痛，以前额和头顶昏沉、发闷为主，像戴了顶湿帽子箍着，阴雨天和吃完油腻饭后明显，每周发作3～4次，每次持续几个小时，能忍受。伴胸口和胃脘部发闷，恶心想吐但没吐，不想吃饭，嘴里黏腻，痰多色白。头痛不是突然出现的，无剧烈爆裂样痛，无喷射样呕吐，无视物模糊、复视，无肢体麻木无力，无言语不清。自测血压多在130～140/80～88mmHg。\", \"既往史\": \"高血压5年，服苯磺酸氨氯地平片5mg每日1次，规律服药\", \"过敏史\": \"否认药物及食物过敏史\", \"个人史\": \"退休会计，不吸烟饮酒，爱吃甜食，体重72kg，身高158cm\", \"家族史\": \"母亲脑梗死\", \"婚育史\": \"已婚，育1女，52岁绝经\", \"辅助检查\": \"2026-10-28县医院头颅CT平扫：未见明显异常。2026-11-10本院血脂：甘油三酯2.6mmol/L，LDL-C 2.9mmol/L；神经系统查体未见阳性体征\"}",
+   "m03": {
+    "schemaVersion": "tcm-cdss-reasoning-v2",
+    "stage": "diagnose",
+    "clinicalReview": {
+     "status": "unavailable",
+     "unavailableReason": "not_configured",
+     "attemptCount": 0,
+     "durationMs": 0,
+     "reviewedPayloadHash": "sha256:150dea6cb973d15dcc657ebdbdde353951e42e658242adeddbb79d05d474f149"
+    },
+    "overview": {
+     "tcmDiseaseName": "头痛",
+     "primarySyndrome": "痰浊头痛",
+     "primarySyndromeResolution": "resolved",
+     "primarySyndromeBasis": [
+      "头痛反复3月",
+      "以前额和头顶昏沉、发闷为主",
+      "像戴了顶湿帽子箍着",
+      "舌淡胖，苔白腻",
+      "脉滑"
+     ],
+     "tcmDiseaseRationale": "头痛反复3月，以前额及头顶昏沉、发闷为主，如湿帽箍头，阴雨及油腻后加重，属内伤头痛之痰浊头痛；无剧烈爆裂样痛及喷射样呕吐，可与外感、肝阳上亢及颅内病变相区别。",
+     "tcmDiagnosticRationale": "头痛反复3月，昏沉发闷如湿帽箍头，为痰浊上蒙清窍、清阳不升。阴雨天及油腻后加重，是湿浊同气相求、痰湿得助而上扰。胸脘发闷、恶心欲吐、纳呆、口黏、痰多色白，为痰湿中阻、脾胃运化失司、胃气上逆。舌淡胖、苔白腻，示脾虚湿盛、痰浊内蕴；脉滑主痰湿。故辨为痰浊头痛。",
+     "tcmDiseaseReferences": [
+      {
+       "evidenceId": "STD-GBT-15657-2021",
+       "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+       "sourceType": "standard"
+      }
+     ],
+     "tcmSyndromeReferences": [],
+     "tcmDifferentials": [
+      {
+       "syndrome": "风湿头痛",
+       "reason": "头痛如裹与痰浊头痛相近",
+       "distinguishingPoints": "未诉肢体困重、小便不利，脉滑而非濡",
+       "typicalManifestation": "头痛如裹，肢体困重，胸闷纳呆，苔白腻，脉濡",
+       "nextCheck": "询问肢体困重及小便情况"
+      },
+      {
+       "syndrome": "肝阳头痛",
+       "reason": "高血压病史需与之鉴别",
+       "distinguishingPoints": "本例为昏沉发闷而非胀痛，舌淡胖苔白腻，脉滑不弦",
+       "typicalManifestation": "头胀痛而眩，心烦易怒，口苦面红，舌红苔薄黄，脉弦数",
+       "nextCheck": "复测血压，观察情绪诱因"
+      },
+      {
+       "syndrome": "气虚头痛",
+       "reason": "慢性反复头痛需辨虚实",
+       "distinguishingPoints": "未诉遇劳加重、气短自汗，脉滑不细弱",
+       "typicalManifestation": "头痛隐隐，遇劳加重，倦怠乏力，气短自汗，脉细弱",
+       "nextCheck": "询问劳累后头痛是否加重"
+      }
+     ],
+     "tcmDiseaseDifferentials": [
+      {
+       "diseaseName": "眩晕",
+       "reason": "同有昏沉、恶心，病位相近",
+       "distinguishingPoints": "本例以头痛为主诉，昏沉为头痛的伴随感受，非以眩晕为主",
+       "typicalManifestation": "目眩与头晕",
+       "nextCheck": "询问有无视物旋转及站立不稳"
+      },
+      {
+       "diseaseName": "真头痛",
+       "reason": "需排除颅内急重病变",
+       "distinguishingPoints": "本例起病缓慢、反复3月，无剧烈爆裂样痛，无喷射样呕吐，头颅CT未见异常",
+       "typicalManifestation": "",
+       "nextCheck": "出现突发剧痛或神经体征时复查影像"
+      }
+     ],
+     "secondarySyndromes": [],
+     "overallPathogenesis": "痰湿中阻，脾胃运化失司，清阳不升，痰浊上蒙清窍，发为头痛",
+     "overallTherapy": "化痰降逆，通窍止痛，健脾和胃",
+     "recommendedFormulaDirection": "半夏白术天麻汤加减",
+     "recommendedFormulaNames": [
+      "半夏白术天麻汤"
+     ],
+     "formulaSelectionMode": "single",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "中"
+     }
+    },
+    "westernDiagnosis": {
+     "primary": {
+      "name": "紧张型头痛待查",
+      "coding": {
+       "system": "ICD-10",
+       "code": "G44.200",
+       "display": "紧张型头痛",
+       "source": "ICD-10医保2.0版-中英对应-20220426"
+      },
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+       "慢性反复昏沉发闷样头痛，无先兆及神经定位体征，头颅CT与神经系统查体均阴性，需进一步核实发作特点以明确诊断。"
+      ],
+      "supportingFactKinds": [],
+      "clinicalRationale": "慢性反复昏沉发闷样头痛，无先兆及神经定位体征，头颅CT与神经系统查体均阴性，需进一步核实发作特点以明确诊断。",
+      "limitations": [],
+      "suggestedChecks": [],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "病例内推理",
+       "confidence": "中"
+      }
+     },
+     "differentials": [
+      {
+       "name": "偏头痛",
+       "reason": "反复发作性头痛需鉴别",
+       "distinguishingPoints": "本例为紧箍样闷痛、无搏动性、未诉先兆及畏光畏声",
+       "nextCheck": "询问搏动性、活动后加重及伴随症状",
+       "guidelineReferences": [
+        {
+         "evidenceId": "EVID-GUIDE-001",
+         "citation": "前庭性偏头痛诊断标准（更新）",
+         "sourceType": "guideline"
+        }
+       ]
+      },
+      {
+       "name": "继发性头痛",
+       "reason": "需排除颅内器质性病变",
+       "distinguishingPoints": "头颅CT阴性、无神经定位体征；但CT不能排除全部病因",
+       "nextCheck": "随访有无新发神经症状，必要时复查影像",
+       "guidelineReferences": [
+        {
+         "evidenceId": "EVID-GUIDE-001",
+         "citation": "前庭性偏头痛诊断标准（更新）",
+         "sourceType": "guideline"
+        }
+       ]
+      },
+      {
+       "name": "高血压性头痛",
+       "reason": "血压偏高需评估相关性",
+       "distinguishingPoints": "血压仅轻中度升高，头痛与血压波动关系未明",
+       "nextCheck": "记录头痛发作时血压",
+       "guidelineReferences": [
+        {
+         "evidenceId": "EVID-GUIDE-001",
+         "citation": "前庭性偏头痛诊断标准（更新）",
+         "sourceType": "guideline"
+        }
+       ]
+      },
+      {
+       "name": "颈源性头痛",
+       "reason": "颈肩因素可致闷痛",
+       "distinguishingPoints": "未记录颈部症状及压痛",
+       "nextCheck": "颈椎活动度与压痛查体",
+       "guidelineReferences": [
+        {
+         "evidenceId": "EVID-GUIDE-001",
+         "citation": "前庭性偏头痛诊断标准（更新）",
+         "sourceType": "guideline"
+        }
+       ]
+      }
+     ],
+     "candidates": [
+      {
+       "name": "紧张型头痛待查",
+       "likelihood": "高",
+       "keyEvidence": [
+        "紧箍样、压迫性头痛反复3月",
+        "头颅CT及神经系统查体阴性",
+        "无呕吐及神经定位症状"
+       ],
+       "againstEvidence": [
+        "每周发作3～4次，频率偏高需评估慢性化"
+       ]
+      },
+      {
+       "name": "偏头痛",
+       "likelihood": "中",
+       "keyEvidence": [
+        "反复发作性头痛3月"
+       ],
+       "againstEvidence": [
+        "无搏动性、无先兆、无畏光畏声记录"
+       ]
+      },
+      {
+       "name": "高血压性头痛",
+       "likelihood": "低",
+       "keyEvidence": [
+        "高血压病史5年，自测血压偏高"
+       ],
+       "againstEvidence": [
+        "血压仅轻中度升高，头痛与血压关系未明"
+       ]
+      }
+     ]
+    },
+    "pathogenesis": {
+     "summary": "痰湿中阻，脾胃运化失司，清阳不升，痰浊上蒙清窍，发为头痛",
+     "locationDifferentiation": {
+      "items": [
+       "头",
+       "脾",
+       "胃"
+      ],
+      "details": [
+       {
+        "location": "头",
+        "basis": "以前额和头顶昏沉、发闷为主"
+       },
+       {
+        "location": "脾",
+        "basis": "痰多色白"
+       },
+       {
+        "location": "胃",
+        "basis": "恶心想吐但没吐"
+       }
+      ],
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "高"
+      }
+     },
+     "natureDifferentiation": {
+      "items": [
+       "痰湿"
+      ],
+      "rootDeficiency": [],
+      "branchExcess": [
+       "痰湿"
+      ],
+      "basis": "舌淡胖，苔白腻；脉滑；痰多色白",
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "高"
+      }
+     },
+     "symptomClusters": [
+      {
+       "symptoms": [
+        "以前额和头顶昏沉、发闷为主",
+        "苔白腻",
+        "脉滑"
+       ],
+       "mechanism": "痰湿上蒙清窍"
+      },
+      {
+       "symptoms": [
+        "胸口和胃脘部发闷",
+        "恶心想吐但没吐",
+        "不想吃饭"
+       ],
+       "mechanism": "痰湿中阻，胃失和降"
+      }
+     ],
+     "chain": [
+      {
+       "nodeId": "P1",
+       "patientFact": "以前额和头顶昏沉、发闷为主",
+       "syndromeEvidence": "像戴了顶湿帽子箍着，阴雨天和吃完油腻饭后明显",
+       "pathogenesis": "痰湿上蒙清窍，清阳不升",
+       "therapyDirection": "化痰降逆，通窍止痛",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      },
+      {
+       "nodeId": "P2",
+       "patientFact": "伴胸口和胃脘部发闷",
+       "syndromeEvidence": "恶心想吐但没吐，不想吃饭，嘴里黏腻",
+       "pathogenesis": "痰湿中阻，脾胃运化失司",
+       "therapyDirection": "燥湿，和胃降逆",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      }
+     ],
+     "uncertainties": [
+      {
+       "item": "寒热喜恶",
+       "reason": "病历未记录怕冷或怕热",
+       "affects": "影响是否兼寒兼热的判断"
+      }
+     ]
+    },
+    "therapy": {
+     "overallPrinciple": "标本兼治",
+     "overallMethod": "化痰降逆，通窍止痛，健脾和胃",
+     "subTherapies": [
+      {
+       "therapy": "化痰降逆，通窍止痛",
+       "targetPathogenesis": "痰湿上蒙清窍，清阳不升",
+       "priority": "主要",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      },
+      {
+       "therapy": "燥湿，和胃降逆",
+       "targetPathogenesis": "痰湿中阻，脾胃运化失司",
+       "priority": "次要",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      }
+     ]
+    },
+    "formula": null,
+    "nonPharma": null,
+    "lineageAdaptation": null,
+    "management": {
+     "redFlagLoop": "若出现突发剧烈爆裂样头痛、喷射样呕吐、肢体无力、言语不清或视物模糊，须立即急诊就诊。",
+     "mustCollect": [
+      "头痛发作与情绪、睡眠、颈肩姿势的关系",
+      "止痛药物使用频率与种类",
+      "家庭血压监测记录",
+      "头痛对日常工作生活的影响程度"
+     ],
+     "followupSafetyNet": "请服完本次的药后复诊。若头痛突然加重成爆裂样、出现呕吐、肢体无力、说话不清或看东西模糊，请立即就医。"
+    },
+    "contractSignatureVersion": "tcm-cdss-m03-signature-v5",
+    "contractSignature": "hmac-sha256:ea7d83286861f5545d16d9760cd8358c1a3373243c15c20192256cd37907f601"
+   },
+   "m04": {
+    "schemaVersion": "tcm-cdss-reasoning-v2",
+    "stage": "prescribe",
+    "contractSignatureVersion": "tcm-cdss-m04-signature-v3",
+    "contractSignature": "hmac-sha256:9590b5d58d92d0c87f4bd2055d55714a9319626075719519b2c9484ee32da4e0",
+    "clinicalReview": {
+     "status": "unavailable",
+     "unavailableReason": "not_configured",
+     "attemptCount": 0,
+     "durationMs": 0,
+     "reviewedPayloadHash": "sha256:7e992fa09456d75509e39da907e958dc9ab7b196ccd67a5c6def8ae9a70fd6b9",
+     "acceptanceScope": {
+      "waivedIssueCodes": [
+       "m04_candidate_0_herb_5_function_ungrounded"
+      ],
+      "qualityAnnotationCodes": [
+       "m04_candidate_0_herb_5_function_ungrounded"
+      ]
+     }
+    },
+    "overview": {
+     "tcmDiseaseName": "头痛",
+     "primarySyndrome": "痰浊头痛",
+     "primarySyndromeResolution": "resolved",
+     "primarySyndromeBasis": [
+      "头痛反复3月",
+      "以前额和头顶昏沉、发闷为主",
+      "像戴了顶湿帽子箍着",
+      "舌淡胖，苔白腻",
+      "脉滑"
+     ],
+     "tcmDiseaseRationale": "头痛反复3月，以前额及头顶昏沉、发闷为主，如湿帽箍头，阴雨及油腻后加重，属内伤头痛之痰浊头痛；无剧烈爆裂样痛及喷射样呕吐，可与外感、肝阳上亢及颅内病变相区别。",
+     "tcmDiagnosticRationale": "头痛反复3月，昏沉发闷如湿帽箍头，为痰浊上蒙清窍、清阳不升。阴雨天及油腻后加重，是湿浊同气相求、痰湿得助而上扰。胸脘发闷、恶心欲吐、纳呆、口黏、痰多色白，为痰湿中阻、脾胃运化失司、胃气上逆。舌淡胖、苔白腻，示脾虚湿盛、痰浊内蕴；脉滑主痰湿。故辨为痰浊头痛。",
+     "tcmDiseaseReferences": [
+      {
+       "evidenceId": "STD-GBT-15657-2021",
+       "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+       "sourceType": "standard"
+      }
+     ],
+     "tcmSyndromeReferences": [],
+     "tcmDifferentials": [
+      {
+       "syndrome": "风湿头痛",
+       "reason": "头痛如裹与痰浊头痛相近",
+       "distinguishingPoints": "未诉肢体困重、小便不利，脉滑而非濡",
+       "typicalManifestation": "头痛如裹，肢体困重，胸闷纳呆，苔白腻，脉濡",
+       "nextCheck": "询问肢体困重及小便情况"
+      },
+      {
+       "syndrome": "肝阳头痛",
+       "reason": "高血压病史需与之鉴别",
+       "distinguishingPoints": "本例为昏沉发闷而非胀痛，舌淡胖苔白腻，脉滑不弦",
+       "typicalManifestation": "头胀痛而眩，心烦易怒，口苦面红，舌红苔薄黄，脉弦数",
+       "nextCheck": "复测血压，观察情绪诱因"
+      },
+      {
+       "syndrome": "气虚头痛",
+       "reason": "慢性反复头痛需辨虚实",
+       "distinguishingPoints": "未诉遇劳加重、气短自汗，脉滑不细弱",
+       "typicalManifestation": "头痛隐隐，遇劳加重，倦怠乏力，气短自汗，脉细弱",
+       "nextCheck": "询问劳累后头痛是否加重"
+      }
+     ],
+     "tcmDiseaseDifferentials": [
+      {
+       "diseaseName": "眩晕",
+       "reason": "同有昏沉、恶心，病位相近",
+       "distinguishingPoints": "本例以头痛为主诉，昏沉为头痛的伴随感受，非以眩晕为主",
+       "typicalManifestation": "目眩与头晕",
+       "nextCheck": "询问有无视物旋转及站立不稳"
+      },
+      {
+       "diseaseName": "真头痛",
+       "reason": "需排除颅内急重病变",
+       "distinguishingPoints": "本例起病缓慢、反复3月，无剧烈爆裂样痛，无喷射样呕吐，头颅CT未见异常",
+       "typicalManifestation": "",
+       "nextCheck": "出现突发剧痛或神经体征时复查影像"
+      }
+     ],
+     "secondarySyndromes": [],
+     "overallPathogenesis": "痰湿中阻，脾胃运化失司，清阳不升，痰浊上蒙清窍，发为头痛",
+     "overallTherapy": "化痰降逆，通窍止痛，健脾和胃",
+     "recommendedFormulaDirection": "半夏白术天麻汤加减",
+     "recommendedFormulaNames": [
+      "半夏白术天麻汤"
+     ],
+     "formulaSelectionMode": "single",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "中"
+     }
+    },
+    "westernDiagnosis": {
+     "primary": {
+      "name": "紧张型头痛待查",
+      "coding": {
+       "system": "ICD-10",
+       "code": "G44.200",
+       "display": "紧张型头痛",
+       "source": "ICD-10医保2.0版-中英对应-20220426"
+      },
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+       "慢性反复昏沉发闷样头痛，无先兆及神经定位体征，头颅CT与神经系统查体均阴性，需进一步核实发作特点以明确诊断。"
+      ],
+      "supportingFactKinds": [],
+      "clinicalRationale": "慢性反复昏沉发闷样头痛，无先兆及神经定位体征，头颅CT与神经系统查体均阴性，需进一步核实发作特点以明确诊断。",
+      "limitations": [],
+      "suggestedChecks": [],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "病例内推理",
+       "confidence": "中"
+      }
+     },
+     "differentials": [
+      {
+       "name": "偏头痛",
+       "reason": "反复发作性头痛需鉴别",
+       "distinguishingPoints": "本例为紧箍样闷痛、无搏动性、未诉先兆及畏光畏声",
+       "nextCheck": "询问搏动性、活动后加重及伴随症状",
+       "guidelineReferences": [
+        {
+         "evidenceId": "EVID-GUIDE-001",
+         "citation": "前庭性偏头痛诊断标准（更新）",
+         "sourceType": "guideline"
+        }
+       ]
+      },
+      {
+       "name": "继发性头痛",
+       "reason": "需排除颅内器质性病变",
+       "distinguishingPoints": "头颅CT阴性、无神经定位体征；但CT不能排除全部病因",
+       "nextCheck": "随访有无新发神经症状，必要时复查影像",
+       "guidelineReferences": [
+        {
+         "evidenceId": "EVID-GUIDE-001",
+         "citation": "前庭性偏头痛诊断标准（更新）",
+         "sourceType": "guideline"
+        }
+       ]
+      },
+      {
+       "name": "高血压性头痛",
+       "reason": "血压偏高需评估相关性",
+       "distinguishingPoints": "血压仅轻中度升高，头痛与血压波动关系未明",
+       "nextCheck": "记录头痛发作时血压",
+       "guidelineReferences": [
+        {
+         "evidenceId": "EVID-GUIDE-001",
+         "citation": "前庭性偏头痛诊断标准（更新）",
+         "sourceType": "guideline"
+        }
+       ]
+      },
+      {
+       "name": "颈源性头痛",
+       "reason": "颈肩因素可致闷痛",
+       "distinguishingPoints": "未记录颈部症状及压痛",
+       "nextCheck": "颈椎活动度与压痛查体",
+       "guidelineReferences": [
+        {
+         "evidenceId": "EVID-GUIDE-001",
+         "citation": "前庭性偏头痛诊断标准（更新）",
+         "sourceType": "guideline"
+        }
+       ]
+      }
+     ],
+     "candidates": [
+      {
+       "name": "紧张型头痛待查",
+       "likelihood": "高",
+       "keyEvidence": [
+        "紧箍样、压迫性头痛反复3月",
+        "头颅CT及神经系统查体阴性",
+        "无呕吐及神经定位症状"
+       ],
+       "againstEvidence": [
+        "每周发作3～4次，频率偏高需评估慢性化"
+       ]
+      },
+      {
+       "name": "偏头痛",
+       "likelihood": "中",
+       "keyEvidence": [
+        "反复发作性头痛3月"
+       ],
+       "againstEvidence": [
+        "无搏动性、无先兆、无畏光畏声记录"
+       ]
+      },
+      {
+       "name": "高血压性头痛",
+       "likelihood": "低",
+       "keyEvidence": [
+        "高血压病史5年，自测血压偏高"
+       ],
+       "againstEvidence": [
+        "血压仅轻中度升高，头痛与血压关系未明"
+       ]
+      }
+     ]
+    },
+    "pathogenesis": {
+     "summary": "痰湿中阻，脾胃运化失司，清阳不升，痰浊上蒙清窍，发为头痛",
+     "locationDifferentiation": {
+      "items": [
+       "头",
+       "脾",
+       "胃"
+      ],
+      "details": [
+       {
+        "location": "头",
+        "basis": "以前额和头顶昏沉、发闷为主"
+       },
+       {
+        "location": "脾",
+        "basis": "痰多色白"
+       },
+       {
+        "location": "胃",
+        "basis": "恶心想吐但没吐"
+       }
+      ],
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "高"
+      }
+     },
+     "natureDifferentiation": {
+      "items": [
+       "痰湿"
+      ],
+      "rootDeficiency": [],
+      "branchExcess": [
+       "痰湿"
+      ],
+      "basis": "舌淡胖，苔白腻；脉滑；痰多色白",
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "高"
+      }
+     },
+     "symptomClusters": [
+      {
+       "symptoms": [
+        "以前额和头顶昏沉、发闷为主",
+        "苔白腻",
+        "脉滑"
+       ],
+       "mechanism": "痰湿上蒙清窍"
+      },
+      {
+       "symptoms": [
+        "胸口和胃脘部发闷",
+        "恶心想吐但没吐",
+        "不想吃饭"
+       ],
+       "mechanism": "痰湿中阻，胃失和降"
+      }
+     ],
+     "chain": [
+      {
+       "nodeId": "P1",
+       "patientFact": "以前额和头顶昏沉、发闷为主",
+       "syndromeEvidence": "像戴了顶湿帽子箍着，阴雨天和吃完油腻饭后明显",
+       "pathogenesis": "痰湿上蒙清窍，清阳不升",
+       "therapyDirection": "化痰降逆，通窍止痛",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      },
+      {
+       "nodeId": "P2",
+       "patientFact": "伴胸口和胃脘部发闷",
+       "syndromeEvidence": "恶心想吐但没吐，不想吃饭，嘴里黏腻",
+       "pathogenesis": "痰湿中阻，脾胃运化失司",
+       "therapyDirection": "燥湿，和胃降逆",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      }
+     ],
+     "uncertainties": [
+      {
+       "item": "寒热喜恶",
+       "reason": "病历未记录怕冷或怕热",
+       "affects": "影响是否兼寒兼热的判断"
+      }
+     ]
+    },
+    "therapy": {
+     "overallPrinciple": "标本兼治",
+     "overallMethod": "化痰降逆，通窍止痛，健脾和胃",
+     "subTherapies": [
+      {
+       "therapy": "化痰降逆，通窍止痛",
+       "targetPathogenesis": "痰湿上蒙清窍，清阳不升",
+       "priority": "主要",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      },
+      {
+       "therapy": "燥湿，和胃降逆",
+       "targetPathogenesis": "痰湿中阻，脾胃运化失司",
+       "priority": "次要",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      }
+     ]
+    },
+    "formula": {
+     "candidates": [
+      {
+       "name": "半夏白术天麻汤加减",
+       "formulaNames": [
+        "半夏白术天麻汤"
+       ],
+       "positioning": "首选",
+       "constructionType": "single_base",
+       "modificationStatus": "modified",
+       "baseFormulas": [
+        {
+         "name": "半夏白术天麻汤",
+         "source": "《医学心悟》",
+         "matchedIngredientCount": 6,
+         "totalIngredientCount": 6,
+         "minimumPreservedIngredientCount": 5,
+         "matchedRequiredIngredientCount": 3,
+         "requiredIngredientCount": 3,
+         "verificationStatus": "verified_individually"
+        }
+       ],
+       "discriminationPath": [
+        {
+         "againstFormula": "二陈汤",
+         "question": "当前阳性事实更支持「半夏白术天麻汤的方证」，还是「二陈汤的方证」？",
+         "status": "confirmed",
+         "sourceRef": "T14-117:ADJ-20260727-T14-GRAPH-EXPANSION"
+        }
+       ],
+       "classicEvidence": [
+        {
+         "evidenceId": "TCMOC-01DB21C1C40C9708",
+         "citation": "《证治准绳·杂病》·眩晕",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "宜益气补肾汤。有血 虚者，乃因亡血过多，阳无所附而然，当益气补血芎归汤之类。《直指方》云∶吐衄崩漏，肝家不能 收摄荣气，使诸血失道妄行，此眩晕生于血虚也，宜补肝养荣汤。有因虚致晕，虽晕醒时面常欲近火， 欲得暖手按之，盖头面乃诸阳之会，阳气不足故耳。丹溪云∶一男子年七十九岁，头目昏眩而重，手 足无力，吐痰口口相续，左手脉散大而缓，右手缓而脉大不及于左， 重按皆无力，饮食略减而微渴，大便三四日一行。众人皆与风药，至春深必死。予曰此大虚证，当以 补药作大剂服之，众怒而去。予教用人参、当归身、黄 、芍药、白术，浓煎作汤使，下连柏丸三十 粒，如此者服一年半，而精力如少壮时。连柏丸，冬加干姜少许，余三时皆根据本法。连柏皆姜汁炒为 细末，又以姜汁",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-03898BF0262045DB",
+         "citation": "《万病回春》·眩晕",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "痰，脉浮滑也。 \\x二陈汤加减\\x 茯苓 陈皮 羌活 防风 人参 当归 白术（去芦） 枳实（麸炒） 南星（姜制） 川芎 桔梗 瓜蒌仁（各等分） 甘草（少许） 上锉一剂。水煎，入竹沥、姜汁同服。 劳役之人，饥寒眩晕者，脉虚弱也。补中益气汤加减（方见内伤）。根据本方加半夏、熟地 黄、白芍、天麻。 阴虚火动眩晕者，脉必数也。滋阴降火汤加减（方见虚劳）。根据本方加川芎、天麻、山栀 、竹沥少许。 虚极欲倒，如坐舟车，手足冷者，脉沉细也。 \\x参附汤\\x 治真阳不足，上气喘急、气短、自汗、眩晕。 人参（[具体剂量或操作已隔离]） 大附子（炮，[具体剂量或操作已隔离]） 上锉一剂。生姜十片，水煎，温服。 若泄泻多而眩晕，时时自冒者，难治也。头旋眼",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-07AB1FBB35279551",
+         "citation": "《证治准绳·类方》·头痛",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "苗。各[具体剂量或操作已隔离]） 上为细末，每服[具体剂量或操作已隔离]，水一盅，入灯芯十茎，长四指，同煎七分，去渣，食后温服。 \\x顺气和中汤\\x 治气虚头痛。 黄 （[具体剂量或操作已隔离]半） 人参（[具体剂量或操作已隔离]） 白术 陈皮 当归 芍药（各五分） 甘草（炙） 升麻 柴胡（各 三分） 蔓荆子 川芎 细辛（各二分） 水二盏，煎至一盏，去渣温服，食后。服之减半，再服而愈。 调中益气汤（见劳倦。） 半夏白术天麻汤（见眩晕。） \\x玉壶丸\\x（《和剂》） 治风痰吐逆，头痛目眩，胸膈烦满，饮食不下，及咳嗽痰盛，呕吐涎沫。 天南星（生） 半夏（生。各[具体剂量或操作已隔离]） 天麻（[具体剂量或操作已隔离]） 头白面（[具体剂",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-09D3F61C7E48728D",
+         "citation": "《明医指掌》·头痛证一",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "（五分） 苍术（米泔浸，晒干，炒，五分） 升麻（二分） 甘草（二分） 黄 （[具体剂量或操作已隔离]） 水煎，食后温服。 茶调散 治诸风上攻头痛，目昏鼻塞及偏头疼。 薄荷叶（[具体剂量或操作已隔离]） 川芎 （[具体剂量或操作已隔离]） 羌活（去芦，[具体剂量或操作已隔离]） 甘草（炙，[具体剂量或操作已隔离]） 荆芥穗（[具体剂量或操作已隔离]） 白芷 （[具体剂量或操作已隔离]） 细辛（[具体剂量或操作已隔离]五分） 防风（[具体剂量或操作已隔离]，去芦） 上为细末，每服[具体剂量或操作已隔离]，食后茶汤调下。 \\x痰痛\\x 痰厥头痛，二陈汤加苍术、蔓荆子、南星、防风。肥人头痛是湿痰，半夏、苍术为主，加引经向导药。 痰厥头痛，痰",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-0C3B7BC79D591A4F",
+         "citation": "《医学正传》·眩运",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "。 眩运不可当者，以大黄酒炒为末，茶清调下。（急则治其标也）。 （以上丹溪方法凡三条） \\x防风通圣散\\x（河间） 治风热眩运。（方见中风门。） \\x半夏白术天麻汤\\x（东垣） 治风痰眩运。（方见头痛门。） \\x加味六君子汤\\x（丹溪） 治气虚痰盛，兼挟风邪，眩运不休者。 陈皮（去白，[具体剂量或操作已隔离]） 半夏（汤泡透，[具体剂量或操作已隔离]五分） 茯苓（[具体剂量或操作已隔离]） 甘草（炙，五分） 荆芥穗（五分） 上细切，作一服，加生姜三片，大枣二枚，水二盏，煎至一盏，去渣，入竹沥一大匙，温服。 \\x[具体剂量或操作已隔离]汤\\x（良方） 治风虚眩运。 四物汤加秦艽、羌活为佐，[具体剂量或操作已隔离]之。 \\x玉液汤\\x（",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-0C784B4A83289FBF",
+         "citation": "《丹溪手镜》·头痛（三十）",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "属性：\\x太阳头痛\\x兼项与攒竹，脉浮紧或关前紧数，恶风寒，宜羌芎活主之。 \\x阳明头痛\\x 自汗发热，胃热上攻，脉浮缓长，或关洪数，石膏、葛、芷主之。 \\x少阳头痛\\x 额角偏疼，往来寒热，脉弦细，黄芩、柴胡主之。 \\x太阴头痛\\x 有湿痰，体重腹痛，脉沉缓，半夏、南星、苍术主之。 \\x少阴头痛\\x 足寒气逆，为寒厥，脉沉细，细辛、麻黄、附子主之。 \\x厥阴头痛\\x 顶痛，吐涎沫，厥冷，脉浮缓，吴茱萸汤主之。 \\x气虚头痛\\x 耳鸣，九窍不和，尺脉虚浮，参、 主之。 \\x血虚头痛\\x 鱼尾上攻，芎、归主之。 风涎冷痰在鬲上，或呕吐，脉弦细出寸口，为痰厥，宜吐。 \\x火作痛\\x 痛甚，清之、散之。 \\x湿热头痛证\\x 则心烦。 \\x",
+         "tier": "canon"
+        }
+       ],
+       "compositionLogic": [
+        {
+         "formulaName": "半夏白术天麻汤",
+         "summary": "组成：半夏、天麻、茯苓、橘红、白术、甘草。出处：《医学心悟》。",
+         "tier": "common",
+         "sourceRefs": [
+          "urn:tcm-cdss:official-classic-formula:半夏白术天麻汤",
+          "ADJ-20260727-T14-GRAPH-EXPANSION"
+         ]
+        }
+       ],
+       "textualModifications": [],
+       "formulaSource": {
+        "evidenceLevel": "classic_text",
+        "source": "半夏白术天麻汤：《医学心悟》",
+        "confidence": "中"
+       },
+       "therapyMatch": "化痰降逆，通窍止痛，健脾和胃",
+       "applicable": "",
+       "notApplicable": "",
+       "herbs": [
+        {
+         "name": "姜半夏",
+         "processing": "姜",
+         "dose": "9g",
+         "role": "君",
+         "prescriptionRole": "君药：化痰降逆，通窍止痛",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "痰湿上蒙清窍，清阳不升",
+         "function": "温中化痰，降逆止呕",
+         "isToxic": true,
+         "verificationTier": "toxic_regulated",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "毒性提示：有毒"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "天麻",
+         "processing": null,
+         "dose": "10g",
+         "role": "君",
+         "prescriptionRole": "君药：化痰降逆，通窍止痛",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "痰湿上蒙清窍，清阳不升",
+         "function": "息风止痉",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量在 3-10g 的标准区间内"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "白术",
+         "processing": null,
+         "dose": "12g",
+         "role": "臣",
+         "prescriptionRole": "臣药：燥湿，和胃降逆",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "痰湿中阻，脾胃运化失司",
+         "function": "燥湿利水",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量在 6-12g 的标准区间内"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "茯苓",
+         "processing": null,
+         "dose": "15g",
+         "role": "臣",
+         "prescriptionRole": "臣药：燥湿，和胃降逆",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "痰湿中阻，脾胃运化失司",
+         "function": "健脾",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量在 10-15g 的标准区间内"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "橘红",
+         "processing": null,
+         "dose": "9g",
+         "role": "佐",
+         "prescriptionRole": "佐药：燥湿，和胃降逆",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "痰湿中阻，脾胃运化失司",
+         "function": "燥湿化痰",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量在 3-10g 的标准区间内"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "厚朴",
+         "processing": null,
+         "dose": "9g",
+         "role": "佐",
+         "prescriptionRole": "佐药：燥湿，和胃降逆",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "痰湿中阻，脾胃运化失司",
+         "function": "燥湿",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量在 3-10g 的标准区间内"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "枳壳",
+         "processing": null,
+         "dose": "9g",
+         "role": "佐",
+         "prescriptionRole": "佐药：燥湿，和胃降逆",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "痰湿中阻，脾胃运化失司",
+         "function": "理气宽中",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量在 3-10g 的标准区间内"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "砂仁",
+         "processing": null,
+         "dose": "5g",
+         "role": "佐",
+         "prescriptionRole": "佐药：燥湿，和胃降逆",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "痰湿中阻，脾胃运化失司",
+         "function": "化湿开胃",
+         "isToxic": false,
+         "decoctionRequirement": "后下",
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量在 3-6g 的标准区间内"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "甘草",
+         "processing": null,
+         "dose": "6g",
+         "role": "使",
+         "prescriptionRole": "使药：调和诸药，协调药性",
+         "targetKind": "formula_structure",
+         "targetRef": "FORMULA_STRUCTURE",
+         "structureRole": "harmonize",
+         "targetPathogenesis": "调和诸药，协调药性",
+         "function": "调和诸药",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量在 2-10g 的标准区间内"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        }
+       ],
+       "formulaAnalysis": "本方以半夏白术天麻汤为基础加减。姜半夏燥湿化痰、降逆止呕，天麻平肝息风止眩，二味为君，直对痰湿上蒙清窍、清阳不升之头痛昏沉。白术、茯苓为臣，健脾燥湿渗湿，从脾胃运化失司处断痰湿之源。橘红理气化痰，厚朴、枳壳宽中除胸脘满闷，砂仁化湿醒脾、和胃止呕，共为佐药，兼顾痰湿中阻、胃失和降。甘草为使调和诸药。全方化痰降逆、通窍止痛、健脾和胃并行，标本兼治。",
+       "decoction": {
+        "doseCount": "7剂",
+        "method": "每日1剂，砂仁后下，余药加水浸泡30分钟，武火煮沸后转文火，水煎两次（约30、20分钟），共取药液约500mL，分2次服，饭后温服；原方以生姜、大枣为引，煎时可酌加",
+        "course": "7日",
+        "followUpNode": "完成7剂（7日）后复诊；出现不适或症状加重时提前复诊",
+        "dosesPerDay": 1,
+        "administrationTimesPerDay": 2,
+        "soakMinutes": 30,
+        "decoctionTimes": 2,
+        "firstDecoctionMinutes": 30,
+        "secondDecoctionMinutes": 20,
+        "targetVolumeMl": 500,
+        "administration": "每日1剂，每日分2次服，饭后温服；服药与进餐间隔按患者胃肠耐受及院内规范执行",
+        "followUpAfterDoses": 7,
+        "followUpAfterDays": 7
+       }
+      }
+     ],
+     "patentAndWestern": [],
+     "medicineCandidateStatus": {
+      "status": "no_evidence_match",
+      "reason": "未检索到与本例诊断或证候匹配、且可核验到具体说明书条目的西药或中成药候选。"
+     },
+     "modifications": [
+      {
+       "trigger": "胸口和胃脘部发闷",
+       "triggerSource": {
+        "kind": "pathogenesis_patient_fact",
+        "sourceRef": "pathogenesis.chain[1].patientFact:P2",
+        "sourceQuote": "伴胸口和胃脘部发闷"
+       },
+       "targetPathogenesis": "痰湿中阻，气机不畅",
+       "action": "加",
+       "herbName": "紫苏梗",
+       "doseOrHandling": "10g",
+       "reason": "宽胸理气，助除脘闷",
+       "riskNote": "",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "患者原文：伴胸口和胃脘部发闷",
+        "confidence": "中"
+       }
+      },
+      {
+       "trigger": "嘴里黏腻",
+       "targetPathogenesis": "痰湿内蕴，浊气上泛",
+       "action": "加",
+       "herbName": "佩兰",
+       "doseOrHandling": "10g",
+       "reason": "芳香化湿，除口中黏腻",
+       "riskNote": "",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "患者原文：伴胸口和胃脘部发闷，恶心想吐但没吐，不想吃饭，嘴里黏腻，痰多色白",
+        "confidence": "中"
+       }
+      },
+      {
+       "trigger": "痰多色白",
+       "targetPathogenesis": "脾虚湿聚，痰浊上贮",
+       "action": "加",
+       "herbName": "陈皮",
+       "doseOrHandling": "9g",
+       "reason": "理气化痰，助痰浊消散",
+       "riskNote": "",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "患者原文：伴胸口和胃脘部发闷，恶心想吐但没吐，不想吃饭，嘴里黏腻，痰多色白",
+        "confidence": "中"
+       }
+      },
+      {
+       "trigger": "不想吃饭",
+       "targetPathogenesis": "湿困脾胃，纳运失司",
+       "action": "加",
+       "herbName": "六神曲",
+       "doseOrHandling": "10g",
+       "reason": "消食和胃，助脾胃纳运",
+       "riskNote": "",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "患者原文：伴胸口和胃脘部发闷，恶心想吐但没吐，不想吃饭，嘴里黏腻，痰多色白",
+        "confidence": "中"
+       }
+      }
+     ],
+     "modificationReview": {
+      "submittedCount": 4,
+      "retainedCount": 4,
+      "droppedCount": 0,
+      "droppedReason": null,
+      "droppedReasons": []
+     }
+    },
+    "nonPharma": {
+     "diet": "少食肥甘厚腻与甜黏之品；可选冬瓜、白萝卜、薏苡仁煮粥或清炒时蔬，每餐七八分饱。",
+     "lifestyle": "居室宜干燥通风，阴雨天减少外出淋湿；规律作息，避免熬夜，睡时枕头高低适中。",
+     "emotion": "保持心情舒畅，避免紧张焦虑诱发头痛；可听舒缓音乐、做深呼吸放松。",
+     "exercise": "每日散步或快走20～30分钟，每周5次，以微汗为度；可练八段锦，避免剧烈甩头动作。",
+     "acupointCare": "按揉丰隆、中脘、百会。取穴：丰隆在小腿前外侧，膝盖外侧下方凹陷与外踝尖连线的中点、小腿骨前缘外侧约两横指处；中脘在上腹部正中线上，胸骨下端与肚脐连线的中点；百会在头顶正中，两耳尖向上连线与头部正中线的交点处。手法：丰隆、百会用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度；中脘用掌根按在穴位上，轻柔缓和地打圈按揉，每个穴位2～3分钟，每天1～2次。丰隆：化痰要穴，帮助减少痰多、头昏沉发闷；中脘：健脾和胃，帮助缓解恶心、不想吃饭；百会：通窍止痛，帮助缓解头痛昏沉。宜在饭后1～2小时再按揉，过饥、过饱或过度劳累时不宜按揉；局部皮肤破损、红肿或感染处不要按揉；有出血倾向的血液病患者不宜自行按揉，正在服用抗凝、抗血小板药物者请先咨询医生。居家保健只作辅助，不能代替治疗；按揉后如有不适请停止。",
+     "tcmTreatments": [
+      {
+       "projectCode": "auricular",
+       "projectName": "耳穴",
+       "availability": "clinic_available",
+       "riskLevel": "moderate",
+       "recommendationMode": "clinician_assessment",
+       "targetRef": "P1",
+       "targetPathogenesis": "痰湿上蒙清窍，清阳不升",
+       "protocolStatus": "governed_class_template_not_syndrome_tailored",
+       "tailoringStatus": "class_template_only",
+       "protocolGap": "syndrome_refinement_not_matched",
+       "pointProvenance": [
+        {
+         "point": "神门",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-SAMR-ACUPUNCTURE-OPS",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "皮质下",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-SAMR-ACUPUNCTURE-OPS",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "枕",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-SAMR-ACUPUNCTURE-OPS",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "额或颞（按疼痛部位选择）",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-SAMR-ACUPUNCTURE-OPS",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        }
+       ],
+       "sourceAuthorityTier": "regulatory_primary",
+       "treatmentContent": "按本病常规取穴，针对本例头痛。",
+       "suggestedSitesOrPoints": [
+        "神门",
+        "皮质下",
+        "枕",
+        "额或颞（按疼痛部位选择）"
+       ],
+       "scheduleSuggestion": "单耳贴压、双耳交替；每日按压3-5次，每次1-2分钟；每3-5天更换一次。",
+       "techniqueBoundary": "突发剧烈头痛、意识改变或局灶神经异常须先按神经急症处置，不得以耳穴替代评估。",
+       "protocolSource": "SRC-SAMR-ACUPUNCTURE-OPS、SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+       "operatorRequirement": "由受训人员辨穴并指导按压",
+       "requiredChecks": [
+        "耳部皮损感染、胶布或籽粒过敏和刺激强度"
+       ],
+       "containsMedication": false,
+       "requiresMedicationAudit": false,
+       "executable": false,
+       "clinicianReviewRequired": true
+      },
+      {
+       "projectCode": "acupuncture",
+       "projectName": "针刺疗法",
+       "availability": "clinic_available",
+       "riskLevel": "moderate",
+       "recommendationMode": "clinician_assessment",
+       "targetRef": "P1",
+       "targetPathogenesis": "痰湿上蒙清窍，清阳不升",
+       "protocolStatus": "governed_patient_specific_plan",
+       "tailoringStatus": "syndrome_tailored",
+       "adjudicationStatus": "approved",
+       "pointProvenance": [
+        {
+         "point": "百会",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+          "SRC-SAMR-ACUPUNCTURE-OPS"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "合谷",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+          "SRC-SAMR-ACUPUNCTURE-OPS"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "太阳或率谷（按疼痛部位复核）",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+          "SRC-SAMR-ACUPUNCTURE-OPS"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "风池（仅由专业人员操作）",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+          "SRC-SAMR-ACUPUNCTURE-OPS"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "中脘",
+         "role": "syndrome_refinement",
+         "sourceRefs": [
+          "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "丰隆",
+         "role": "syndrome_refinement",
+         "sourceRefs": [
+          "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        }
+       ],
+       "sourceAuthorityTier": "regulatory_primary",
+       "treatmentContent": "按痰浊上扰取穴，针对本例头痛。",
+       "suggestedSitesOrPoints": [
+        "百会（DU20·督脉·主治含头痛）",
+        "合谷（LI4·手阳明大肠经·主治含头痛）",
+        "太阳或率谷（按疼痛部位复核；EX-HN5·经外奇穴·主治含头痛）",
+        "风池（仅由专业人员操作；GB20·足少阳胆经·主治含头痛）",
+        "中脘（RN12·任脉·痰浊上扰加减）",
+        "丰隆（ST40·足阳明胃经·痰浊上扰加减）"
+       ],
+       "scheduleSuggestion": "每日1次；急性期与维持期的具体间隔由面诊医生确定。",
+       "techniqueBoundary": "突发剧烈头痛、神经功能缺损、发热颈强或外伤后头痛先行急诊评估。",
+       "protocolSource": "SRC-REFERENCE-NISHI-ACUPUNCTURE、SRC-ZIBO-TCM-DAY-FREQUENCY-2022、SRC-SAMR-ACUPUNCTURE-OPS、SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE",
+       "operatorRequirement": "由中医执业人员操作",
+       "requiredChecks": [
+        "出血倾向、抗凝用药、局部感染和晕针史"
+       ],
+       "containsMedication": false,
+       "requiresMedicationAudit": false,
+       "executable": false,
+       "clinicianReviewRequired": true
+      }
+     ],
+     "precautions": [
+      "正在服用的苯磺酸氨氯地平片请告知医生，是否继续服用、与本方如何错开服用由医生决定。",
+      "本次发病与进食油腻有关，服药期间及以后请避免油腻饮食。",
+      "汤药温服，饭后半小时服用；忌肥甘厚腻与甜黏之品。",
+      "方中姜半夏为有毒之品，须按医嘱剂量服用，不可自行加量或久服。",
+      "服药期间如出现口舌麻木、恶心加重等不适，请及时告知医生。"
+     ]
+    },
+    "lineageAdaptation": null,
+    "management": {
+     "redFlagLoop": "若出现突发剧烈爆裂样头痛、喷射样呕吐、肢体无力、言语不清或视物模糊，须立即急诊就诊。",
+     "mustCollect": [
+      "头痛发作与情绪、睡眠、颈肩姿势的关系",
+      "止痛药物使用频率与种类",
+      "家庭血压监测记录",
+      "头痛对日常工作生活的影响程度"
+     ],
+     "followupSafetyNet": "请在服完7剂药后（约7天后）复诊。若头痛突然加重成爆裂样、出现呕吐、肢体无力、说话不清或看东西模糊，请立即就医。"
+    }
+   }
+  },
+  "f31": {
+   "record": "{\"现病史\": \"患儿5岁，母亲代诉：9月开学后逐渐不爱吃饭，看见饭就躲，吃饭像吃药，吃什么都没味道，饭量比以前少了一半，偶尔打嗝、恶心，多吃几口就喊肚子胀。精神、活动和以前一样，大便有时干有时稀。平时爱喝冷饮、吃零食。无腹痛，无呕吐，无发热，无口臭酸腐。\", \"既往史\": \"既往体健\", \"过敏史\": \"否认药物及食物过敏史\", \"个人史\": \"体重17.5kg，身高110cm，生长发育在正常范围\", \"家族史\": \"否认家族遗传病史\", \"婚育史\": \"\", \"辅助检查\": \"2026-11-15本院：血常规Hb 121g/L；血清锌正常；大便常规未见虫卵\"}",
+   "m03": {
+    "schemaVersion": "tcm-cdss-reasoning-v2",
+    "stage": "diagnose",
+    "clinicalReview": {
+     "status": "unavailable",
+     "unavailableReason": "not_configured",
+     "attemptCount": 0,
+     "durationMs": 0,
+     "reviewedPayloadHash": "sha256:f1060fa482b32a74e5710ed2b22bed25315bfccdfde110c8bbc334443ec72ce9"
+    },
+    "terminologyMappings": [
+     {
+      "namespace": "tcm_syndrome",
+      "fieldPath": "overview.tcmDifferentials.0.syndrome",
+      "originalText": "脾胃气虚证",
+      "candidateId": "TCM-SYNDROME-0F4FF7849863",
+      "canonical": "脾胃气虚",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.95,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     },
+     {
+      "namespace": "tcm_syndrome",
+      "fieldPath": "overview.tcmDifferentials.1.syndrome",
+      "originalText": "脾胃阴虚证",
+      "candidateId": "TCM-SYNDROME-9957EED9C69C",
+      "canonical": "脾胃阴虚",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.95,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     },
+     {
+      "namespace": "tcm_syndrome",
+      "fieldPath": "overview.tcmDifferentials.2.syndrome",
+      "originalText": "乳食内积证",
+      "candidateId": "TCM-SYNDROME-A3E7C1A1ED5A",
+      "canonical": "乳食积滞",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.95,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     },
+     {
+      "namespace": "icd10",
+      "fieldPath": "westernDiagnosis.differentials.1.name",
+      "originalText": "肠道寄生虫感染",
+      "candidateId": "B82.900",
+      "canonical": "肠道寄生虫病",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.9,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     },
+     {
+      "namespace": "tcm_syndrome",
+      "fieldPath": "overview.primarySyndrome",
+      "originalText": "脾失健运证",
+      "candidateId": "TCM-SYNDROME-9EAF42A48438",
+      "canonical": "脾失健运",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.95,
+      "model": "deepseek-flash",
+      "cache": "miss"
+     },
+     {
+      "namespace": "medicine_clinical_concept",
+      "fieldPath": "retrieval.medicineClinicalConcept.primary",
+      "originalText": "功能性消化不良；脾失健运证；喂养偏嗜冷饮零食，损伤脾运，运化失健则纳呆食少、食而乏味；脾运不调则大便时干时稀。；调和脾胃，运脾开胃，理气降逆",
+      "candidateId": "MED-CONCEPT-065",
+      "canonical": "功能性消化不良",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.9,
+      "model": "deepseek-flash",
+      "cache": "miss"
+     },
+     {
+      "namespace": "medicine_clinical_concept",
+      "fieldPath": "retrieval.medicineClinicalConcept.narrative",
+      "originalText": "患者年龄：5岁\n患者性别：男\n不爱吃饭2月\n患儿5岁，母亲代诉：9月开学后逐渐不爱吃饭，看见饭就躲，吃饭像吃药，吃什么都没味道，饭量比以前少了一半，偶尔打嗝、恶心，多吃几口就喊肚子胀。精神、活动和以前一样，大便有时干有时稀。平时爱喝冷饮、吃零食。无腹痛，无呕吐，无发热，无口臭酸腐。\n体重17.5kg，身高110cm，生长发育在正常范围\n否认家族遗传病史\n[日期已泛化]本院：血常规Hb 121g/L；血清锌正常；大便常规未见虫卵\n舌象：舌淡红，苔薄腻\n脉象：脉尚有力\n生命体征：体温 36.5℃\n生命体征：脉搏 96次/分\n生命体征：呼吸 22次/分\n既往史：既往体健\n过敏史：否认药物及食物过敏史",
+      "candidateId": "MED-CONCEPT-065",
+      "canonical": "功能性消化不良",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.85,
+      "model": "deepseek-flash",
+      "cache": "miss"
+     }
+    ],
+    "overview": {
+     "tcmDiseaseName": "厌食",
+     "primarySyndrome": "脾失健运证",
+     "primarySyndromeResolution": "bounded",
+     "primarySyndromeBasis": [
+      "不爱吃饭2月",
+      "看见饭就躲",
+      "吃什么都没味道",
+      "多吃几口就喊肚子胀",
+      "舌淡红，苔薄腻"
+     ],
+     "primarySyndromeResolutionReason": "寒热喜恶与伤食史未记录，兼夹判断受限",
+     "tcmDiseaseRationale": "患儿以不爱吃饭2月为主诉，看见饭就躲、食而乏味、饭量减半，精神活动如常，形体尚可，无发热吐泻，属厌食，非积滞之腹胀拒食、非疳证之形瘦神疲。",
+     "tcmDiagnosticRationale": "长期厌恶进食、食而乏味、饭量减半，为脾胃不和、运化失健，受纳腐熟无力。偶尔打嗝、恶心，是胃气失和、上逆不降。多吃几口即喊肚子胀，为脾运不健、气机壅滞。大便时干时稀，属脾失运化、传导失司。舌淡红、苔薄腻，提示脾运不健而略兼湿滞；脉尚有力，说明正气未虚。故辨为厌食，属脾失健运证。",
+     "tcmDiseaseReferences": [
+      {
+       "evidenceId": "STD-GBT-15657-2021",
+       "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+       "sourceType": "standard"
+      }
+     ],
+     "tcmSyndromeReferences": [
+      {
+       "evidenceId": "STD-GBT-16751-2-2021",
+       "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医临床诊疗术语 第2部分: 证候: GB/T 16751.2-2021[S]. 2021.",
+       "sourceType": "standard"
+      }
+     ],
+     "tcmDifferentials": [
+      {
+       "syndrome": "脾胃气虚证",
+       "reason": "同见食欲不振",
+       "distinguishingPoints": "本例精神活动如常、脉尚有力，未诉肢倦乏力",
+       "typicalManifestation": "不思进食，食而不化，便溏，肢倦乏力，脉缓无力",
+       "nextCheck": "复诊观察面色与体力变化"
+      },
+      {
+       "syndrome": "脾胃阴虚证",
+       "reason": "同见食少、大便偏干",
+       "distinguishingPoints": "本例舌淡红苔薄腻，非舌红少津",
+       "typicalManifestation": "食少饮多，大便干，舌红少津，脉细数",
+       "nextCheck": "复核舌象与饮水情况"
+      },
+      {
+       "syndrome": "乳食内积证",
+       "reason": "同见不思食与腹胀",
+       "distinguishingPoints": "本例无口臭酸腐，苔薄腻非垢腻",
+       "typicalManifestation": "不思乳食，嗳腐酸馊，腹胀拒按，苔白垢腻",
+       "nextCheck": "询问伤食史与腹胀喜按拒按"
+      }
+     ],
+     "tcmDiseaseDifferentials": [
+      {
+       "diseaseName": "积滞",
+       "reason": "均以进食减少、腹胀为主",
+       "distinguishingPoints": "本例无口臭酸腐，腹胀仅多食后出现",
+       "typicalManifestation": "",
+       "nextCheck": "询问伤食史及大便气味"
+      },
+      {
+       "diseaseName": "疳证",
+       "reason": "均见长期食欲不振",
+       "distinguishingPoints": "本例体重身高在正常范围，精神活动如常",
+       "typicalManifestation": "形体消瘦，面色无华，毛发干枯，精神萎靡或烦躁，饮食异常，大便不调",
+       "nextCheck": "监测体重与生长曲线"
+      }
+     ],
+     "secondarySyndromes": [],
+     "overallPathogenesis": "喂养偏嗜冷饮零食，损伤脾运，运化失健则纳呆食少、食而乏味；脾运不调则大便时干时稀",
+     "overallTherapy": "调和脾胃，运脾开胃，理气降逆",
+     "recommendedFormulaDirection": "不换金正气散加减",
+     "recommendedFormulaNames": [
+      "不换金正气散"
+     ],
+     "formulaSelectionMode": "single",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "低"
+     }
+    },
+    "westernDiagnosis": {
+     "primary": {
+      "name": "功能性消化不良",
+      "coding": {
+       "system": "ICD-10",
+       "code": "K30.x00",
+       "display": "功能性消化不良",
+       "source": "ICD-10医保2.0版-中英对应-20220426"
+      },
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+       "学龄期患儿餐后腹胀、早饱、嗳气恶心2月，无腹痛发热呕吐，血常规Hb 121g/L、血清锌正常、大便常规未见虫卵，未见器质性疾病提示，但缺乏胃镜等关键检查，需随访生长曲线与体重变化。"
+      ],
+      "supportingFactKinds": [],
+      "clinicalRationale": "学龄期患儿餐后腹胀、早饱、嗳气恶心2月，无腹痛发热呕吐，血常规Hb 121g/L、血清锌正常、大便常规未见虫卵，未见器质性疾病提示，但缺乏胃镜等关键检查，需随访生长曲线与体重变化。",
+      "limitations": [],
+      "suggestedChecks": [],
+      "guidelineReferences": [],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "病例内推理",
+       "confidence": "中"
+      }
+     },
+     "differentials": [
+      {
+       "name": "幽门螺杆菌感染相关性胃炎",
+       "reason": "儿童餐后腹胀恶心需排除",
+       "distinguishingPoints": "本例无腹痛、无口臭酸腐；但未查幽门螺杆菌",
+       "nextCheck": "幽门螺杆菌呼气试验或粪便抗原",
+       "guidelineReferences": []
+      },
+      {
+       "name": "肠道寄生虫感染",
+       "reason": "食欲减退需排除",
+       "distinguishingPoints": "大便常规未见虫卵；但单次检查阴性不能完全排除",
+       "nextCheck": "复查大便常规找虫卵",
+       "guidelineReferences": []
+      },
+      {
+       "name": "缺铁性贫血",
+       "reason": "食欲减退伴贫血需排除",
+       "distinguishingPoints": "Hb 121g/L在正常范围，暂不支持",
+       "nextCheck": "必要时查铁代谢指标",
+       "guidelineReferences": []
+      },
+      {
+       "name": "甲状腺功能减退症",
+       "reason": "食欲减退需排除",
+       "distinguishingPoints": "精神活动正常，未诉便秘、生长迟缓",
+       "nextCheck": "必要时查甲状腺功能",
+       "guidelineReferences": []
+      },
+      {
+       "name": "慢性胃炎",
+       "reason": "反复恶心嗳气需鉴别",
+       "distinguishingPoints": "无腹痛、无呕吐，缺乏客观胃镜依据",
+       "nextCheck": "症状持续或加重时消化科评估",
+       "guidelineReferences": []
+      }
+     ],
+     "candidates": [
+      {
+       "name": "功能性消化不良",
+       "likelihood": "高",
+       "keyEvidence": [
+        "餐后腹胀、早饱、嗳气恶心2月",
+        "病历记录[日期已泛化]本院：血常规Hb 121g/L",
+        "精神活动如常，无腹痛呕吐发热"
+       ],
+       "againstEvidence": [
+        "未记录腹部查体结果",
+        "未评估幽门螺杆菌"
+       ]
+      },
+      {
+       "name": "幽门螺杆菌感染相关性胃炎",
+       "likelihood": "中",
+       "keyEvidence": [
+        "餐后腹胀、嗳气、恶心",
+        "食欲减退2月"
+       ],
+       "againstEvidence": [
+        "无腹痛",
+        "无口臭酸腐",
+        "未查幽门螺杆菌"
+       ]
+      },
+      {
+       "name": "肠道寄生虫感染",
+       "likelihood": "低",
+       "keyEvidence": [
+        "食欲减退、大便时干时稀"
+       ],
+       "againstEvidence": [
+        "大便常规未见虫卵",
+        "否认腹痛；未诉肛周瘙痒"
+       ]
+      }
+     ]
+    },
+    "pathogenesis": {
+     "summary": "脾失健运，胃纳不开",
+     "locationDifferentiation": {
+      "items": [
+       "脾胃"
+      ],
+      "details": [
+       {
+        "location": "脾胃",
+        "basis": "多吃几口就喊肚子胀"
+       }
+      ],
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "高"
+      }
+     },
+     "natureDifferentiation": {
+      "items": [
+       "脾失健运"
+      ],
+      "rootDeficiency": [],
+      "branchExcess": [],
+      "basis": "苔薄腻；吃什么都没味道；大便有时干有时稀",
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "高"
+      }
+     },
+     "symptomClusters": [
+      {
+       "symptoms": [
+        "吃什么都没味道",
+        "多吃几口就喊肚子胀",
+        "苔薄腻"
+       ],
+       "mechanism": "脾运不健"
+      }
+     ],
+     "chain": [
+      {
+       "nodeId": "P1",
+       "patientFact": "不爱吃饭2月",
+       "syndromeEvidence": "看见饭就躲，吃饭像吃药，吃什么都没味道",
+       "pathogenesis": "脾失健运，胃纳不开",
+       "therapyDirection": "调和脾胃，运脾开胃",
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "《中医儿科学》厌食·脾失健运证",
+        "confidence": "中"
+       }
+      }
+     ],
+     "uncertainties": [
+      {
+       "item": "寒热喜恶",
+       "reason": "未记录喜温喜凉及手足温度",
+       "affects": "影响是否兼寒兼热及选方温凉"
+      }
+     ]
+    },
+    "therapy": {
+     "overallPrinciple": "实则泻之",
+     "overallMethod": "调和脾胃，运脾开胃，理气降逆",
+     "subTherapies": [
+      {
+       "therapy": "调和脾胃，运脾开胃",
+       "targetPathogenesis": "脾失健运，胃纳不开",
+       "priority": "主要",
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "《中医儿科学》厌食·脾失健运证",
+        "confidence": "中"
+       }
+      }
+     ]
+    },
+    "formula": null,
+    "nonPharma": null,
+    "lineageAdaptation": null,
+    "management": {
+     "redFlagLoop": "若出现持续腹痛、频繁呕吐、发热、明显消瘦或精神变差，须立即就医评估。",
+     "mustCollect": [
+      "当前用药情况（明确有无及药物清单）",
+      "近期体重变化及生长曲线",
+      "腹部查体结果",
+      "夜间腹痛、吞咽困难等症状有无",
+      "幽门螺杆菌感染状态"
+     ],
+     "followupSafetyNet": "请服完本次的药后复诊。若孩子出现肚子痛加重、反复呕吐、发热、明显消瘦或精神变差，请提前复诊或立即就医。"
+    },
+    "contractSignatureVersion": "tcm-cdss-m03-signature-v5",
+    "contractSignature": "hmac-sha256:c6f68065c19ee49745979a3ee637b43d05460fcdb75f1c64c6b1a745b1121b87"
+   },
+   "m04": {
+    "schemaVersion": "tcm-cdss-reasoning-v2",
+    "stage": "prescribe",
+    "contractSignatureVersion": "tcm-cdss-m04-signature-v3",
+    "contractSignature": "hmac-sha256:0a6816c566bb811f4fa5f547d466c59645604debe19bc27a0357b4e96c7a48c5",
+    "clinicalReview": {
+     "status": "unavailable",
+     "unavailableReason": "not_configured",
+     "attemptCount": 0,
+     "durationMs": 0,
+     "reviewedPayloadHash": "sha256:986d300f9a5b508a8463468ba2a9e519afbbff3b6f84c8b484b907654e1d9b58",
+     "acceptanceScope": {
+      "waivedIssueCodes": [
+       "m04_candidate_0_herb_2_function_ungrounded"
+      ],
+      "qualityAnnotationCodes": [
+       "m04_candidate_0_herb_2_function_ungrounded"
+      ]
+     }
+    },
+    "overview": {
+     "tcmDiseaseName": "厌食",
+     "primarySyndrome": "脾失健运证",
+     "primarySyndromeResolution": "bounded",
+     "primarySyndromeBasis": [
+      "不爱吃饭2月",
+      "看见饭就躲",
+      "吃什么都没味道",
+      "多吃几口就喊肚子胀",
+      "舌淡红，苔薄腻"
+     ],
+     "primarySyndromeResolutionReason": "寒热喜恶与伤食史未记录，兼夹判断受限",
+     "tcmDiseaseRationale": "患儿以不爱吃饭2月为主诉，看见饭就躲、食而乏味、饭量减半，精神活动如常，形体尚可，无发热吐泻，属厌食，非积滞之腹胀拒食、非疳证之形瘦神疲。",
+     "tcmDiagnosticRationale": "长期厌恶进食、食而乏味、饭量减半，为脾胃不和、运化失健，受纳腐熟无力。偶尔打嗝、恶心，是胃气失和、上逆不降。多吃几口即喊肚子胀，为脾运不健、气机壅滞。大便时干时稀，属脾失运化、传导失司。舌淡红、苔薄腻，提示脾运不健而略兼湿滞；脉尚有力，说明正气未虚。故辨为厌食，属脾失健运证。",
+     "tcmDiseaseReferences": [
+      {
+       "evidenceId": "STD-GBT-15657-2021",
+       "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+       "sourceType": "standard"
+      }
+     ],
+     "tcmSyndromeReferences": [
+      {
+       "evidenceId": "STD-GBT-16751-2-2021",
+       "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医临床诊疗术语 第2部分: 证候: GB/T 16751.2-2021[S]. 2021.",
+       "sourceType": "standard"
+      }
+     ],
+     "tcmDifferentials": [
+      {
+       "syndrome": "脾胃气虚证",
+       "reason": "同见食欲不振",
+       "distinguishingPoints": "本例精神活动如常、脉尚有力，未诉肢倦乏力",
+       "typicalManifestation": "不思进食，食而不化，便溏，肢倦乏力，脉缓无力",
+       "nextCheck": "复诊观察面色与体力变化"
+      },
+      {
+       "syndrome": "脾胃阴虚证",
+       "reason": "同见食少、大便偏干",
+       "distinguishingPoints": "本例舌淡红苔薄腻，非舌红少津",
+       "typicalManifestation": "食少饮多，大便干，舌红少津，脉细数",
+       "nextCheck": "复核舌象与饮水情况"
+      },
+      {
+       "syndrome": "乳食内积证",
+       "reason": "同见不思食与腹胀",
+       "distinguishingPoints": "本例无口臭酸腐，苔薄腻非垢腻",
+       "typicalManifestation": "不思乳食，嗳腐酸馊，腹胀拒按，苔白垢腻",
+       "nextCheck": "询问伤食史与腹胀喜按拒按"
+      }
+     ],
+     "tcmDiseaseDifferentials": [
+      {
+       "diseaseName": "积滞",
+       "reason": "均以进食减少、腹胀为主",
+       "distinguishingPoints": "本例无口臭酸腐，腹胀仅多食后出现",
+       "typicalManifestation": "",
+       "nextCheck": "询问伤食史及大便气味"
+      },
+      {
+       "diseaseName": "疳证",
+       "reason": "均见长期食欲不振",
+       "distinguishingPoints": "本例体重身高在正常范围，精神活动如常",
+       "typicalManifestation": "形体消瘦，面色无华，毛发干枯，精神萎靡或烦躁，饮食异常，大便不调",
+       "nextCheck": "监测体重与生长曲线"
+      }
+     ],
+     "secondarySyndromes": [],
+     "overallPathogenesis": "喂养偏嗜冷饮零食，损伤脾运，运化失健则纳呆食少、食而乏味；脾运不调则大便时干时稀",
+     "overallTherapy": "调和脾胃，运脾开胃，理气降逆",
+     "recommendedFormulaDirection": "不换金正气散加减",
+     "recommendedFormulaNames": [
+      "不换金正气散"
+     ],
+     "formulaSelectionMode": "single",
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "低"
+     }
+    },
+    "westernDiagnosis": {
+     "primary": {
+      "name": "功能性消化不良",
+      "coding": {
+       "system": "ICD-10",
+       "code": "K30.x00",
+       "display": "功能性消化不良",
+       "source": "ICD-10医保2.0版-中英对应-20220426"
+      },
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+       "学龄期患儿餐后腹胀、早饱、嗳气恶心2月，无腹痛发热呕吐，血常规Hb 121g/L、血清锌正常、大便常规未见虫卵，未见器质性疾病提示，但缺乏胃镜等关键检查，需随访生长曲线与体重变化。"
+      ],
+      "supportingFactKinds": [],
+      "clinicalRationale": "学龄期患儿餐后腹胀、早饱、嗳气恶心2月，无腹痛发热呕吐，血常规Hb 121g/L、血清锌正常、大便常规未见虫卵，未见器质性疾病提示，但缺乏胃镜等关键检查，需随访生长曲线与体重变化。",
+      "limitations": [],
+      "suggestedChecks": [],
+      "guidelineReferences": [],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "病例内推理",
+       "confidence": "中"
+      }
+     },
+     "differentials": [
+      {
+       "name": "幽门螺杆菌感染相关性胃炎",
+       "reason": "儿童餐后腹胀恶心需排除",
+       "distinguishingPoints": "本例无腹痛、无口臭酸腐；但未查幽门螺杆菌",
+       "nextCheck": "幽门螺杆菌呼气试验或粪便抗原",
+       "guidelineReferences": []
+      },
+      {
+       "name": "肠道寄生虫感染",
+       "reason": "食欲减退需排除",
+       "distinguishingPoints": "大便常规未见虫卵；但单次检查阴性不能完全排除",
+       "nextCheck": "复查大便常规找虫卵",
+       "guidelineReferences": []
+      },
+      {
+       "name": "缺铁性贫血",
+       "reason": "食欲减退伴贫血需排除",
+       "distinguishingPoints": "Hb 121g/L在正常范围，暂不支持",
+       "nextCheck": "必要时查铁代谢指标",
+       "guidelineReferences": []
+      },
+      {
+       "name": "甲状腺功能减退症",
+       "reason": "食欲减退需排除",
+       "distinguishingPoints": "精神活动正常，未诉便秘、生长迟缓",
+       "nextCheck": "必要时查甲状腺功能",
+       "guidelineReferences": []
+      },
+      {
+       "name": "慢性胃炎",
+       "reason": "反复恶心嗳气需鉴别",
+       "distinguishingPoints": "无腹痛、无呕吐，缺乏客观胃镜依据",
+       "nextCheck": "症状持续或加重时消化科评估",
+       "guidelineReferences": []
+      }
+     ],
+     "candidates": [
+      {
+       "name": "功能性消化不良",
+       "likelihood": "高",
+       "keyEvidence": [
+        "餐后腹胀、早饱、嗳气恶心2月",
+        "病历记录[日期已泛化]本院：血常规Hb 121g/L",
+        "精神活动如常，无腹痛呕吐发热"
+       ],
+       "againstEvidence": [
+        "未记录腹部查体结果",
+        "未评估幽门螺杆菌"
+       ]
+      },
+      {
+       "name": "幽门螺杆菌感染相关性胃炎",
+       "likelihood": "中",
+       "keyEvidence": [
+        "餐后腹胀、嗳气、恶心",
+        "食欲减退2月"
+       ],
+       "againstEvidence": [
+        "无腹痛",
+        "无口臭酸腐",
+        "未查幽门螺杆菌"
+       ]
+      },
+      {
+       "name": "肠道寄生虫感染",
+       "likelihood": "低",
+       "keyEvidence": [
+        "食欲减退、大便时干时稀"
+       ],
+       "againstEvidence": [
+        "大便常规未见虫卵",
+        "否认腹痛；未诉肛周瘙痒"
+       ]
+      }
+     ]
+    },
+    "pathogenesis": {
+     "summary": "脾失健运，胃纳不开",
+     "locationDifferentiation": {
+      "items": [
+       "脾胃"
+      ],
+      "details": [
+       {
+        "location": "脾胃",
+        "basis": "多吃几口就喊肚子胀"
+       }
+      ],
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "高"
+      }
+     },
+     "natureDifferentiation": {
+      "items": [
+       "脾失健运"
+      ],
+      "rootDeficiency": [],
+      "branchExcess": [],
+      "basis": "苔薄腻；吃什么都没味道；大便有时干有时稀",
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "高"
+      }
+     },
+     "symptomClusters": [
+      {
+       "symptoms": [
+        "吃什么都没味道",
+        "多吃几口就喊肚子胀",
+        "苔薄腻"
+       ],
+       "mechanism": "脾运不健"
+      }
+     ],
+     "chain": [
+      {
+       "nodeId": "P1",
+       "patientFact": "不爱吃饭2月",
+       "syndromeEvidence": "看见饭就躲，吃饭像吃药，吃什么都没味道",
+       "pathogenesis": "脾失健运，胃纳不开",
+       "therapyDirection": "调和脾胃，运脾开胃",
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "《中医儿科学》厌食·脾失健运证",
+        "confidence": "中"
+       }
+      }
+     ],
+     "uncertainties": [
+      {
+       "item": "寒热喜恶",
+       "reason": "未记录喜温喜凉及手足温度",
+       "affects": "影响是否兼寒兼热及选方温凉"
+      }
+     ]
+    },
+    "therapy": {
+     "overallPrinciple": "实则泻之",
+     "overallMethod": "调和脾胃，运脾开胃，理气降逆",
+     "subTherapies": [
+      {
+       "therapy": "调和脾胃，运脾开胃",
+       "targetPathogenesis": "脾失健运，胃纳不开",
+       "priority": "主要",
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "《中医儿科学》厌食·脾失健运证",
+        "confidence": "中"
+       }
+      }
+     ]
+    },
+    "formula": {
+     "candidates": [
+      {
+       "name": "不换金正气散",
+       "formulaNames": [
+        "不换金正气散"
+       ],
+       "positioning": "首选",
+       "constructionType": "single_base",
+       "modificationStatus": "canonical",
+       "baseFormulas": [
+        {
+         "name": "不换金正气散",
+         "source": "《太平惠民和剂局方》",
+         "matchedIngredientCount": 8,
+         "totalIngredientCount": 8,
+         "minimumPreservedIngredientCount": 7,
+         "matchedRequiredIngredientCount": 2,
+         "requiredIngredientCount": 2,
+         "verificationStatus": "verified_individually"
+        }
+       ],
+       "discriminationPath": [],
+       "classicEvidence": [
+        {
+         "evidenceId": "TCMOC-9E486848762AEB57",
+         "citation": "《集验背疽方》·论服不换金正气散",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "属性：近时有数人病背疽，服前方药饵，未安之前，遍身寒热，或先寒后热，或先热后寒，连日 作或间日作，必先呕痰，然后寒热，寒热后大汗，然后止。时医多欲用柴胡、牡蛎止汗之药， 又有以为疟疾，欲下恒山饮子。愚力辩云∶背疽之后，不可专以为有热，亦有气虚而得之， 亦有因怒气并血气凝滞而得之。其所以发寒热者，先感寒邪，脾气不正，痰盛而有此证。若 下柴胡，必泻肝，母既虚而又泻其子；牡蛎涩气，气血已不荣运，服涩气、恒山饮子，发吐 痰，大损脾胃。用药如此，可谓误谬。愚但令服家传不换金正气散，祛寒邪，正脾气，痰饮 自消，寒热不作；兼服排脓内补散，以木香汤易酒，不欲饮引呕吐故也。服此药三日，寒自 退，呕吐不作，汗亦自止。 一、痈疽才破有口，便合用猪蹄汤洗。",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-01719E90EF364DF3",
+         "citation": "《张氏医通》·平胃散（局方）",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "属性：治胃中宿食不化。藜藿人宜之。 苍术（泔浸去皮。麻油拌炒黄。[具体剂量或操作已隔离]） 浓朴（去皮。姜汁炒） 陈皮（泡。去浮白） 甘草（炙。各[具体剂量或操作已隔离]） 上四味。为散。每服[具体剂量或操作已隔离]。加生姜三片。水煎。温服。 香连平胃散 治食积发热。腹痛作泻。 平胃散加姜汁炒川连[具体剂量或操作已隔离]。木香[具体剂量或操作已隔离]。 不换金正气散（局方） 治时气不正。感冒夹食。 平胃散加藿香、半夏。时气。加香豉。 藿香正气散（局方） 治水土不服。感冒时气夹食。 平胃散换白术。加藿香、紫苏、半夏、茯苓、白芷、桔梗、大腹皮、姜、枣。（古本。无大腹皮。有苍术） 人参养胃汤（局方） 治食滞痞满。寒热痞疟。 平胃散加藿香、",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-04BB9544869C9400",
+         "citation": "《疡科心得集》·辨肠风脏毒论",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "属性：夫大肠之下血也，一曰肠风，一曰脏毒。肠风者，邪气外入，随感随见，所以色清而鲜 ；脏毒者，蕴积毒久而始见，所以色浊而黯。经云∶阴络伤，则血内溢而便血。人惟醉饱房 劳，坐卧风湿，生冷停寒，酒面积热，使阴络受伤，脾胃虚损，外邪得而乘之，以致营血失 道，渗入大肠而下，久则元气愈陷，湿热愈深，而变为脏毒矣。先便而后血者其来远，先血 而后便者其来近。治法大要，先当解散脾胃风邪，热则败毒散，冷则不换金正气散加川芎、 当归，后随其冷热治之。其或内伤阳气不足，下焦之阴，无元阳以维之而下血者，宜补中益 气汤、六君子及参苓白术散加芎、归、枳壳、地榆、槐花等。盖血气出于谷气，故必赖补中 升阳，以胃药收功，胃气一回，血自循经络矣。 附∶林氏谓∶肠风者，",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-04BD20291A33418F",
+         "citation": "《普济方》·伤寒杂治（附论）",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "人参、地黄。产后发热不退。加人参、黄 。产后腰疼不止。加当 归、官桂。冷嗽不已。加干姜、五味子、杏仁。脾寒。加良姜、青皮、草果。香港脚。加木香、 木瓜、牛膝、紫荆皮、茱萸、川楝子。感风寒发热头疼。加不换金正气散。感寒头痛。壮热 恶寒。身痛不能转动。加生料五积散。饮食不下。欲吐不吐。加丁香与萝卜子。感寒头痛。 发热身疼。分阴阳。加败毒石膏。妇人产后风。脚手疼痛。生料五积散。人参败毒散。加木 瓜。不换金正气 \\x术附汤\\x（出保生返回论） 白术（[具体剂量或操作已隔离]锉如麦豆） 附子（一枚以[具体剂量或操作已隔离]为率炮裂去皮脐锉如麦豆粒） 上如法事治 了。 一处于杵臼中。良时治之。勿令作末。每[具体剂量或操作已隔离]匕。水一盏半。煎",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-04C14AB36CE154C1",
+         "citation": "《古今医统大全》·诸方目",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "一盏，温服。 第二百六十八、\\x香苏散\\x四时感冒，伤寒发热恶寒，头痛咳嗽。 香附子 紫苏（各钱半） 陈皮 甘草（各[具体剂量或操作已隔离]） 水一盏加葱姜，煎七分热服。如头疼甚，川芎、白芷，名芎芷香苏散。 第二百六十九、\\x芎苏散\\x 治证同前。 川芎 紫苏叶 干葛 桔梗 柴胡（各七分） 茯苓 甘草 半夏（各六分） 枳壳 陈皮（各五分） 水盏半，姜三片、枣一枚，煎八分，热服。 第二百七十、\\x十神汤\\x 治时令不正，瘟疫妄行，感冒风寒，发热憎寒，头痛咳嗽无汗。 此药不问阴阳两感，一切发散宜此。 川芎 甘草 麻黄（各八分） 干葛 紫苏 升麻 赤芍药（各[具体剂量或操作已隔离]） 白芷 陈皮 香附子（各六分） 水盏半，姜五片、葱白二寸",
+         "tier": "canon"
+        },
+        {
+         "evidenceId": "TCMOC-051E411AFCB15509",
+         "citation": "《医学正传》·伤寒",
+         "anchorLevel": "chapter_paragraph",
+         "excerpt": "\\x（和剂） 治四时感冒，头痛憎寒壮热，或风湿气，霍乱吐泻。常服，除山岚瘴气。 大腹皮（先以手指拔净，用清酒洗净曝干，再用乌豆煮汁洗净用。盖此物恐有鸠鸟粪毒，不制即杀人） 紫苏（连 茎叶用） 藿香 白芷 茯苓（各六分） 浓朴（姜汁制炒） 白术 陈皮（去白） 桔梗 半夏（各四分） 甘草（炙， 二分） 上细切，作一服，加生姜三片，大枣二枚，水二盏，煎至一盏三分，温服。 \\x不换金正气散\\x（和剂） 治四时感冒伤寒，瘟疫时行，及山岚瘴气，寒热往来，霍乱吐泻，下利赤白，及出远 方， 不伏水土，并皆治之。 浓朴（姜汁制炒） 陈皮（去白） 藿香 半夏（汤泡十次） 苍术（米泔浸，各[具体剂量或操作已隔离]） 甘草（五分） 上细切，作一服，加生姜三",
+         "tier": "canon"
+        }
+       ],
+       "compositionLogic": [],
+       "textualModifications": [],
+       "formulaSource": {
+        "evidenceLevel": "kb_entry",
+        "source": "不换金正气散：《太平惠民和剂局方》",
+        "confidence": "中"
+       },
+       "therapyMatch": "调和脾胃，运脾开胃，理气降逆",
+       "applicable": "",
+       "notApplicable": "",
+       "herbs": [
+        {
+         "name": "苍术",
+         "processing": null,
+         "dose": "4g",
+         "role": "君",
+         "prescriptionRole": "君药：调和脾胃，运脾开胃",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "脾失健运，胃纳不开",
+         "function": "燥湿健脾",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 4.5g（成人 3-9g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "kb_entry",
+          "source": "不换金正气散：《太平惠民和剂局方》",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "广藿香",
+         "processing": null,
+         "dose": "4g",
+         "role": "君",
+         "prescriptionRole": "君药：调和脾胃，运脾开胃",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "脾失健运，胃纳不开",
+         "function": "和中止呕",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 5g（成人 3-10g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "kb_entry",
+          "source": "不换金正气散：《太平惠民和剂局方》",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "厚朴",
+         "processing": null,
+         "dose": "3g",
+         "role": "臣",
+         "prescriptionRole": "臣药：调和脾胃，运脾开胃",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "脾失健运，胃纳不开",
+         "function": "行气",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 5g（成人 3-10g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "kb_entry",
+          "source": "不换金正气散：《太平惠民和剂局方》",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "姜半夏",
+         "processing": "姜",
+         "dose": "3g",
+         "role": "臣",
+         "prescriptionRole": "臣药：调和脾胃，运脾开胃",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "脾失健运，胃纳不开",
+         "function": "降逆止呕",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 4.5g（成人 3-9g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "kb_entry",
+          "source": "不换金正气散：《太平惠民和剂局方》",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "陈皮",
+         "processing": null,
+         "dose": "4g",
+         "role": "佐",
+         "prescriptionRole": "佐药：调和脾胃，运脾开胃",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "脾失健运，胃纳不开",
+         "function": "理气健脾",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 5g（成人 3-10g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "kb_entry",
+          "source": "不换金正气散：《太平惠民和剂局方》",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "生姜",
+         "processing": null,
+         "dose": "3g",
+         "role": "佐",
+         "prescriptionRole": "佐药：制约峻烈，缓和药性",
+         "targetKind": "formula_structure",
+         "targetRef": "FORMULA_STRUCTURE",
+         "structureRole": "temper",
+         "targetPathogenesis": "制约峻烈，缓和药性",
+         "function": "温中止呕",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 5g（成人 3-10g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "kb_entry",
+          "source": "不换金正气散：《太平惠民和剂局方》",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "大枣",
+         "processing": null,
+         "dose": "6g",
+         "role": "佐",
+         "prescriptionRole": "佐药：顾护中焦，防补药滋腻",
+         "targetKind": "formula_structure",
+         "targetRef": "FORMULA_STRUCTURE",
+         "structureRole": "middle_jiao_support",
+         "targetPathogenesis": "顾护中焦，防补药滋腻",
+         "function": "补中益气",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 7.5g（成人 6-15g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "kb_entry",
+          "source": "不换金正气散：《太平惠民和剂局方》",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "甘草",
+         "processing": null,
+         "dose": "3g",
+         "role": "使",
+         "prescriptionRole": "使药：调和诸药，协调药性",
+         "targetKind": "formula_structure",
+         "targetRef": "FORMULA_STRUCTURE",
+         "structureRole": "harmonize",
+         "targetPathogenesis": "调和诸药，协调药性",
+         "function": "调和诸药",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 5g（成人 2-10g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "kb_entry",
+          "source": "不换金正气散：《太平惠民和剂局方》",
+          "confidence": "中"
+         }
+        }
+       ],
+       "formulaAnalysis": "本方以不换金正气散为基础。苍术、广藿香为君，燥湿健脾、和中止呕，直对脾失健运、胃纳不开；厚朴、姜半夏为臣，一行气消胀以除多食后腹胀，一燥湿降逆以止打嗝恶心；陈皮为佐理气健脾，助君臣运化；生姜、大枣为佐，和胃降逆并顾护中焦，防燥药伤正；甘草为使调和诸药。全方燥湿运脾、理气降逆并行，使脾运复而胃纳开，契合调和脾胃、运脾开胃、理气降逆之治法。",
+       "decoction": {
+        "doseCount": "5剂",
+        "method": "每日1剂，加水浸泡30分钟，武火煮沸后转文火，水煎两次（约30、20分钟），共取药液约200mL，分2次服，饭后温服",
+        "course": "5日",
+        "followUpNode": "完成5剂（5日）后复诊；出现不适或症状加重时提前复诊",
+        "dosesPerDay": 1,
+        "administrationTimesPerDay": 2,
+        "soakMinutes": 30,
+        "decoctionTimes": 2,
+        "firstDecoctionMinutes": 30,
+        "secondDecoctionMinutes": 20,
+        "targetVolumeMl": 200,
+        "administration": "每日1剂，每日分2次服，饭后温服；服药与进餐间隔按患者胃肠耐受及院内规范执行",
+        "followUpAfterDoses": 5,
+        "followUpAfterDays": 5
+       }
+      }
+     ],
+     "patentAndWestern": [],
+     "medicineCandidateStatus": {
+      "status": "available",
+      "reason": "已形成与本例问题匹配并绑定真实说明书条目的候选。"
+     },
+     "modifications": [
+      {
+       "trigger": "多吃几口就喊肚子胀",
+       "triggerSource": {
+        "kind": "primary_syndrome_basis",
+        "sourceRef": "overview.primarySyndromeBasis[3]",
+        "sourceQuote": "多吃几口就喊肚子胀"
+       },
+       "targetPathogenesis": "脾运不健，气机壅滞",
+       "action": "加",
+       "herbName": "木香",
+       "doseOrHandling": "1.5g",
+       "reason": "行气消胀，助脾运化",
+       "riskNote": "木香后下",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "患者原文：多吃几口就喊肚子胀",
+        "confidence": "中"
+       }
+      },
+      {
+       "trigger": "本例已见大便有时干有时稀",
+       "targetPathogenesis": "脾运不健，水谷不化，传导失司，故大便时干时稀。",
+       "action": "加",
+       "herbName": "山药",
+       "doseOrHandling": "10g",
+       "reason": "健脾止泻",
+       "riskNote": "",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "患者原文：大便有时干有时稀",
+        "confidence": "中"
+       }
+      }
+     ],
+     "modificationReview": {
+      "submittedCount": 4,
+      "retainedCount": 2,
+      "droppedCount": 2,
+      "droppedReason": "超过单次最多展示 4 条随症加减的安全边界；条件所说的表现本例眼下没有，是备用加减，不列入本次加减",
+      "droppedReasons": [
+       {
+        "code": "bounded_limit",
+        "count": 1,
+        "message": "超过单次最多展示 4 条随症加减的安全边界"
+       },
+       {
+        "code": "trigger_not_present",
+        "count": 1,
+        "message": "条件所说的表现本例眼下没有，是备用加减，不列入本次加减"
+       }
+      ]
+     }
+    },
+    "nonPharma": {
+     "diet": "饮食宜清淡易消化，可用陈皮少许配胡萝卜煮软饭，或大枣煮水佐餐；忌冷饮、零食及肥甘煎炸。",
+     "lifestyle": "规律作息，三餐定时，睡前不进食；避免夜间受凉，保证充足睡眠。",
+     "emotion": "进食时保持轻松，不训斥不强迫，营造愉快进餐氛围，减少忧思郁怒。",
+     "exercise": "每日户外散步或慢走20分钟，每周5次，以微汗为度，避免剧烈跑跳。",
+     "acupointCare": null,
+     "tcmTreatments": [
+      {
+       "projectCode": "auricular",
+       "projectName": "耳穴",
+       "availability": "clinic_available",
+       "riskLevel": "moderate",
+       "recommendationMode": "clinician_assessment",
+       "targetRef": "P1",
+       "targetPathogenesis": "脾失健运，胃纳不开",
+       "protocolStatus": "governed_class_template_not_syndrome_tailored",
+       "tailoringStatus": "class_template_only",
+       "protocolGap": "syndrome_refinement_not_matched",
+       "pointProvenance": [
+        {
+         "point": "胃",
+         "role": "base_point",
+         "sourceRefs": [
+          "《针灸治疗学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "贲门",
+         "role": "base_point",
+         "sourceRefs": [
+          "《针灸治疗学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "食道",
+         "role": "base_point",
+         "sourceRefs": [
+          "《针灸治疗学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "交感",
+         "role": "base_point",
+         "sourceRefs": [
+          "《针灸治疗学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "神门",
+         "role": "base_point",
+         "sourceRefs": [
+          "《针灸治疗学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "脾",
+         "role": "base_point",
+         "sourceRefs": [
+          "《针灸治疗学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "肝",
+         "role": "base_point",
+         "sourceRefs": [
+          "《针灸治疗学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        }
+       ],
+       "sourceAuthorityTier": "project_governed_source",
+       "treatmentContent": "取胃、贲门、食道、交感、神门、脾、肝。每次选用3~4穴，压丸法。",
+       "suggestedSitesOrPoints": [
+        "胃",
+        "贲门",
+        "食道",
+        "交感",
+        "神门",
+        "脾",
+        "肝"
+       ],
+       "scheduleSuggestion": "间隔与疗程按病情和耐受确定。",
+       "techniqueBoundary": "小儿耳穴宜用贴压（如王不留行籽），不用毫针，按压手法宜轻。禁忌：耳部炎症、破溃、冻伤部位禁用；单耳为宜，留置3～7天，两耳交替。",
+       "protocolSource": "《针灸治疗学》（高树中，杨骏主编，中国中医药出版社，2016）「呕吐」节（教材原文第10027行）",
+       "operatorRequirement": "由受训人员辨穴并指导按压",
+       "requiredChecks": [
+        "耳部皮损感染、胶布或籽粒过敏和刺激强度"
+       ],
+       "containsMedication": false,
+       "requiresMedicationAudit": false,
+       "executable": false,
+       "clinicianReviewRequired": true
+      },
+      {
+       "projectCode": "acupuncture",
+       "projectName": "针刺疗法",
+       "availability": "clinic_available",
+       "riskLevel": "moderate",
+       "recommendationMode": "clinician_assessment",
+       "targetRef": "P1",
+       "targetPathogenesis": "脾失健运，胃纳不开",
+       "protocolStatus": "governed_class_template_not_syndrome_tailored",
+       "tailoringStatus": "class_template_only",
+       "protocolGap": "syndrome_refinement_not_matched",
+       "pointProvenance": [
+        {
+         "point": "中脘",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+          "SRC-SAMR-ACUPUNCTURE-OPS"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "双侧天枢",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+          "SRC-SAMR-ACUPUNCTURE-OPS"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "足三里",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+          "SRC-SAMR-ACUPUNCTURE-OPS"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "内关",
+         "role": "base_point",
+         "sourceRefs": [
+          "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+          "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+          "SRC-SAMR-ACUPUNCTURE-OPS"
+         ],
+         "authorityTier": "government_primary",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        }
+       ],
+       "sourceAuthorityTier": "regulatory_primary",
+       "treatmentContent": "按本病常规取穴，针对本例打嗝、恶心。",
+       "suggestedSitesOrPoints": [
+        "中脘（RN12·任脉）",
+        "双侧天枢（ST25·足阳明胃经）",
+        "足三里（ST36·足阳明胃经）",
+        "内关（PC6·手厥阴心包经）"
+       ],
+       "scheduleSuggestion": "每日1次；每次选穴和疗程须根据症状变化调整。",
+       "techniqueBoundary": "小儿针刺宜浅刺、快出针，一般不留针，手法宜轻；不能配合者改用小儿推拿或穴位贴敷。腹部急痛、腹膜刺激征、消化道出血等急症须先就医处理，暂不做本项。",
+       "protocolSource": "SRC-REFERENCE-NISHI-ACUPUNCTURE、SRC-ZIBO-TCM-DAY-FREQUENCY-2022、SRC-SAMR-ACUPUNCTURE-OPS",
+       "operatorRequirement": "由中医执业人员操作",
+       "requiredChecks": [
+        "出血倾向、抗凝用药、局部感染和晕针史"
+       ],
+       "containsMedication": false,
+       "requiresMedicationAudit": false,
+       "executable": false,
+       "clinicianReviewRequired": true
+      },
+      {
+       "projectCode": "tuina",
+       "projectName": "推拿疗法",
+       "availability": "clinic_available",
+       "riskLevel": "moderate",
+       "recommendationMode": "clinician_assessment",
+       "targetRef": "P1",
+       "targetPathogenesis": "脾失健运，胃纳不开",
+       "protocolStatus": "governed_patient_specific_plan",
+       "tailoringStatus": "syndrome_tailored",
+       "adjudicationStatus": "pending_clinician_review",
+       "pointProvenance": [
+        {
+         "point": "天枢",
+         "role": "base_point",
+         "sourceRefs": [
+          "《推拿学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "足三里",
+         "role": "base_point",
+         "sourceRefs": [
+          "《推拿学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "脾俞",
+         "role": "base_point",
+         "sourceRefs": [
+          "《推拿学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        },
+        {
+         "point": "胃俞",
+         "role": "base_point",
+         "sourceRefs": [
+          "《推拿学》(2016)"
+         ],
+         "authorityTier": "project_governed_source",
+         "adjudicationStatus": "approved",
+         "conflictNote": null
+        }
+       ],
+       "sourceAuthorityTier": "project_governed_source",
+       "treatmentContent": "手法：见操作。本例证候与教材「脾失健运」相符：在基本处方基础上加具有运脾开胃作用的操作法。如运内八卦100次，掐四横纹各5次；摩中脘2分钟，逆时针方向摩腹3分钟，分腹阴阳100次。",
+       "suggestedSitesOrPoints": [
+        "天枢（ST25·足阳明胃经）",
+        "足三里（ST36·足阳明胃经）",
+        "脾俞（BL20·足太阳膀胱经）",
+        "胃俞（BL21·足太阳膀胱经）"
+       ],
+       "scheduleSuggestion": "每穴约1分钟，每种手法反复3～5遍；疗程与间隔按耐受确定，每次操作完毕观察反应。",
+       "techniqueBoundary": "患儿取仰卧位 揉板门100次，补脾经300次，清胃经300次；摩腹3分钟，揉脐及天枢100次；按揉足三里100次。 患儿取俯卧位 捏脊3～5遍；按揉脾俞、胃俞，每穴约半分钟。 禁忌：诊断不明的急性脊柱损伤或伴脊髓症状；各种骨折、骨结核、骨髓炎、骨肿瘤、严重老年性骨质疏松；严重心脑肺疾病或体质过虚；各种传染病；出血倾向或血液病；治疗部位严重皮损或皮肤病；精神病不能配合者。小儿推拿：局部皮肤破损、骨折早期不宜。",
+       "protocolSource": "《推拿学》（房敏，宋柏林主编，中国中医药出版社，2016）「厌食」节（教材原文第76310行）",
+       "operatorRequirement": "由专业人员操作",
+       "requiredChecks": [
+        "骨折、严重骨质疏松、脊髓压迫"
+       ],
+       "containsMedication": false,
+       "requiresMedicationAudit": false,
+       "executable": false,
+       "clinicianReviewRequired": true
+      }
+     ],
+     "precautions": [
+      "进食营养丰富且易消化的食物，避免肥甘厚味、生冷和煎炸食物。",
+      "保持积极心态，适当运动，避免忧思郁怒等不良精神刺激。",
+      "本方汤药宜饭后温服。",
+      "孩子服药宜少量多次分服，不要强灌，不自行加量。",
+      "饮食宜清淡易消化，少食辛辣油腻。",
+      "方中有姜半夏、厚朴，如正在服用其他药物请先告知医生。"
+     ]
+    },
+    "lineageAdaptation": null,
+    "management": {
+     "redFlagLoop": "若出现持续腹痛、频繁呕吐、发热、明显消瘦或精神变差，须立即就医评估。",
+     "mustCollect": [
+      "当前用药情况（明确有无及药物清单）",
+      "近期体重变化及生长曲线",
+      "腹部查体结果",
+      "夜间腹痛、吞咽困难等症状有无",
+      "幽门螺杆菌感染状态"
+     ],
+     "followupSafetyNet": "请在服完5剂药后（约5天后）复诊。若孩子出现肚子痛加重、反复呕吐、发热、明显消瘦或精神变差，请提前复诊或立即就医。"
+    }
+   }
+  },
+  "f27": {
+   "record": "{\"现病史\": \"患儿1岁6个月，母亲代诉：3天前受凉后发热，最高40.1℃，咳嗽很剧烈，痰咳不出来。今天上午开始呼吸急促，鼻翼一扇一扇的，喘憋，烦躁哭闹，口渴，嘴唇干红，鼻孔干，哭的时候眼泪少，半天只换了1次尿布、尿黄，大便2天没解。吃奶、吃饭明显减少。在家服布洛芬混悬液后体温能降到38.5℃左右，两三个小时又升上来。\", \"既往史\": \"既往体健，按计划接种疫苗\", \"过敏史\": \"否认药物及食物过敏史\", \"个人史\": \"足月顺产，体重11kg\", \"家族史\": \"否认家族遗传病史\", \"婚育史\": \"\", \"辅助检查\": \"2026-11-20本院查体：烦躁，呼气性呻吟，鼻翼扇动，三凹征明显，双肺可闻及密集细湿啰音及少许哮鸣音；指脉氧89%（未吸氧）；毛细血管再充盈2秒。血常规WBC 18.6×10⁹/L，中性粒细胞80%；CRP 86mg/L。胸片未做\"}",
+   "patient": {
+    "sex": "男",
+    "age": 1
+   },
+   "m03": {
+    "schemaVersion": "tcm-cdss-reasoning-v2",
+    "stage": "diagnose",
+    "clinicalReview": {
+     "status": "unavailable",
+     "unavailableReason": "not_configured",
+     "attemptCount": 0,
+     "durationMs": 0,
+     "reviewedPayloadHash": "sha256:51beb2dd80c88f8c18ba37958a39b1daf4a7d3bb98b018b03eab451b86617943"
+    },
+    "terminologyMappings": [
+     {
+      "namespace": "tcm_syndrome",
+      "fieldPath": "overview.primarySyndrome",
+      "originalText": "毒热闭肺证",
+      "candidateId": "TCM-SYNDROME-25C13E0D1CE6",
+      "canonical": "火毒闭肺",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.95,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     },
+     {
+      "namespace": "tcm_syndrome",
+      "fieldPath": "overview.tcmDifferentials.0.syndrome",
+      "originalText": "痰热闭肺证",
+      "candidateId": "TCM-SYNDROME-822C91F38E86",
+      "canonical": "痰热闭肺",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.95,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     },
+     {
+      "namespace": "tcm_syndrome",
+      "fieldPath": "overview.tcmDifferentials.1.syndrome",
+      "originalText": "风热闭肺证",
+      "candidateId": "TCM-SYNDROME-95424C6CA8FC",
+      "canonical": "风热闭肺",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.95,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     },
+     {
+      "namespace": "tcm_syndrome",
+      "fieldPath": "overview.tcmDifferentials.2.syndrome",
+      "originalText": "心阳虚衰证",
+      "candidateId": "TCM-SYNDROME-95556F87730D",
+      "canonical": "心阳虚衰",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.98,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     },
+     {
+      "namespace": "tcm_formula",
+      "fieldPath": "overview.recommendedFormulaNames.1",
+      "originalText": "麻杏甘石汤",
+      "candidateId": "TCM-FORMULA-8199D766B72C",
+      "canonical": "麻黄杏仁甘草石膏汤",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.95,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     },
+     {
+      "namespace": "icd10",
+      "fieldPath": "westernDiagnosis.differentials.1.name",
+      "originalText": "支气管哮喘急性发作",
+      "candidateId": "J45.900x021",
+      "canonical": "支气管哮喘（急性发作期）",
+      "resolvedBy": "deepseek_closed_set",
+      "status": "suggested",
+      "confidence": 0.9,
+      "model": "deepseek-flash",
+      "cache": "hit"
+     }
+    ],
+    "overview": {
+     "tcmDiseaseName": "肺炎喘嗽",
+     "primarySyndrome": "毒热闭肺证",
+     "primarySyndromeResolution": "bounded",
+     "primarySyndromeBasis": [
+      "发热、咳嗽3天，气促半天",
+      "最高40.1℃",
+      "咳嗽很剧烈，痰咳不出来",
+      "口渴，嘴唇干红，鼻孔干",
+      "舌红而干，苔黄燥"
+     ],
+     "primarySyndromeResolutionReason": "急危重风险未排除，请先完成急诊或转诊评估；以下辨证供医生参考。",
+     "tcmDiseaseRationale": "以发热、咳嗽、气促、鼻扇为主症，热势高，归肺炎喘嗽；咳嗽病无气喘鼻扇，故不归此二病。",
+     "tcmDiagnosticRationale": "高热持续、咳嗽剧烈、气急鼻扇、喘憋，为热毒壅盛，闭阻肺气，故属毒热闭肺证；口渴、唇干红、鼻孔干、泪少、尿黄、舌红而干苔黄燥，为热毒灼津；烦躁哭闹为热毒内扰；大便2天未解、纳食减少为热毒结于肠道、腑气不通。",
+     "tcmDiseaseReferences": [
+      {
+       "evidenceId": "STD-GBT-15657-2021",
+       "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+       "sourceType": "standard"
+      }
+     ],
+     "tcmSyndromeReferences": [],
+     "tcmDifferentials": [
+      {
+       "syndrome": "痰热闭肺证",
+       "reason": "同见发热喘促鼻扇",
+       "distinguishingPoints": "本例痰咳不出、未诉喉间痰鸣，苔黄燥非黄腻",
+       "typicalManifestation": "发热咳嗽、气急鼻扇、喉间痰鸣、苔黄腻、脉滑数",
+       "nextCheck": "听诊痰鸣及痰液性状复核"
+      },
+      {
+       "syndrome": "风热闭肺证",
+       "reason": "均见发热咳嗽气急",
+       "distinguishingPoints": "本例高热40.1℃、喘憋鼻扇、苔黄燥，非表浅风热",
+       "typicalManifestation": "发热恶风、咳嗽气急、痰黏稠、苔薄白或黄、脉浮数",
+       "nextCheck": "复核恶风、汗出与表证有无"
+      },
+      {
+       "syndrome": "心阳虚衰证",
+       "reason": "重症肺炎喘嗽需防此变",
+       "distinguishingPoints": "本例唇红干、烦躁、指纹紫滞，未诉肢冷面白",
+       "typicalManifestation": "面色苍白、唇青紫、呼吸浅促、四肢厥冷、脉细弱数",
+       "nextCheck": "监测面色、四肢温度与心率变化"
+      }
+     ],
+     "tcmDiseaseDifferentials": [
+      {
+       "diseaseName": "咳嗽",
+       "reason": "均以咳嗽发热起病",
+       "distinguishingPoints": "本例气促、鼻翼扇动、三凹征、固定细湿啰音，超出咳嗽范畴",
+       "typicalManifestation": "发出咳声或伴有咳痰",
+       "nextCheck": null
+      },
+      {
+       "diseaseName": "哮喘",
+       "reason": "均见喘憋与哮鸣音",
+       "distinguishingPoints": "本例首次发作、高热40.1℃、密集细湿啰音，非反复发作性哮喘",
+       "typicalManifestation": "",
+       "nextCheck": null
+      }
+     ],
+     "secondarySyndromes": [],
+     "overallPathogenesis": "外感热毒由表入里，壅闭肺气，宣肃失司而咳逆喘促鼻扇；热毒炽盛灼津则口渴唇干、泪少尿黄；热毒结于肠道则便闭纳减，形成毒热闭肺、津伤肠燥之候",
+     "overallTherapy": "清热解毒，泻肺开闭，生津通腑",
+     "recommendedFormulaDirection": "黄连解毒汤合麻杏甘石汤加减",
+     "recommendedFormulaNames": [
+      "黄连解毒汤",
+      "麻杏甘石汤"
+     ],
+     "formulaSelectionMode": "combined",
+     "deferredFormulaSelection": {
+      "direction": "黄连解毒汤合麻杏甘石汤加减",
+      "names": [
+       "麻杏甘石汤"
+      ],
+      "mode": "single",
+      "reason": "governed_syndrome_relation_unverified"
+     },
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "中"
+     }
+    },
+    "westernDiagnosis": {
+     "primary": {
+      "name": "支气管肺炎伴低氧血症性呼吸衰竭待查",
+      "status": "考虑",
+      "confidence": "高",
+      "supportingFacts": [
+       "患儿急性发热、咳嗽后出现气促、鼻翼扇动、三凹征，双肺密集细湿啰音，指脉氧89%，符合支气管肺炎伴低氧血症性呼吸衰竭的临床表现；但胸片未做、血气未查，尚缺影像学及血气分析确认，需排除支气管哮喘急性发作、脓毒症等。"
+      ],
+      "supportingFactKinds": [],
+      "clinicalRationale": "患儿急性发热、咳嗽后出现气促、鼻翼扇动、三凹征，双肺密集细湿啰音，指脉氧89%，符合支气管肺炎伴低氧血症性呼吸衰竭的临床表现；但胸片未做、血气未查，尚缺影像学及血气分析确认，需排除支气管哮喘急性发作、脓毒症等。",
+      "limitations": [],
+      "suggestedChecks": [],
+      "guidelineReferences": [],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "病例内推理",
+       "confidence": "中"
+      }
+     },
+     "differentials": [
+      {
+       "name": "脓毒症",
+       "reason": "高热伴炎症指标显著升高",
+       "distinguishingPoints": "需看循环灌注、意识与乳酸，毛细血管再充盈2秒尚可",
+       "nextCheck": "血压、乳酸、血培养",
+       "guidelineReferences": []
+      },
+      {
+       "name": "支气管哮喘急性发作",
+       "reason": "有喘憋与哮鸣音",
+       "distinguishingPoints": "首次发作、伴高热与细湿啰音更支持感染，既往未诉喘息史",
+       "nextCheck": "询问既往喘息史、复查听诊",
+       "guidelineReferences": []
+      },
+      {
+       "name": "脱水",
+       "reason": "进食减少、尿少尿黄、唇干",
+       "distinguishingPoints": "半天仅换1次尿布、哭泪少、口唇干红提示体液不足",
+       "nextCheck": "体重、尿量、皮肤弹性、电解质",
+       "guidelineReferences": []
+      },
+      {
+       "name": "胸腔积液",
+       "reason": "重症肺炎可并发",
+       "distinguishingPoints": "需影像与叩诊、呼吸音对比确认",
+       "nextCheck": "胸部X线或超声",
+       "guidelineReferences": []
+      }
+     ],
+     "candidates": [
+      {
+       "name": "支气管肺炎伴低氧血症性呼吸衰竭待查",
+       "likelihood": "高",
+       "keyEvidence": [
+        "高热3天伴剧烈咳嗽",
+        "气促、鼻扇、三凹征、双肺密集细湿啰音",
+        "WBC 18.6×10⁹/L、中性80%、CRP 86mg/L"
+       ],
+       "againstEvidence": [
+        "胸片未做，病原未明"
+       ]
+      },
+      {
+       "name": "支气管哮喘急性发作",
+       "likelihood": "低",
+       "keyEvidence": [
+        "喘憋、双肺哮鸣音"
+       ],
+       "againstEvidence": [
+        "既往体健无喘息史",
+        "高热与细湿啰音更支持感染"
+       ]
+      },
+      {
+       "name": "脓毒症",
+       "likelihood": "中",
+       "keyEvidence": [
+        "体温40.1℃、WBC与CRP显著升高",
+        "烦躁"
+       ],
+       "againstEvidence": [
+        "毛细血管再充盈2秒尚可",
+        "血压未测"
+       ]
+      }
+     ]
+    },
+    "pathogenesis": {
+     "summary": "外感热毒由表入里，壅闭肺气，宣肃失司而咳逆喘促鼻扇；热毒炽盛灼津则口渴唇干、泪少尿黄；热毒结于肠道则便闭纳减，形成毒热闭肺、津伤肠燥之候",
+     "locationDifferentiation": {
+      "items": [
+       "肺",
+       "大肠"
+      ],
+      "details": [
+       {
+        "location": "肺",
+        "basis": "咳嗽很剧烈，痰咳不出来"
+       },
+       {
+        "location": "大肠",
+        "basis": "大便2天没解"
+       }
+      ],
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "中"
+      }
+     },
+     "natureDifferentiation": {
+      "items": [
+       "热",
+       "毒",
+       "津亏"
+      ],
+      "rootDeficiency": [
+       "津亏"
+      ],
+      "branchExcess": [
+       "热",
+       "毒"
+      ],
+      "basis": "最高40.1℃；口渴，嘴唇干红；舌红而干，苔黄燥；大便2天没解",
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "中"
+      }
+     },
+     "symptomClusters": [
+      {
+       "symptoms": [
+        "口渴，嘴唇干红",
+        "哭的时候眼泪少",
+        "尿黄"
+       ],
+       "mechanism": "热盛伤津"
+      },
+      {
+       "symptoms": [
+        "呼吸急促",
+        "鼻翼一扇一扇的",
+        "喘憋"
+       ],
+       "mechanism": "热闭肺气上逆"
+      }
+     ],
+     "chain": [
+      {
+       "nodeId": "P1",
+       "patientFact": "今天上午开始呼吸急促，鼻翼一扇一扇的",
+       "syndromeEvidence": "咳嗽很剧烈，痰咳不出来；双肺可闻及密集细湿啰音及少许哮鸣音",
+       "pathogenesis": "热毒壅肺，肺气闭郁上逆",
+       "therapyDirection": "清热解毒，泻肺开闭",
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "《中医儿科学》肺炎喘嗽·毒热闭肺证",
+        "confidence": "中"
+       }
+      },
+      {
+       "nodeId": "P2",
+       "patientFact": "口渴，嘴唇干红，鼻孔干",
+       "syndromeEvidence": "舌红而干，苔黄燥；哭的时候眼泪少；尿黄",
+       "pathogenesis": "高热灼津，津液耗伤",
+       "therapyDirection": "清热生津护液",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      },
+      {
+       "nodeId": "P3",
+       "patientFact": "大便2天没解",
+       "syndromeEvidence": "吃奶、吃饭明显减少；尿黄",
+       "pathogenesis": "热结肠道，腑气不通",
+       "therapyDirection": "通腑泄热",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      }
+     ],
+     "uncertainties": [
+      {
+       "item": "急危重风险尚未排除",
+       "reason": "请先完成急诊或转诊评估；以下辨证供医生参考。",
+       "affects": "辨证与治法待急诊评估后再确认。"
+      },
+      {
+       "item": "胸片结果",
+       "reason": "未做，肺部病变范围不明",
+       "affects": "影响病情分层判断"
+      }
+     ]
+    },
+    "therapy": {
+     "overallPrinciple": "急则治标，热者寒之",
+     "overallMethod": "清热解毒，泻肺开闭，生津通腑",
+     "subTherapies": [
+      {
+       "therapy": "清热解毒，泻肺开闭",
+       "targetPathogenesis": "热毒壅肺，肺气闭郁上逆",
+       "priority": "主要",
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "《中医儿科学》肺炎喘嗽·毒热闭肺证",
+        "confidence": "中"
+       }
+      },
+      {
+       "therapy": "清热生津护液",
+       "targetPathogenesis": "高热灼津，津液耗伤",
+       "priority": "次要",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      },
+      {
+       "therapy": "通腑泄热",
+       "targetPathogenesis": "热结肠道，腑气不通",
+       "priority": "次要",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      }
+     ]
+    },
+    "formula": null,
+    "nonPharma": null,
+    "lineageAdaptation": null,
+    "management": {
+     "redFlagLoop": "急危重风险未排除，请优先完成急诊或转诊评估；以下辨证与治法供医生参考。\n\n患儿未吸氧指脉氧89%、气促呻吟三凹征，属急危重，须立即急诊评估并给氧、监测生命体征，不得延误。",
+     "mustCollect": [
+      "完成急诊或转诊评估，排除急危重情况",
+      "复测呼吸频率、心率、血压与指脉氧并记录",
+      "确认目前所有在用药物（含退热药频次与剂量）",
+      "记录近半日进奶进水量与尿量，评估脱水程度",
+      "询问有无抽搐、意识改变及皮疹",
+      "确认既往有无喘息或反复呼吸道感染史"
+     ],
+     "followupSafetyNet": "请立即到医院急诊就诊（病情危急时拨打120），先排除急危重情况，医生确认可以服药后再按医生安排服药与复诊。如症状持续、加重或出现新的不适，请立即急诊或呼叫急救。\n\n若孩子出现呼吸更快或费力、口唇发紫、精神差叫不醒、抽风、尿量明显减少或高热不退，请立即就近急诊。"
+    },
+    "contractSignatureVersion": "tcm-cdss-m03-signature-v5",
+    "contractSignature": "hmac-sha256:494d7f9c5fb22f56d25c2a081b314dacfdc68aecb61b9ba2d79ae68bbed25495"
+   },
+   "m04": {
+    "schemaVersion": "tcm-cdss-reasoning-v2",
+    "stage": "prescribe",
+    "contractSignatureVersion": "tcm-cdss-m04-signature-v3",
+    "contractSignature": "hmac-sha256:f4e8b52e67c6a97143fcbad99a91cca596c2b83eb8526f2f2e13c3460f57b099",
+    "clinicalReview": {
+     "status": "unavailable",
+     "unavailableReason": "not_configured",
+     "attemptCount": 0,
+     "durationMs": 0,
+     "reviewedPayloadHash": "sha256:1872472faada1c415fe29abe46d386a24e17de9ebb1747afb37d5702d1808c8b",
+     "acceptanceScope": {
+      "waivedIssueCodes": [
+       "m04_candidate_0_herb_4_function_ungrounded"
+      ],
+      "qualityAnnotationCodes": [
+       "m04_candidate_0_herb_4_function_ungrounded"
+      ]
+     }
+    },
+    "overview": {
+     "tcmDiseaseName": "肺炎喘嗽",
+     "primarySyndrome": "毒热闭肺证",
+     "primarySyndromeResolution": "bounded",
+     "primarySyndromeBasis": [
+      "发热、咳嗽3天，气促半天",
+      "最高40.1℃",
+      "咳嗽很剧烈，痰咳不出来",
+      "口渴，嘴唇干红，鼻孔干",
+      "舌红而干，苔黄燥"
+     ],
+     "primarySyndromeResolutionReason": "急危重风险未排除，请先完成急诊或转诊评估；以下辨证供医生参考。",
+     "tcmDiseaseRationale": "以发热、咳嗽、气促、鼻扇为主症，热势高，归肺炎喘嗽；咳嗽病无气喘鼻扇，故不归此二病。",
+     "tcmDiagnosticRationale": "高热持续、咳嗽剧烈、气急鼻扇、喘憋，为热毒壅盛，闭阻肺气，故属毒热闭肺证；口渴、唇干红、鼻孔干、泪少、尿黄、舌红而干苔黄燥，为热毒灼津；烦躁哭闹为热毒内扰；大便2天未解、纳食减少为热毒结于肠道、腑气不通。",
+     "tcmDiseaseReferences": [
+      {
+       "evidenceId": "STD-GBT-15657-2021",
+       "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+       "sourceType": "standard"
+      }
+     ],
+     "tcmSyndromeReferences": [],
+     "tcmDifferentials": [
+      {
+       "syndrome": "痰热闭肺证",
+       "reason": "同见发热喘促鼻扇",
+       "distinguishingPoints": "本例痰咳不出、未诉喉间痰鸣，苔黄燥非黄腻",
+       "typicalManifestation": "发热咳嗽、气急鼻扇、喉间痰鸣、苔黄腻、脉滑数",
+       "nextCheck": "听诊痰鸣及痰液性状复核"
+      },
+      {
+       "syndrome": "风热闭肺证",
+       "reason": "均见发热咳嗽气急",
+       "distinguishingPoints": "本例高热40.1℃、喘憋鼻扇、苔黄燥，非表浅风热",
+       "typicalManifestation": "发热恶风、咳嗽气急、痰黏稠、苔薄白或黄、脉浮数",
+       "nextCheck": "复核恶风、汗出与表证有无"
+      },
+      {
+       "syndrome": "心阳虚衰证",
+       "reason": "重症肺炎喘嗽需防此变",
+       "distinguishingPoints": "本例唇红干、烦躁、指纹紫滞，未诉肢冷面白",
+       "typicalManifestation": "面色苍白、唇青紫、呼吸浅促、四肢厥冷、脉细弱数",
+       "nextCheck": "监测面色、四肢温度与心率变化"
+      }
+     ],
+     "tcmDiseaseDifferentials": [
+      {
+       "diseaseName": "咳嗽",
+       "reason": "均以咳嗽发热起病",
+       "distinguishingPoints": "本例气促、鼻翼扇动、三凹征、固定细湿啰音，超出咳嗽范畴",
+       "typicalManifestation": "发出咳声或伴有咳痰",
+       "nextCheck": null
+      },
+      {
+       "diseaseName": "哮喘",
+       "reason": "均见喘憋与哮鸣音",
+       "distinguishingPoints": "本例首次发作、高热40.1℃、密集细湿啰音，非反复发作性哮喘",
+       "typicalManifestation": "",
+       "nextCheck": null
+      }
+     ],
+     "secondarySyndromes": [],
+     "overallPathogenesis": "外感热毒由表入里，壅闭肺气，宣肃失司而咳逆喘促鼻扇；热毒炽盛灼津则口渴唇干、泪少尿黄；热毒结于肠道则便闭纳减，形成毒热闭肺、津伤肠燥之候",
+     "overallTherapy": "清热解毒，泻肺开闭，生津通腑",
+     "recommendedFormulaDirection": "黄连解毒汤合麻杏甘石汤加减",
+     "recommendedFormulaNames": [
+      "黄连解毒汤",
+      "麻杏甘石汤"
+     ],
+     "formulaSelectionMode": "combined",
+     "deferredFormulaSelection": {
+      "direction": "黄连解毒汤合麻杏甘石汤加减",
+      "names": [
+       "麻杏甘石汤"
+      ],
+      "mode": "single",
+      "reason": "governed_syndrome_relation_unverified"
+     },
+     "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "中"
+     }
+    },
+    "westernDiagnosis": {
+     "primary": {
+      "name": "支气管肺炎伴低氧血症性呼吸衰竭待查",
+      "status": "考虑",
+      "confidence": "高",
+      "supportingFacts": [
+       "患儿急性发热、咳嗽后出现气促、鼻翼扇动、三凹征，双肺密集细湿啰音，指脉氧89%，符合支气管肺炎伴低氧血症性呼吸衰竭的临床表现；但胸片未做、血气未查，尚缺影像学及血气分析确认，需排除支气管哮喘急性发作、脓毒症等。"
+      ],
+      "supportingFactKinds": [],
+      "clinicalRationale": "患儿急性发热、咳嗽后出现气促、鼻翼扇动、三凹征，双肺密集细湿啰音，指脉氧89%，符合支气管肺炎伴低氧血症性呼吸衰竭的临床表现；但胸片未做、血气未查，尚缺影像学及血气分析确认，需排除支气管哮喘急性发作、脓毒症等。",
+      "limitations": [],
+      "suggestedChecks": [],
+      "guidelineReferences": [],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "病例内推理",
+       "confidence": "中"
+      }
+     },
+     "differentials": [
+      {
+       "name": "脓毒症",
+       "reason": "高热伴炎症指标显著升高",
+       "distinguishingPoints": "需看循环灌注、意识与乳酸，毛细血管再充盈2秒尚可",
+       "nextCheck": "血压、乳酸、血培养",
+       "guidelineReferences": []
+      },
+      {
+       "name": "支气管哮喘急性发作",
+       "reason": "有喘憋与哮鸣音",
+       "distinguishingPoints": "首次发作、伴高热与细湿啰音更支持感染，既往未诉喘息史",
+       "nextCheck": "询问既往喘息史、复查听诊",
+       "guidelineReferences": []
+      },
+      {
+       "name": "脱水",
+       "reason": "进食减少、尿少尿黄、唇干",
+       "distinguishingPoints": "半天仅换1次尿布、哭泪少、口唇干红提示体液不足",
+       "nextCheck": "体重、尿量、皮肤弹性、电解质",
+       "guidelineReferences": []
+      },
+      {
+       "name": "胸腔积液",
+       "reason": "重症肺炎可并发",
+       "distinguishingPoints": "需影像与叩诊、呼吸音对比确认",
+       "nextCheck": "胸部X线或超声",
+       "guidelineReferences": []
+      }
+     ],
+     "candidates": [
+      {
+       "name": "支气管肺炎伴低氧血症性呼吸衰竭待查",
+       "likelihood": "高",
+       "keyEvidence": [
+        "高热3天伴剧烈咳嗽",
+        "气促、鼻扇、三凹征、双肺密集细湿啰音",
+        "WBC 18.6×10⁹/L、中性80%、CRP 86mg/L"
+       ],
+       "againstEvidence": [
+        "胸片未做，病原未明"
+       ]
+      },
+      {
+       "name": "支气管哮喘急性发作",
+       "likelihood": "低",
+       "keyEvidence": [
+        "喘憋、双肺哮鸣音"
+       ],
+       "againstEvidence": [
+        "既往体健无喘息史",
+        "高热与细湿啰音更支持感染"
+       ]
+      },
+      {
+       "name": "脓毒症",
+       "likelihood": "中",
+       "keyEvidence": [
+        "体温40.1℃、WBC与CRP显著升高",
+        "烦躁"
+       ],
+       "againstEvidence": [
+        "毛细血管再充盈2秒尚可",
+        "血压未测"
+       ]
+      }
+     ]
+    },
+    "pathogenesis": {
+     "summary": "外感热毒由表入里，壅闭肺气，宣肃失司而咳逆喘促鼻扇；热毒炽盛灼津则口渴唇干、泪少尿黄；热毒结于肠道则便闭纳减，形成毒热闭肺、津伤肠燥之候",
+     "locationDifferentiation": {
+      "items": [
+       "肺",
+       "大肠"
+      ],
+      "details": [
+       {
+        "location": "肺",
+        "basis": "咳嗽很剧烈，痰咳不出来"
+       },
+       {
+        "location": "大肠",
+        "basis": "大便2天没解"
+       }
+      ],
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "中"
+      }
+     },
+     "natureDifferentiation": {
+      "items": [
+       "热",
+       "毒",
+       "津亏"
+      ],
+      "rootDeficiency": [
+       "津亏"
+      ],
+      "branchExcess": [
+       "热",
+       "毒"
+      ],
+      "basis": "最高40.1℃；口渴，嘴唇干红；舌红而干，苔黄燥；大便2天没解",
+      "resolution": "resolved",
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "本例四诊与病史推断",
+       "confidence": "中"
+      }
+     },
+     "symptomClusters": [
+      {
+       "symptoms": [
+        "口渴，嘴唇干红",
+        "哭的时候眼泪少",
+        "尿黄"
+       ],
+       "mechanism": "热盛伤津"
+      },
+      {
+       "symptoms": [
+        "呼吸急促",
+        "鼻翼一扇一扇的",
+        "喘憋"
+       ],
+       "mechanism": "热闭肺气上逆"
+      }
+     ],
+     "chain": [
+      {
+       "nodeId": "P1",
+       "patientFact": "今天上午开始呼吸急促，鼻翼一扇一扇的",
+       "syndromeEvidence": "咳嗽很剧烈，痰咳不出来；双肺可闻及密集细湿啰音及少许哮鸣音",
+       "pathogenesis": "热毒壅肺，肺气闭郁上逆",
+       "therapyDirection": "清热解毒，泻肺开闭",
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "《中医儿科学》肺炎喘嗽·毒热闭肺证",
+        "confidence": "中"
+       }
+      },
+      {
+       "nodeId": "P2",
+       "patientFact": "口渴，嘴唇干红，鼻孔干",
+       "syndromeEvidence": "舌红而干，苔黄燥；哭的时候眼泪少；尿黄",
+       "pathogenesis": "高热灼津，津液耗伤",
+       "therapyDirection": "清热生津护液",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      },
+      {
+       "nodeId": "P3",
+       "patientFact": "大便2天没解",
+       "syndromeEvidence": "吃奶、吃饭明显减少；尿黄",
+       "pathogenesis": "热结肠道，腑气不通",
+       "therapyDirection": "通腑泄热",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      }
+     ],
+     "uncertainties": [
+      {
+       "item": "急危重风险尚未排除",
+       "reason": "请先完成急诊或转诊评估；以下辨证供医生参考。",
+       "affects": "辨证与治法待急诊评估后再确认。"
+      },
+      {
+       "item": "胸片结果",
+       "reason": "未做，肺部病变范围不明",
+       "affects": "影响病情分层判断"
+      }
+     ]
+    },
+    "therapy": {
+     "overallPrinciple": "急则治标，热者寒之",
+     "overallMethod": "清热解毒，泻肺开闭，生津通腑",
+     "subTherapies": [
+      {
+       "therapy": "清热解毒，泻肺开闭",
+       "targetPathogenesis": "热毒壅肺，肺气闭郁上逆",
+       "priority": "主要",
+       "evidence": {
+        "evidenceLevel": "kb_entry",
+        "source": "《中医儿科学》肺炎喘嗽·毒热闭肺证",
+        "confidence": "中"
+       }
+      },
+      {
+       "therapy": "清热生津护液",
+       "targetPathogenesis": "高热灼津，津液耗伤",
+       "priority": "次要",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      },
+      {
+       "therapy": "通腑泄热",
+       "targetPathogenesis": "热结肠道，腑气不通",
+       "priority": "次要",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例资料",
+        "confidence": "中"
+       }
+      }
+     ]
+    },
+    "formula": {
+     "candidates": [
+      {
+       "name": "黄连解毒汤合麻杏甘石汤加减",
+       "formulaNames": [
+        "黄连解毒汤",
+        "麻黄杏仁甘草石膏汤"
+       ],
+       "positioning": "首选",
+       "constructionType": "combined",
+       "modificationStatus": "modified",
+       "baseFormulas": [],
+       "discriminationPath": [],
+       "classicEvidence": [],
+       "compositionLogic": [],
+       "textualModifications": [],
+       "formulaSource": {
+        "evidenceLevel": "model_inference",
+        "source": "黄连解毒汤：《外台秘要》；麻杏甘石汤：《伤寒论》",
+        "confidence": "中"
+       },
+       "therapyMatch": "清热解毒，泻肺开闭，生津通腑",
+       "applicable": "",
+       "notApplicable": "麻黄（心血管病慎用）；苦杏仁（毒性：有小毒）；大黄（出血倾向/抗凝状态慎用）",
+       "herbs": [
+        {
+         "name": "黄连",
+         "processing": null,
+         "dose": "2g",
+         "role": "君",
+         "prescriptionRole": "君药：清热解毒，泻肺开闭",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "热毒壅肺，肺气闭郁上逆",
+         "function": "泻火解毒",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 2.5g（成人 2-5g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "黄芩",
+         "processing": null,
+         "dose": "3g",
+         "role": "臣",
+         "prescriptionRole": "臣药：清热解毒，泻肺开闭",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "热毒壅肺，肺气闭郁上逆",
+         "function": "泻火解毒",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 5g（成人 3-10g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "黄柏",
+         "processing": null,
+         "dose": "3g",
+         "role": "臣",
+         "prescriptionRole": "臣药：通腑泄热",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P3",
+         "structureRole": null,
+         "targetPathogenesis": "热结肠道，腑气不通",
+         "function": "泻火解毒",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 6g（成人 3-12g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "栀子",
+         "processing": null,
+         "dose": "3g",
+         "role": "臣",
+         "prescriptionRole": "臣药：通腑泄热",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P3",
+         "structureRole": null,
+         "targetPathogenesis": "热结肠道，腑气不通",
+         "function": "泻火除烦，清热利湿",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 5g（成人 6-10g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "麻黄",
+         "processing": null,
+         "dose": "2g",
+         "role": "臣",
+         "prescriptionRole": "臣药：清热解毒，泻肺开闭",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "热毒壅肺，肺气闭郁上逆",
+         "function": "发汗散寒",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "麻黄儿童慎用：小儿宜用麻黄绒，并控制剂量（《中药学》十三五；《中医儿科学》十三五）。",
+          "剂量已按儿童折算上限 5g（成人 2-10g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "苦杏仁",
+         "processing": "燀",
+         "dose": "3g",
+         "role": "臣",
+         "prescriptionRole": "臣药：清热解毒，泻肺开闭",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P1",
+         "structureRole": null,
+         "targetPathogenesis": "热毒壅肺，肺气闭郁上逆",
+         "function": "降气止咳平喘，有小毒",
+         "isToxic": true,
+         "decoctionRequirement": "后下、捣碎",
+         "verificationTier": "toxic_regulated",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "毒性提示：有小毒"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "石膏",
+         "processing": null,
+         "dose": "10g",
+         "role": "臣",
+         "prescriptionRole": "臣药：清热生津护液",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "高热灼津，津液耗伤",
+         "function": "清热泻火",
+         "isToxic": false,
+         "decoctionRequirement": "先煎",
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 30g（成人 15-60g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "炙甘草",
+         "processing": null,
+         "dose": "2g",
+         "role": "使",
+         "prescriptionRole": "使药：调和诸药，协调药性",
+         "targetKind": "formula_structure",
+         "targetRef": "FORMULA_STRUCTURE",
+         "structureRole": "harmonize",
+         "targetPathogenesis": "调和诸药，协调药性",
+         "function": "补脾和胃",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 5g（成人 2-10g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "生地黄",
+         "processing": null,
+         "dose": "5g",
+         "role": "佐",
+         "prescriptionRole": "佐药：清热生津护液",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "高热灼津，津液耗伤",
+         "function": "清热凉血，养阴生津",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 15g（成人 12-30g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "玄参",
+         "processing": null,
+         "dose": "5g",
+         "role": "佐",
+         "prescriptionRole": "佐药：清热生津护液",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "高热灼津，津液耗伤",
+         "function": "清热凉血",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 7.5g（成人 9-15g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "麦冬",
+         "processing": null,
+         "dose": "5g",
+         "role": "佐",
+         "prescriptionRole": "佐药：清热生津护液",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P2",
+         "structureRole": null,
+         "targetPathogenesis": "高热灼津，津液耗伤",
+         "function": "养阴生津，益胃生津",
+         "isToxic": false,
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 6g（成人 6-12g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        },
+        {
+         "name": "大黄",
+         "processing": null,
+         "dose": "2g",
+         "role": "佐",
+         "prescriptionRole": "佐药：通腑泄热",
+         "targetKind": "pathogenesis_node",
+         "targetRef": "P3",
+         "structureRole": null,
+         "targetPathogenesis": "热结肠道，腑气不通",
+         "function": "清热泻火，凉血解毒",
+         "isToxic": false,
+         "decoctionRequirement": "后下",
+         "verificationTier": "verified",
+         "doseSource": "governed_boundary",
+         "verificationReasons": [
+          "剂量已按儿童折算上限 7.5g（成人 3-15g × 1/2）完成规则校验"
+         ],
+         "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+         }
+        }
+       ],
+       "formulaAnalysis": "本方以黄连解毒汤合麻杏甘石汤为基础加减。黄连为君，清泻热毒、直折肺中壅盛之火，以解热毒闭肺之根本；黄芩、黄柏、栀子分清上中下三焦之火，麻黄、燀苦杏仁一宣一降，开肺气之闭郁，石膏清泄高热，共为臣药，使热毒得解、肺气宣肃复常。热盛灼津，故加生地黄、玄参、麦冬清热生津护液，为佐；热结肠道、腑气不通，加大黄泻热通便，亦为佐。炙甘草为使，调和诸药、缓峻护中。全方共奏清热解毒、泻肺开闭、生津通腑之功，切合毒热闭肺之治。",
+       "decoction": {
+        "doseCount": "3剂",
+        "method": "急诊排除急危重情况、经医生确认后方可服用；每日1剂，石膏先煎20–30分钟，苦杏仁、大黄后下，苦杏仁用前捣碎，余药加水浸泡30分钟，武火煮沸后转文火，水煎两次（约20、15分钟），共取药液约150mL，分2次服，饭后温服",
+        "course": "3日",
+        "followUpNode": "先立即到医院急诊完成评估；医生确认可以服药后，完成3剂（3日）后复诊；出现不适或症状加重时提前复诊",
+        "dosesPerDay": 1,
+        "administrationTimesPerDay": 2,
+        "soakMinutes": 30,
+        "decoctionTimes": 2,
+        "firstDecoctionMinutes": 20,
+        "secondDecoctionMinutes": 15,
+        "targetVolumeMl": 150,
+        "administration": "每日1剂，每日分2次服，饭后温服；中病即止，不宜久服",
+        "followUpAfterDoses": 3,
+        "followUpAfterDays": 3
+       }
+      }
+     ],
+     "patentAndWestern": [],
+     "medicineCandidateStatus": {
+      "status": "no_evidence_match",
+      "reason": "未检索到与本例诊断或证候匹配、且可核验到具体说明书条目的西药或中成药候选。"
+     },
+     "modifications": [
+      {
+       "trigger": "咳嗽很剧烈",
+       "triggerSource": {
+        "kind": "primary_syndrome_basis",
+        "sourceRef": "overview.primarySyndromeBasis[2]",
+        "sourceQuote": "咳嗽很剧烈，痰咳不出来"
+       },
+       "targetPathogenesis": "热毒壅肺，肺气上逆",
+       "action": "加",
+       "herbName": "前胡",
+       "doseOrHandling": "2.5g",
+       "reason": "降气化痰，助止咳平喘",
+       "riskNote": "",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "患者原文：咳嗽很剧烈，痰咳不出来",
+        "confidence": "中"
+       }
+      },
+      {
+       "trigger": "本例已见痰咳不出来",
+       "targetPathogenesis": "毒热灼津成痰，痰热壅肺，痰黏难咯",
+       "action": "加",
+       "herbName": "瓜蒌",
+       "doseOrHandling": "5g",
+       "reason": "清热化痰、利气宽胸，助泻肺开闭以排痰",
+       "riskNote": "",
+       "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "患者原文：痰咳不出来",
+        "confidence": "中"
+       }
+      }
+     ],
+     "modificationReview": {
+      "submittedCount": 5,
+      "retainedCount": 2,
+      "droppedCount": 3,
+      "droppedReason": "拟加药味与已锁定病机或治法方向冲突；该条件不是需要另行加减的伴随表现，或应先评估处置，不另据此加减（2条）",
+      "droppedReasons": [
+       {
+        "code": "direction_conflict",
+        "count": 1,
+        "message": "拟加药味与已锁定病机或治法方向冲突"
+       },
+       {
+        "code": "trigger_not_symptom",
+        "count": 2,
+        "message": "该条件不是需要另行加减的伴随表现，或应先评估处置，不另据此加减"
+       }
+      ]
+     }
+    },
+    "nonPharma": {
+     "diet": "急危重情况尚未排除，请先到急诊就医；就医前饮食、饮水遵急诊医生安排。",
+     "lifestyle": "保持室内通风凉爽，衣着适度勿过捂；保证休息与睡眠，避免受凉复感。",
+     "emotion": "家长多安抚陪伴，减少哭闹耗气伤津，保持环境安静。",
+     "exercise": "急危重情况排除前暂停运动保健，避免活动与用力。",
+     "acupointCare": null,
+     "tcmTreatments": [],
+     "precautions": [
+      "请把正在用的布洛芬混悬液连同药盒带去就医，告诉医生最近一次用药时间，是否继续由医生决定。",
+      "忌食辛辣温燥及油腻煎炸食物，饮食宜清淡。",
+      "方中苦杏仁在药典中标注有毒，须按医生开的剂量和煎法服用，不可自行加量或久服；如出现口唇或手足发麻、心慌、恶心呕吐，请停药并就医。"
+     ]
+    },
+    "lineageAdaptation": null,
+    "management": {
+     "redFlagLoop": "急危重风险未排除，请优先完成急诊或转诊评估；以下辨证与治法供医生参考。\n\n患儿未吸氧指脉氧89%、气促呻吟三凹征，属急危重，须立即急诊评估并给氧、监测生命体征，不得延误。",
+     "mustCollect": [
+      "完成急诊或转诊评估，排除急危重情况",
+      "复测呼吸频率、心率、血压与指脉氧并记录",
+      "确认目前所有在用药物（含退热药频次与剂量）",
+      "记录近半日进奶进水量与尿量，评估脱水程度",
+      "询问有无抽搐、意识改变及皮疹",
+      "确认既往有无喘息或反复呼吸道感染史"
+     ],
+     "followupSafetyNet": "请立即到医院急诊就诊（病情危急时拨打120），先排除急危重情况；医生确认可以服药后，服完3剂药（约3天后）再复诊。如症状持续、加重或出现新的不适，请立即急诊或呼叫急救。\n\n若孩子出现呼吸更快或费力、口唇发紫、精神差叫不醒、抽风、尿量明显减少或高热不退，请立即就近急诊。"
+    }
+   }
+  }
+ }
+}

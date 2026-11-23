@@ -106,7 +106,8 @@ await check("2.5 合同的每个调用处都带上本例判据（只漏一处，
       assert.match(match[1], /herbBarredForCase\(herb,/, `${file}: ${match[1].slice(0, 120)}`);
     }
   }
-  assert.equal(calls, 6, "六处调用");
+  // 第五十七轮：流层开方保底的核对也调这份合同（diagnosis-api 修复耗尽后的 salvageIssueOf），同样带本例判据。
+  assert.equal(calls, 7, "七处调用");
 });
 
 await check("2.6 教材锚定：活动性出血时不把治法改回教材的「活血化瘀，和络止痛」、不把方向改成含本例不宜药的少腹逐瘀汤，保留模型按止血为先写的；没有出血时照常锚定", () => {

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { textbookSectionDeliveryName } from "./clinical-terminology";
 import { sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { textbookDiseaseDefinition } from "./tcm-textbook-syndromes";
@@ -42,7 +43,11 @@ function enabled(): boolean {
 }
 
 const compact = (value: string) => value.normalize("NFKC").replace(/\s+/g, "");
-const sameDisease = (left: string, right: string) => compact(left).replace(/类病$/u, "") === compact(right).replace(/类病$/u, "");
+const diseaseKey = (value: string) => compact(value).replace(/类病$/u, "");
+// 选病给的是教材节名（骨质疏松症、休克），辨证半解析时已换成交付用的中医病名（骨痿、虚脱，tcmNameBySectionName）：两者是同一个病，
+// 不能因此判成「没用选病第一个」去发核对、甚至按节名重抽（重抽出来又换回同一个中医病名，第五十七轮）。
+const sameDisease = (left: string, right: string) => diseaseKey(left) === diseaseKey(right) ||
+  diseaseKey(textbookSectionDeliveryName(left.trim())) === diseaseKey(textbookSectionDeliveryName(right.trim()));
 
 const SYSTEM = [
   "你是中医门诊病名与就诊原因的核对器，不负责诊断，也不评价证型与治法。",
@@ -179,6 +184,15 @@ export function visitReasonRedrawInstruction(disease: string, verdict: Extract<V
     "【病名须解释本次就诊原因（服务端核对）】",
     `本次就诊原因是主诉里的「${verdict.visitReason}」。上一稿把中医病名写成「${disease}」${verdict.reason ? `：${verdict.reason}` : ""}，它不解释就诊原因，不作本次病名（与它相关的表现可在辨证依据里兼顾）。`,
     `请按就诊原因在【教材病证候选】里定病名（如「${verdict.better}」），并据此重写本半全部内容：辨病依据、病名与证候鉴别、证候、病机与治法都按新的病名写。`,
+  ].join("\n");
+}
+
+/** 中医病名栏写了西医病名时的重写指令（第五十七轮，tcmDiseaseFieldHoldsWesternName）：按主症在教材病名候选里定中医病名。 */
+export function westernNameInTcmFieldRedrawInstruction(disease: string, candidates: readonly string[]): string {
+  return [
+    "【中医病名栏须写中医病名（服务端核对）】",
+    `上一稿把中医病名写成了西医病名「${disease}」。西医诊断另有一栏，这里须写中医病名。`,
+    `请按本次就诊的主症，在【教材病证候选】里定中医病名${candidates.length > 0 ? `（如${candidates.slice(0, 3).map((name) => `「${name}」`).join("、")}）` : ""}，并据此重写本半全部内容：辨病依据、病名与证候鉴别、证候、病机与治法都按新的病名写。`,
   ].join("\n");
 }
 

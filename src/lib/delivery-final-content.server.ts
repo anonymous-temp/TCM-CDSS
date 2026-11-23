@@ -58,6 +58,11 @@ export type FinalDeliveryOptions = {
   prepare: (content: string) => string; render: (content: string) => string;
   accept: (content: string) => boolean; sign: (content: string) => string;
   fallback: () => string; io?: DeliveryGateIO;
+  /**
+   * 开方保底（第五十七轮，m04-salvage.ts）：交付前这道核对（accept）不通过时，先按原因处理出问题的那一小块，处理后核对通过才用；
+   * 返回 undefined 表示处理不了，照旧退成不给剂量的页。只删不加，处理结果仍要过 accept。
+   */
+  salvage?: (content: string) => string | undefined;
 };
 /** Request-local shared barrier for ordinary delivery, early checkpoint, non-dose and fallback exits. */
 export function createFinalDeliveryBarrier(options: FinalDeliveryOptions) {
@@ -83,8 +88,22 @@ export function createFinalDeliveryBarrier(options: FinalDeliveryOptions) {
     const first = splitDeliveryContent(content, options.stage);
     const hit = verified.get(deliveryHash(first.candidate));
     if (hit) return hit;
-    const prepared = clean(options.prepare(content));
+    let prepared = clean(options.prepare(content));
     observe("final_projection", content, prepared);
+    if (options.salvage) {
+      const split = splitDeliveryContent(prepared, options.stage);
+      if (split.kind === "reasoning" && !options.accept(joinDeliveryContent(split.candidate, split.kind))) {
+        const salvaged = options.salvage(prepared);
+        if (salvaged) {
+          const next = clean(options.prepare(options.render(salvaged)));
+          const nextSplit = splitDeliveryContent(next, options.stage);
+          if (nextSplit.kind === "reasoning" && options.accept(joinDeliveryContent(nextSplit.candidate, nextSplit.kind))) {
+            observe("final_salvage", prepared, next);
+            prepared = next;
+          }
+        }
+      }
+    }
     const { candidate, kind } = splitDeliveryContent(prepared, options.stage);
     // Mixed safety fields are locked as entire occurrences until their producer supplies narrower provenance.
     const locks = protectedDeliveryRanges(candidate, ["/structured/management/redFlagLoop", "/structured/management/followupSafetyNet",

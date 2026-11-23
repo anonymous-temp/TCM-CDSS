@@ -1047,6 +1047,23 @@ export function withTextbookSubtypeSyndromeNames<T extends { tcmDiseaseName?: un
   return { ...overview, primarySyndrome: primary, ...(secondaries ? { secondarySyndromes: [...new Set(secondaries.filter((name) => name !== primary))] } : {}) };
 }
 
+/**
+ * 交付名（tcmNameBySectionName）是 diseaseName、节名本身却不是的教材节（西医节名映射到另有一节的中医病名时，tcm-textbook-syndromes
+ * 不把中医病名登记成它的别名，按中医病名查不到它）。儿科节只给未满 14 岁、妇科节不给男性，与 departmentFits 同口径；
+ * 只属一种性别的病（前列腺癌 → 癥瘕：女性癥瘕不能锚到前列腺癌的行）按鉴别栏同一个判据 tcmDifferentialDiseaseFitsPatient。
+ */
+function sectionsDeliveredAs(diseaseName: string, exclude: readonly TextbookDisease[], input: TextbookCaseInput): TextbookDisease[] {
+  const wanted = compact(splitTextbookDiseaseSubtype(diseaseName).disease).replace(/类病$/u, "");
+  if (wanted.length < 2) return [];
+  const child = typeof input.ageYears === "number" && input.ageYears < 14;
+  const male = /男/u.test(input.sex || "");
+  return DISEASES.filter((disease) => !exclude.includes(disease) && compact(disease.disease) !== wanted &&
+    compact(textbookSectionDeliveryName(disease.disease)) === wanted &&
+    (disease.bookKey !== "erke" || child) &&
+    !(male && (disease.bookKey === "fuke" || /妇|产科/u.test(disease.department))) &&
+    tcmDifferentialDiseaseFitsPatient(disease.disease, { sex: input.sex }));
+}
+
 /** 已定病名与证名对应的教材行；对不上返回 undefined。证名比较忽略末尾的「证/型」。任何一本教材里该病有这个证名都算对上。 */
 export function textbookRowForSyndrome(diseaseName: string, syndromeName: string, input: TextbookCaseInput = {}): TextbookSyndromeRow | undefined {
   const split = splitTextbookDiseaseSubtype(diseaseName);
@@ -1090,6 +1107,13 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
   if (qualified) {
     const original = named.flatMap(disease => disease.rows).find(row => syndromeCore(row.syndromeName) === syndromeCore(qualified.from));
     if (original) return original;
+  }
+  // 交付用的中医病名本身另有教材节（休克 → 虚脱、糖尿病 → 消渴、营养性缺铁性贫血 → 虚劳）：那一节没有这个证名时，到「交付成这个病名」的
+  // 西医节里按同名证找（第五十七轮）。病名在解析时就换成中医病名，锚定拿中医病名查行；不找回时休克的热伤气阴证、糖尿病的阴竭阳亡证
+  // 这类急危重行在节名映射后就锚不上了。只找交付名相同的节，不跨到别的病（下面那条「不到别的病里找同名证」的口径不变）。
+  for (const disease of sectionsDeliveredAs(diseaseName, named, input)) {
+    const exact = disease.rows.find((row) => syndromeCore(row.syndromeName) === target || syndromeCore(row.syndrome) === target);
+    if (exact) return exact;
   }
   // 病名本身是教材某病下的一型（「石淋」是淋证的一型，不是一节）、表里没有以它为名的节：用那一行（2026-10-19 Claude 评审留出例 S067：
   // 模型写「石淋·湿热蕴结证」，查不到行，选方落到外科同名证的五神汤；上一轮写「淋证·石淋」时是石韦散）。只认内科类（优先级≤1）、

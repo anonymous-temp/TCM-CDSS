@@ -66,7 +66,8 @@ import { completedM03Overview, completedM04ProposalCandidate, newM03ModuleDraftF
 import { mergeParallelM03Halves, parseM03WesternHalf } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
-import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, m03LimitedInformationRepairRoundAllowed, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
+import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, isAcceptableM04TherapyIssue, m03LimitedInformationRepairRoundAllowed, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
+import { deliveredFormDeclassification, m04SalvageTelemetry, salvageM04Content } from "@/lib/m04-salvage";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
 import { recordCdssStageTelemetry, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
@@ -2941,6 +2942,33 @@ async function callPrimaryTextModelStream(
         },
         sign: signFinalDelivery,
         fallback: () => opts.structuredStage === "diagnose" ? opts.truncateFallback || "" : renderM04DeliveryCheckpoint(undefined, opts.structuredPriorReasoning, "contract_rejected", opts.structuredDoseWithheldReasons || []),
+        // 交付闸门的核对不通过时先保底（第五十七轮）：此前这里直接退成「尚未形成候选方药」页（无候选、无剂量）。
+        salvage: opts.structuredStage === "prescribe" && opts.structuredPriorReasoning ? (content) => {
+          const prior = opts.structuredPriorReasoning!;
+          const clinicalContext = opts.structuredClinicalContext || "";
+          const issueOf = (candidateContent: string): string | undefined => {
+            const reasoning = structuredReasoningFromContent(candidateContent);
+            if (!reasoning || reasoningV2SchemaIssueCode(reasoning)) return "unresolved";
+            return m04SafetyContractIssue(reasoning, prior, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext, waiveTherapyCoverageAnnotated: true }) || undefined;
+          };
+          const salvaged = salvageM04Content(content, {
+            prior,
+            clinicalContext,
+            issueOf,
+            declassify: (candidateContent) => deliveredFormDeclassification(candidateContent, prior),
+            afterHerbRemoval: (candidateContent) => withoutPrecautionsNamingAbsentHerbs(
+              applyDeterministicDecoctionMethod(candidateContent, clinicalContext, opts.structuredPatientAge),
+            ),
+          });
+          console.warn("[tcm-cdss:telemetry] m04_salvage", {
+            stage: "prescribe",
+            site: "delivery_barrier",
+            issue: issueOf(content) || "none",
+            salvaged: Boolean(salvaged),
+            steps: salvaged ? m04SalvageTelemetry(salvaged.steps) : [],
+          });
+          return salvaged && salvaged.steps.length > 0 ? salvaged.content : undefined;
+        } : undefined,
       }) : undefined;
       const projectEmissionSurface = (content: string) => applyDeliveredSurfaceToContent(content, { m03ElementAllows, herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState), patientSex: String((opts.structuredCaseState as { patient?: { sex?: unknown } } | undefined)?.patient?.sex || "") });
       // 定稿前一致性通读（第五十五轮；CDSS_FINAL_CONSISTENCY_REVIEW=on 时）：在交付面投影之前按范围改写，随后照常投影、过合同、签名。
@@ -5187,6 +5215,59 @@ async function callPrimaryTextModelStream(
               stage: "prescribe",
               completedRepairAttempts: m04RepairState.completedAttempts,
             });
+          }
+          // 开方保底（第五十七轮，m04-salvage.ts）：剥离方名后仍有不合格项时，按原因处理出问题的那一小块再完整重跑同一套受理判据，
+          // 不再整页退成不给剂量（f06：药味仍指向已撤回的病机节点 P2，首轮 21 秒、修复轮被 20 秒截止挡住，整页无剂量）。
+          // 进入条件与透明降级相同：修复机会已用过或已证明用尽、请求未取消。只删不加；处理不了照旧走原有路径。
+          if (structuredSentinelIncomplete && !transparentFallbackInput.requestAborted && (
+            transparentFallbackInput.completedRepairAttempts >= 1 ||
+            transparentFallbackInput.repairExhausted === true ||
+            transparentFallbackInput.qualityRepairExhaustedForCandidate === true
+          )) {
+            const prior = opts.structuredPriorReasoning;
+            const clinicalContext = opts.structuredClinicalContext || "";
+            const salvageIssueOf = (candidateContent: string): string | undefined => {
+              const accepted = validatedStructuredReasoning(candidateContent, "prescribe", clinicalContext, prior, true, true, true, true);
+              if (!accepted) {
+                return structuredRejectionReason(candidateContent, "prescribe", finishReason, clinicalContext, prior, true, "safety_floor_waived") || "unresolved";
+              }
+              const enriched = enrichReasoning(accepted).reasoning;
+              const formulaIssue = formulaCompilationContractIssue(enriched, prior, false, false, (herb) => herbBarredForCase(herb, clinicalContext), clinicalContext);
+              if (formulaIssue && formulaIssue !== "formula_reference_declassified") return formulaIssue;
+              const therapy = transparentFormulaTherapyIssue(enriched, prior, true);
+              if (therapy && !isAcceptableM04TherapyIssue(therapy)) return therapy;
+              return undefined;
+            };
+            const salvaged = salvageM04Content(declassifiedContent, {
+              prior,
+              clinicalContext,
+              issueOf: salvageIssueOf,
+              declassify: (candidateContent) => markTransparentFormulaDeclassification(candidateContent, prior),
+              afterHerbRemoval: (candidateContent) => withoutPrecautionsNamingAbsentHerbs(
+                applyDeterministicDecoctionMethod(candidateContent, clinicalContext, opts.structuredPatientAge),
+              ),
+            });
+            const salvagedReasoning = salvaged
+              ? validatedStructuredReasoning(salvaged.content, "prescribe", clinicalContext, prior, true, true, true, true)
+              : undefined;
+            console.warn("[tcm-cdss:telemetry] m04_salvage", {
+              stage: "prescribe",
+              site: "after_repair_exhaustion",
+              issue: salvageIssueOf(declassifiedContent) || "none",
+              salvaged: Boolean(salvagedReasoning),
+              steps: salvaged ? m04SalvageTelemetry(salvaged.steps) : [],
+            });
+            if (salvaged && salvagedReasoning) {
+              await attestM04Candidate(salvagedReasoning, salvaged.content);
+              m04AcceptanceScope = {
+                waivedIssueCodes: [...new Set(salvaged.steps.map((step) => step.code))],
+                qualityAnnotationCodes: [],
+              };
+              transparentFormulaDeclassificationAccepted = true;
+              advisoryM04RiskAccepted = true;
+              structuredSentinelIncomplete = false;
+              authoritativeContent = salvaged.content;
+            }
           }
         }
         // M03 的 T2/T3 文档质量码带批注受理（需求语义与 M04 transparent fallback 同构）：

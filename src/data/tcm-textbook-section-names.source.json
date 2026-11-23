@@ -1,6 +1,6 @@
 {
  "schemaVersion": "tcm-textbook-section-names-v1",
- "note": "教材节名的两类订正（2026-11-15 第四十六轮）：① sectionNameFixes：扫描件 OCR 错字与断行误识的节名（大行赤眼=天行赤眼；「巴细胞升高」是猩红热一节里「淋巴细胞升高」断行，三条证型挂错了节），读入证型表时按 to 改名（tcm-textbook-syndromes.ts），病名清单同一取法（scripts/build-tcm-textbook-disease-names.mjs）；② sectionTcmNames：节名是西医病名、教材在该节自己写明中医归属的（「中医称为痄腮」「属于中医“血虚”“虚劳”范畴」），交付时中医病名栏写 tcmName。教材列了几个中医名的取第一个本身是教材病名或国标病名的（病毒性心肌炎「风温、心悸、怔忡…」取心悸，营养性缺铁性贫血「血虚、虚劳」取虚劳，硬肿症「胎寒、五硬」取五硬）；扫描错字照原句录（「瘙瘕」即癥瘕、「烂喉丹痴」即烂喉丹痧）。只列「肝风、抽搐、瘛疭」这类证候或症状名的（抽动障碍）、或节内没有写中医归属的（性早熟、注意力缺陷多动障碍等）不收，节名照旧。 第四十九轮新增 deliveryAliases：旧名及西医标题的显式交付映射，每项 sourceRef 带本地教材逐字引文与行号；骨关节炎通用写骨痹，明确膝部的西医名写膝痹，不能把泛指骨关节炎默认定位在膝部。",
+ "note": "教材节名的两类订正（2026-11-15 第四十六轮）：① sectionNameFixes：扫描件 OCR 错字与断行误识的节名（大行赤眼=天行赤眼；「巴细胞升高」是猩红热一节里「淋巴细胞升高」断行，三条证型挂错了节），读入证型表时按 to 改名（tcm-textbook-syndromes.ts），病名清单同一取法（scripts/build-tcm-textbook-disease-names.mjs）；② sectionTcmNames：节名是西医病名、教材在该节自己写明中医归属的（「中医称为痄腮」「属于中医“血虚”“虚劳”范畴」），交付时中医病名栏写 tcmName。教材列了几个中医名的取第一个本身是教材病名或国标病名的（病毒性心肌炎「风温、心悸、怔忡…」取心悸，营养性缺铁性贫血「血虚、虚劳」取虚劳，硬肿症「胎寒、五硬」取五硬）；扫描错字照原句录（「瘙瘕」即癥瘕、「烂喉丹痴」即烂喉丹痧）。只列「肝风、抽搐、瘛疭」这类证候或症状名的（抽动障碍）、或节内没有写中医归属的（性早熟、注意力缺陷多动障碍等）不收，节名照旧。 第四十九轮新增 deliveryAliases：旧名及西医标题的显式交付映射，每项 sourceRef 带本地教材逐字引文与行号；骨关节炎通用写骨痹，明确膝部的西医名写膝痹，不能把泛指骨关节炎默认定位在膝部。 第五十七轮（2026-11-23）：教材节名里的西医病名按类核对（f35 骨质疏松症交付成中医病名）。sectionTcmNames 新增 10 条（骨质疏松症→骨痿、急性阑尾炎→肠痈、糖尿病→消渴、休克→虚脱、慢性腰肌劳损→腰痛、维生素D缺乏性佝偻病→佝偻病、尖锐湿疣→臊疣、寻常疣→疣目、扁平疣→扁瘊、幼儿急疹→奶麻），每条带本地教材逐字原句与行号；国标正名也可被这里的教材原句覆盖（骨质疏松症是国标正名，教材写明属痿证、发为骨痿）。新增 sectionNamesKeptVerbatim：病名清单里不是国标正名、或字形像西医病名的节名，凡不交付中医病名的都在这里写明为什么——tcm_textbook_name（中医教材立节的中医病名，国标未收此写法）、governed_tcm_name（字形像西医、实为受治理的中医病名）、no_single_tcm_name（西医节名，教材写明无此病名或归属多个病、或只列证候症状名，没有可交付的单一中医病名，节名照旧）。test:r1075-western-section-names 钉住：病名清单每一项要么是国标正名、要么已映射、要么在保留表里；字形像西医病名的节名（含国标正名）一律要映射或进保留表。",
  "sectionNameFixes": [
   {
    "bookKey": "yanke",
@@ -175,6 +175,110 @@
    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
    "line": 215136,
    "quote": "胆石症在中医学中属于“胆胀”“胁痛”“结胸”“黄疸”等范畴。《灵枢■经脉》\n中记载：“胆足少阳之脉是动则病口苦，善太息，心胁痛，不能转"
+  },
+  {
+   "bookKey": "gushang",
+   "section": "骨质疏松症",
+   "tcmName": "骨痿",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 195521,
+   "quote": "根据骨质疏松症的临床表现，属中医“痿证”范畴，病变在骨，其本\n在肾。《素问■痿论篇》云：“肾主身之骨髓肾气热，则腰脊不举，\n骨枯而髓减，发为骨痿。”",
+   "supportingQuotes": [
+    {
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 32447,
+     "quote": "中医学没有骨质疏松症的病名，但中医对骨质疏松症的认识多记载于“痹证”“腰痛”“痿证”等病证中。"
+    }
+   ],
+   "note": "节名是 GB/T 15657-2021 的正名（A03.06.04.07，筋骨病），旧生成器因此跳过；但《中医骨伤科学》本节写明属中医痿证范畴、病变在骨、其本在肾，并以《素问·痿论》「发为骨痿」立论，另一教材写明「中医学没有骨质疏松症的病名」。交付取国标正名骨痿（A07.07.07）。不取痿证：痿证另有内科一节（肺热津伤等五证），按痿证查会落到肌肉痿弱的证型。"
+  },
+  {
+   "bookKey": "zxy_waike",
+   "section": "急性阑尾炎",
+   "tcmName": "肠痈",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 146424,
+   "quote": "中医归于“肠痈”范畴",
+   "note": "节名来自急危重对照行（中西医结合外科学，不在候选书目），对照表 tcmEquivalents 亦为肠痈；肠痈另有外科一节，证名相同（瘀滞、湿热、热毒）。"
+  },
+  {
+   "bookKey": "supplement",
+   "section": "糖尿病",
+   "tcmName": "消渴",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 135935,
+   "quote": "糖尿病与中医学“消渴病”相类似",
+   "note": "本节只有两条急危重证型（阴伤阳浮、阴竭阳亡）；消渴另有内科一节，按消渴查不到这两条时由 textbookRowForSyndrome 到交付成消渴的本节找回。"
+  },
+  {
+   "bookKey": "zxy_waike",
+   "section": "休克",
+   "tcmName": "虚脱",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 12300,
+   "quote": "西医学中，虚脱多见于各种原因引起的休克。",
+   "note": "引文出自《针灸治疗学》虚脱一节；本系统补充表的虚脱一节即以休克为西医对应（westernEquivalents）。休克节的证型（热伤气阴、热伤营血、厥逆）按虚脱查不到时由 textbookRowForSyndrome 到本节找回。"
+  },
+  {
+   "bookKey": "erke",
+   "section": "维生素D缺乏性佝偻病",
+   "tcmName": "佝偻病",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 173146,
+   "quote": "维生素D缺乏性佝偻病简称佝偻病",
+   "supportingQuotes": [
+    {
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 173150,
+     "quote": "本病与中医学“五迟” “五软” “夜啼”\n“汗证”“龟背”“鸡胸”等多种病证相关。"
+    }
+   ],
+   "note": "教材把本病与五迟、五软、夜啼、汗证、龟背、鸡胸等多种病证相关联，没有单一中医病名；交付取教材自己的简称，它也是 GB/T 15657-2021 儿科病正名（佝偻病 A10.04.33）。"
+  },
+  {
+   "bookKey": "supplement",
+   "section": "尖锐湿疣",
+   "tcmName": "臊疣",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 207149,
+   "quote": "属于中医“瘙痕”的范畴",
+   "note": "扫描错字照原句录：「瘙痕」即瘙瘊，GB/T 15657-2021 臊疣（A08.01.04.05）的别名。"
+  },
+  {
+   "bookKey": "supplement",
+   "section": "寻常疣",
+   "tcmName": "疣目",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 206759,
+   "quote": "(1)疣目 相当于西医学的寻常疣。",
+   "note": "GB/T 15657-2021 疣目（A08.01.04.01）。"
+  },
+  {
+   "bookKey": "supplement",
+   "section": "扁平疣",
+   "tcmName": "扁瘊",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 206766,
+   "quote": "(2) 扁瘊 相当于西医学的扁平疣。",
+   "note": "节名是国标扁瘊（A08.01.04.02）的别名，教材写明扁平疣是西医名。"
+  },
+  {
+   "bookKey": "supplement",
+   "section": "慢性腰肌劳损",
+   "tcmName": "腰痛",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 237782,
+   "quote": "西医学中的腰肌纤维炎、强直性脊柱炎、腰椎骨质增生、腰椎间盘病变、腰肌劳损等腰部病变均属于本病范畴",
+   "note": "引文出自《中医内科学》腰痛一节（「均属于本病范畴，可参照本节辨证论治」）；《中医骨伤科学》本节未写中医归属。国标另把腰肌劳损收为筋骨病正名（A03.06.04.09），按教材取腰痛。腰痛另有内科一节，本节证型按腰痛查不到时由 textbookRowForSyndrome 到本节找回。"
+  },
+  {
+   "bookKey": "supplement",
+   "section": "幼儿急疹",
+   "tcmName": "奶麻",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 170813,
+   "quote": "中医学病名为“奶麻”",
+   "note": "GB/T 15657-2021 奶麻（A10.03.01）。"
   }
  ],
  "deliveryAliases": [
@@ -237,6 +341,900 @@
     "quote": "紫瘢亦称紫斑，是小儿时期常见的出血性疾病之一，临床以血液溢\n于皮肤、黏膜之下，出现瘀点瘀斑、压之不退色为特征，常伴有鼻衄、\n齿衄、尿血、呕血、便血等症状，属中医学血证范畴，其临床表现与西"
    },
    "note": "按任务书采用教材紫癜节名，紫斑是其别名；不沿用葡萄疫对血管炎病因的限定"
+  }
+ ],
+ "sectionNamesKeptVerbatim": [
+  {
+   "section": "抽动障碍",
+   "kind": "no_single_tcm_name",
+   "reason": "教材所列肝风、抽搐、瘛疭、筋惕肉瞤是证候或症状名，不是一个中医病名。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 168837,
+    "quote": "抽动障碍属于中医“肝风”“抽搐”“瘛\n疭”“筋惕肉响”等范畴。"
+   }
+  },
+  {
+   "section": "注意力缺陷多动障碍",
+   "kind": "no_single_tcm_name",
+   "reason": "教材归属脏躁、躁动，又与健忘、失聪有关，是几个病证；脏躁是妇科病名，不能交付给儿童。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 168661,
+    "quote": "本病可归属中\n医“脏躁”“躁动”，由于患儿智能接近正常或完全正常，但活动过多，思\n想不易集中而导致学习成绩下降，故又与“健忘”“失聪”有关。"
+   }
+  },
+  {
+   "section": "性早熟",
+   "kind": "no_single_tcm_name",
+   "reason": "教材写明古代文献中无此病名。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 170421,
+    "quote": "古代文献中无此病名"
+   }
+  },
+  {
+   "section": "多囊卵巢综合征",
+   "kind": "no_single_tcm_name",
+   "reason": "教材写明中医学无此病名，按表现分归月经后期、闭经、不孕等多个病。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 180759,
+    "quote": "中医学无此病名"
+   }
+  },
+  {
+   "section": "盆腔炎性疾病后遗症",
+   "kind": "no_single_tcm_name",
+   "reason": "教材写明中医古籍无此病名，归属癥瘕、妇人腹痛、带下病、月经不调、不孕症等多个病。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 180551,
+    "quote": "中医古籍无此病名记载，根据其临床表现，归属于“癥瘕”“妇人腹痛”“带下病”“月经不调”“不孕症”等范畴。"
+   }
+  },
+  {
+   "section": "急性盆腔炎",
+   "kind": "no_single_tcm_name",
+   "reason": "所在的盆腔炎性疾病一节写明中医古籍无此病名，归属热入血室、带下病、妇人腹痛、癥瘕、产后发热等多个病。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 180470,
+    "quote": "中医古籍无此病名记载，根据其症状特点，归属于“热入血室”“带下病”“妇人腹痛”“癥瘕”“产后发热”等范畴。"
+   }
+  },
+  {
+   "section": "子宫内膜异位症与子宫腺肌病",
+   "kind": "no_single_tcm_name",
+   "reason": "教材写明古籍中没有此病名，归在痛经、月经过多、经期延长、癥瘕、不孕等多个病证中。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 180648,
+    "quote": "中医学古籍中没有“子宫内膜异位症”及“子宫腺肌病”的病名记载，根据其临床表现，可归属在“痛经”“月经过多”“经期延长”“癥瘕”“不孕”等病证中。"
+   }
+  },
+  {
+   "section": "反复呼吸道感染",
+   "kind": "no_single_tcm_name",
+   "reason": "古籍所述为「自汗易感」，患儿称「易感儿」「复感儿」，都不是国标或教材病名。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 166244,
+    "quote": "古代\n医籍中所述的 “自汗易感”与本病接近，此类患儿亦被称为“易感儿”或\n“复感儿”。"
+   }
+  },
+  {
+   "section": "接触性皮炎",
+   "kind": "no_single_tcm_name",
+   "reason": "教材写明中医文献中没有统一的病名，按接触物分称漆疮、膏药风、马桶癣。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 207631,
+    "quote": "中医文献中没有一个统一的病名来概括接触性皮炎，而是根据接\n触物质的不同及其引起的症状特点而有不同的名称。如因漆刺激而引起\n者，称为漆疮；因贴膏药引起者，称为膏药风；接触马桶引起者，称为\n马桶癣等。"
+   }
+  },
+  {
+   "section": "弱视",
+   "kind": "no_single_tcm_name",
+   "reason": "教材写明弱视为西医学病名，中医论述散见于小儿通睛、能远怯近、胎患内障等几个眼病。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 227579,
+    "quote": "中医学对本病的论述散见于小儿通睛、能远怯近、\n胎患内障等眼病中。"
+   }
+  },
+  {
+   "section": "生殖器疱疹",
+   "kind": "no_single_tcm_name",
+   "reason": "古籍名阴疮在国标归妇科（A09.02.01.07）、教材另有妇科阴疮一节，男性患者不能交付；阴疳、瘙疳不在国标与教材病名中。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 206608,
+    "quote": "古代\n文献称之为“阴疮”“阴疳”“瘙疳”。"
+   }
+  },
+  {
+   "section": "非淋菌性尿道炎",
+   "kind": "no_single_tcm_name",
+   "reason": "教材归两个病证（淋证、淋浊，后者不在国标）。淋证在本系统按六淋分型交付，分型后取六淋各行，与本节证型（湿热阻滞、肝郁气滞、阴虚湿热）不同，映射会让辨证阶段的教材行与开方阶段的教材行不一致，未做，待定。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 209673,
+    "quote": "属中医淋证、淋浊的范畴。"
+   }
+  },
+  {
+   "section": "男性不育症",
+   "kind": "no_single_tcm_name",
+   "reason": "古籍名男子绝子、无子、无嗣不在国标与教材病名中；国标只把「男性不育」收为不育类病（A09.01.02，类目名）的别名，类目名不作交付病名。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 212376,
+    "quote": "中医\n古籍称本病为“男子绝子”“无子”“无嗣”等。"
+   }
+  },
+  {
+   "section": "第3腰椎横突综合征",
+   "kind": "no_single_tcm_name",
+   "reason": "教材本节未写中医归属；《中医内科学》腰痛一节点名的西医病（腰肌纤维炎、强直性脊柱炎、腰椎骨质增生、腰椎间盘病变、腰肌劳损「等腰部病变」）不含它，联网只见期刊写腰痛或痹证不一，未见国家标准、规划教材或学会指南给出单一病名。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 193600,
+    "quote": "第3腰椎横突综合征是指由于第3腰椎横突周围组织的损伤，造成慢\n性腰痛，出现以第3腰椎横突处明显压痛为主要特征的疾病"
+   }
+  },
+  {
+   "section": "股骨头骨骺炎",
+   "kind": "no_single_tcm_name",
+   "reason": "本节未写中医归属；同书股骨头缺血性坏死一节写属骨痹、骨蚀（已交付骨蚀），按定义类推到骨蚀会把儿童本病与成人股骨头坏死的证型并到同一病名下，未做。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 195275,
+    "quote": "股骨头骨骺炎又称股骨头骨软骨病，是股骨头骨骺的缺血性坏死，"
+   }
+  },
+  {
+   "section": "血胸",
+   "kind": "no_single_tcm_name",
+   "reason": "骨伤科教材以此立节，未写中医归属。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 194661,
+    "quote": "胸部损伤后造成胸膜腔积血称为血胸"
+   }
+  },
+  {
+   "section": "白涩症",
+   "kind": "governed_tcm_name",
+   "reason": "字形像西医病名（症/瘤/性/炎），但它是受治理的中医病名：GB/T 15657-2021 白涩症（A11.01.03.08）正名；中医教材（《中医眼科学》）以此立节。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 223286,
+    "quote": "第七节白涩症",
+    "lexicon": {
+     "canonical": "白涩症",
+     "code": "A11.01.03.08"
+    }
+   }
+  },
+  {
+   "section": "不孕症",
+   "kind": "governed_tcm_name",
+   "reason": "字形像西医病名（症/瘤/性/炎），但它是受治理的中医病名：GB/T 15657-2021 不孕（A09.02.07.01）的别名；中医教材（《中西医结合妇产科学》）以此立节。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 125845,
+    "quote": "第一节 不孕症",
+    "lexicon": {
+     "canonical": "不孕",
+     "code": "A09.02.07.01"
+    }
+   }
+  },
+  {
+   "section": "跟痛症",
+   "kind": "governed_tcm_name",
+   "reason": "字形像西医病名（症/瘤/性/炎），但它是受治理的中医病名：临床扩展词条（教材，非国标原文） 跟痛症（EXT-跟痛症）正名；中医教材（《中医骨伤科学》）以此立节。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 193407,
+    "quote": "跟痛症",
+    "lexicon": {
+     "canonical": "跟痛症",
+     "code": "EXT-跟痛症"
+    }
+   }
+  },
+  {
+   "section": "筋瘤",
+   "kind": "governed_tcm_name",
+   "reason": "字形像西医病名（症/瘤/性/炎），但它是受治理的中医病名：GB/T 15657-2021 筋瘤（A16.02.05）正名；中医教材（《中医外科学》）以此立节。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 205944,
+    "quote": "第三节筋瘤",
+    "lexicon": {
+     "canonical": "筋瘤",
+     "code": "A16.02.05"
+    }
+   }
+  },
+  {
+   "section": "肉瘤",
+   "kind": "governed_tcm_name",
+   "reason": "字形像西医病名（症/瘤/性/炎），但它是受治理的中医病名：GB/T 15657-2021 肉瘤（A16.02.04）正名；中医教材（《中医外科学》）以此立节。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 205900,
+    "quote": "第二节肉瘤",
+    "lexicon": {
+     "canonical": "肉瘤",
+     "code": "A16.02.04"
+    }
+   }
+  },
+  {
+   "section": "血瘤",
+   "kind": "governed_tcm_name",
+   "reason": "字形像西医病名（症/瘤/性/炎），但它是受治理的中医病名：GB/T 15657-2021 血瘤（A16.02.02）正名；中医教材（《中医外科学》）以此立节。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 205823,
+    "quote": "第一节血瘤",
+    "lexicon": {
+     "canonical": "血瘤",
+     "code": "A16.02.02"
+    }
+   }
+  },
+  {
+   "section": "粉刺性乳痈",
+   "kind": "governed_tcm_name",
+   "reason": "字形像西医病名（症/瘤/性/炎），但它是受治理的中医病名：GB/T 15657-2021 粉刺性乳痈（A07.03.01.03）正名；中医教材（《中医外科学》）以此立节。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 204725,
+    "quote": "第二节粉刺性乳痈",
+    "lexicon": {
+     "canonical": "粉刺性乳痈",
+     "code": "A07.03.01.03"
+    }
+   }
+  },
+  {
+   "section": "肺炎喘嗽",
+   "kind": "governed_tcm_name",
+   "reason": "字形像西医病名（症/瘤/性/炎），但它是受治理的中医病名：GB/T 15657-2021 肺风痰喘（A10.04.02）的别名；中医教材（《中医儿科学》）以此立节。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 165698,
+    "quote": "第三节肺炎喘嗽",
+    "lexicon": {
+     "canonical": "肺风痰喘",
+     "code": "A10.04.02"
+    }
+   }
+  },
+  {
+   "section": "癌病",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 237362,
+    "quote": "第十节 癌病"
+   }
+  },
+  {
+   "section": "嘈杂",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 234635,
+    "quote": "【附二】嘈杂"
+   }
+  },
+  {
+   "section": "产后痉证",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 179298,
+    "quote": "第二节　产后痉证"
+   }
+  },
+  {
+   "section": "产后情志异常",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 180026,
+    "quote": "第十一节　产后情志异常"
+   }
+  },
+  {
+   "section": "产后自汗、盗汗",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 179654,
+    "quote": "第七节　产后自汗、盗汗"
+   }
+  },
+  {
+   "section": "带下过多",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中西医结合妇产科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 120874,
+    "quote": "一、带下过多"
+   }
+  },
+  {
+   "section": "带下过少",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中西医结合妇产科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 120958,
+    "quote": "二、带下过少"
+   }
+  },
+  {
+   "section": "堕胎、小产",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 178389,
+    "quote": "第四节　堕胎、小产"
+   }
+  },
+  {
+   "section": "耳鸣耳聋",
+   "kind": "tcm_textbook_name",
+   "reason": "中医病名：耳鸣（A17.15）、耳聋（A17.16）各是 GB/T 15657-2021 的词条，《针灸治疗学》合为「耳鸣、耳聋」一节；国标未收合写。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 12032,
+    "quote": "第九节 耳鸣、耳聋"
+   }
+  },
+  {
+   "section": "耳胀耳闭",
+   "kind": "tcm_textbook_name",
+   "reason": "中医耳鼻喉科病名：耳胀（A12.05）、耳闭（A12.06）各是 GB/T 15657-2021 正名，教材合为一节；补充表据本地《中医食疗学》中耳炎一节的证型立节，该节写明古称「风耳」「气闭耳聋」。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 42688,
+    "quote": "古人又有“风耳”之称",
+    "lexicon": [
+     {
+      "canonical": "耳胀",
+      "code": "A12.05"
+     },
+     {
+      "canonical": "耳闭",
+      "code": "A12.06"
+     }
+    ]
+   }
+  },
+  {
+   "section": "发热",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医儿科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 172212,
+    "quote": "第一节发热"
+   }
+  },
+  {
+   "section": "附骨疽",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医外科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 203775,
+    "quote": "一、附骨疽"
+   }
+  },
+  {
+   "section": "腹痛",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 234998,
+    "quote": "第六节 腹痛"
+   }
+  },
+  {
+   "section": "高热",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《针灸治疗学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 12323,
+    "quote": "第三节 高热"
+   }
+  },
+  {
+   "section": "喉喑",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《针灸治疗学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 12185,
+    "quote": "第十四节 喉喑"
+   }
+  },
+  {
+   "section": "经行风疹块",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 177757,
+    "quote": "八、经行风疹块"
+   }
+  },
+  {
+   "section": "经行浮肿",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 177652,
+    "quote": "六、经行浮肿"
+   }
+  },
+  {
+   "section": "经行口糜",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 177527,
+    "quote": "四、经行口糜"
+   }
+  },
+  {
+   "section": "经行乳房胀痛",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 177336,
+    "quote": "一、经行乳房胀痛"
+   }
+  },
+  {
+   "section": "经行头痛",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 177394,
+    "quote": "二、经行头痛"
+   }
+  },
+  {
+   "section": "经行吐衄",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 177589,
+    "quote": "五、经行吐衄"
+   }
+  },
+  {
+   "section": "经行泄泻",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 177705,
+    "quote": "七、经行泄泻"
+   }
+  },
+  {
+   "section": "经行眩晕",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 177464,
+    "quote": "三、经行眩晕"
+   }
+  },
+  {
+   "section": "聚证",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 235624,
+    "quote": "第四节 聚证"
+   }
+  },
+  {
+   "section": "流泪症",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 222604,
+    "quote": "第一节流泪症"
+   }
+  },
+  {
+   "section": "络损暴盲",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 225382,
+    "quote": "三、络损暴盲"
+   }
+  },
+  {
+   "section": "络瘀暴盲",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 225289,
+    "quote": "二、络瘀暴盲"
+   }
+  },
+  {
+   "section": "络阻暴盲",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 225182,
+    "quote": "一、络阻暴盲"
+   }
+  },
+  {
+   "section": "目系暴盲",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 225469,
+    "quote": "四、目系暴盲"
+   }
+  },
+  {
+   "section": "内陷",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医外科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 203994,
+    "quote": "二、内陷"
+   }
+  },
+  {
+   "section": "尿血",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医儿科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 169829,
+    "quote": "第二节尿血"
+   }
+  },
+  {
+   "section": "尿浊",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 236122,
+    "quote": "【附】尿浊"
+   }
+  },
+  {
+   "section": "牛皮癣",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医外科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 208410,
+    "quote": "第十七节牛皮癣"
+   }
+  },
+  {
+   "section": "脓漏眼",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 223078,
+    "quote": "第四节脓漏眼"
+   }
+  },
+  {
+   "section": "呕吐",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 234744,
+    "quote": "第三节 呕吐"
+   }
+  },
+  {
+   "section": "脐部疾病（脐湿、脐疮、脐血、脐突）",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医儿科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 165149,
+    "quote": "第三节 脐部疾病（脐湿、脐疮、脐血、"
+   }
+  },
+  {
+   "section": "乳汁自出",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 179970,
+    "quote": "二、乳汁自出"
+   }
+  },
+  {
+   "section": "肾岩",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医外科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 206104,
+    "quote": "第五节肾岩"
+   }
+  },
+  {
+   "section": "湿翳",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 223870,
+    "quote": "第三节湿翳"
+   }
+  },
+  {
+   "section": "视衣脱离",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 225631,
+    "quote": "第六节视衣脱离"
+   }
+  },
+  {
+   "section": "视瞻有色",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 225893,
+    "quote": "第八节视瞻有色"
+   }
+  },
+  {
+   "section": "手发背",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医外科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 203250,
+    "quote": "三、手发背"
+   }
+  },
+  {
+   "section": "胎漏、胎动不安",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 178288,
+    "quote": "第三节　胎漏、胎动不安"
+   }
+  },
+  {
+   "section": "胎气上逆",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 178946,
+    "quote": "第十一节　胎气上逆"
+   }
+  },
+  {
+   "section": "胎水肿满",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医妇科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 178882,
+    "quote": "第十节　胎水肿满"
+   }
+  },
+  {
+   "section": "瞳神紧小、瞳神干缺",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 224294,
+    "quote": "第一节瞳神紧小、瞳神干缺"
+   }
+  },
+  {
+   "section": "吐酸",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 234621,
+    "quote": "【附一】吐酸"
+   }
+  },
+  {
+   "section": "胃痛",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 234521,
+    "quote": "第一节 胃痛"
+   }
+  },
+  {
+   "section": "五迟、五软",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医儿科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 170272,
+    "quote": "第五节五迟、五软"
+   }
+  },
+  {
+   "section": "夏季热",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医儿科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 172379,
+    "quote": "第二节夏季热"
+   }
+  },
+  {
+   "section": "胁痛",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 235359,
+    "quote": "第一节 胁痛"
+   }
+  },
+  {
+   "section": "心悸",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 233584,
+    "quote": "第一节 心悸"
+   }
+  },
+  {
+   "section": "胸部屏挫伤",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医骨伤科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 194523,
+    "quote": "胸部屏挫伤"
+   }
+  },
+  {
+   "section": "虚脱",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《针灸治疗学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 12297,
+    "quote": "第二节 虚脱"
+   }
+  },
+  {
+   "section": "眩晕",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 234053,
+    "quote": "第二节 眩晕"
+   }
+  },
+  {
+   "section": "血溢神膏",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医眼科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 225114,
+    "quote": "附：血溢神膏"
+   }
+  },
+  {
+   "section": "牙痛",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《针灸治疗学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 12208,
+    "quote": "第十五节 牙痛"
+   }
+  },
+  {
+   "section": "腰痛",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医内科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 237781,
+    "quote": "第五节 腰痛"
+   }
+  },
+  {
+   "section": "药毒",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医外科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 207716,
+    "quote": "第^―节药毒"
+   }
+  },
+  {
+   "section": "走黄",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医外科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 203930,
+    "quote": "一、走黄"
+   }
+  },
+  {
+   "section": "足发背",
+   "kind": "tcm_textbook_name",
+   "reason": "中医教材（《中医外科学》）以此为中医病名立节，不是西医病名；国标 GB/T 15657-2021 没有收这个写法。",
+   "evidence": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 203301,
+    "quote": "四、足发背"
+   }
   }
  ]
 }

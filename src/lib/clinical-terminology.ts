@@ -315,7 +315,9 @@ export function canonicalTcmDiseaseName(
   const byWesternEquivalent = TEXTBOOK_WESTERN_TCM_NAME.get(typeof value === "string" ? value.trim() : "");
   if (byWesternEquivalent) return byWesternEquivalent;
   const resolved = resolveTcmDiseaseName(value);
-  if (resolved && resolved.status !== "unverified") return resolved.canonical;
+  // 国标正名本身是教材的西医节名、教材写明它属哪个中医病的（「原发性骨质疏松症」归到国标正名骨质疏松症 → 骨痿，第五十七轮）：
+  // 与上面按教材节名交付走同一张表，不因写法先落到国标就把西医节名原样交付。
+  if (resolved && resolved.status !== "unverified") return TEXTBOOK_SECTION_TCM_NAME.get(resolved.canonical) || resolved.canonical;
   // Do not turn a Western diagnosis or a short-lived symptom into a TCM disease automatically.
   // The compatibility fallback only recovers legacy outputs that mixed the disease name into the
   // syndrome field (for example "失眠（心脾两虚证）")——在证型串里做最长词表名包含扫描。

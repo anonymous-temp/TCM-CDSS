@@ -4,7 +4,8 @@ import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.
 import { textbookDietPromptSection } from "@/lib/tcm-nondrug-textbook-plan.server";
 import { prescribeWorkingPriorReasoning } from "@/lib/prescribe-working-reasoning";
 import { prefetchAssessFollowupFromDraftCandidate, prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
-import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
+import { callDiagnosisStream, markTransparentFormulaDeclassification, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
+import { m04SalvageTelemetry, salvageM04Content } from "@/lib/m04-salvage";
 import { coalesceStageResponse, stageRequestFingerprint, regenerateFreshRequested } from "@/lib/stage-result-coalescing.server";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
@@ -21,7 +22,7 @@ import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
 import { ageImplausibleReproductiveNotice, auxiliaryReportForeignPersonNotice, authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, currentAntithromboticTherapyRecorded, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, activeBleedingInGroundingText, activeBleedingWording, trustedInputText } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
-import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { reconcileRecordedHistoryClaimsInPrescribeContent, recordedHistoryFields } from "@/lib/record-history-consistency";
 import { applyTcmTreatmentCapabilityPriority, homeAcupointAuthoringInputForCase } from "@/lib/tcm-treatment-capabilities.server";
 import { authorHomeAcupointCare, type AuthoredHomeAcupoint } from "@/lib/home-acupoint-authoring.server";
@@ -30,7 +31,7 @@ import { herbBarredForCase, m03SafetyContractIssue, m04SafetyContractIssue, m04S
 import { isM04FinalizerDeferredLabelIssue, isSafetyRejection } from "@/lib/diagnosis-rejection-tiers";
 import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-safety";
-import type { SafetyGate } from "@/lib/diagnosis-types";
+import type { ClinicalReasoningResultV2, SafetyGate } from "@/lib/diagnosis-types";
 import { applyPrescribeContractSignature, buildDiagnoseContractSignatureContext, buildPrescribeContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { contractProvenanceAdvisory, recordContractProvenance } from "@/lib/contract-provenance";
 import { CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS, hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
@@ -41,7 +42,7 @@ import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
 import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars, m04ExternalEvidenceSoftDeadlineMs, promptSectionHeaders } from "@/lib/prompt-budget";
-import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
+import { declassifyAndDropOpposingM04CandidateHerbs, withoutPrecautionsNamingAbsentHerbs } from "@/lib/m04-modification-safety";
 import { applyHerbCautionHits, checkHerbCautions } from "@/lib/herb-caution-check.server";
 import { textbookPregnancyRestrictedHerbNames } from "@/lib/herb-textbook-identity";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
@@ -579,8 +580,8 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
       // 剔除看不到这些新增知识，额外坏味会一直潜伏到最终 T1 合同才把整方清空。对同一最终字节
       // 再做一次只减不增的剔除：唯一君药、经典方基准或删除后结构不成立时函数原样返回，随后
       // 现有安全合同继续 fail-closed；成功剔除时审方与签名都消费剔除后的候选。
-      const directionPruned = declassifyAndDropOpposingM04CandidateHerbs(enriched, signedPriorReasoning);
-      const reasoning = parseReasoningV2(directionPruned);
+      let directionPruned = declassifyAndDropOpposingM04CandidateHerbs(enriched, signedPriorReasoning);
+      let reasoning = parseReasoningV2(directionPruned);
       // The stream layer has already exhausted formula-composition repair before allowing a
       // transparent self-devised fallback. Keep that safe fallback usable here while all other
       // formula drift, dose, regimen and clinical-grounding failures remain blocking contracts.
@@ -588,26 +589,55 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
       // 路由终审必须用**同一口径**复验，否则这里的全量质量口径会把刚受理的候选再判死——
       // 这是同一结构性问题的第 5 处复发点（finalized_prescription_transparent_therapy_*）。
       // 无论是否降级，最终出口都用同一 T1 口径；差别只在方名身份合同是否允许透明降级。
+
+      // 最终出口必须每次先完整重跑 T1 安全底线。之前只在全量语义合同“已经有 issue”
+      // 的分支内才算 safetyIssue；若全量口径把审方风险当作 advisory，十八反会返回
+      // undefined 并绕过整个安全分支。安全底线不能依赖另一个质量问题先触发。
+      const finalSafetyIssueOf = (candidateContent: string): string => {
+        const detected = m04SafetyContractIssue(parseReasoningV2(candidateContent), signedPriorReasoning, {
+          isKnownHerbName: isKnownTcmHerbName,
+          trustedWorkbenchEdit: false,
+          auditedClinicalRisksAreAdvisory: false,
+          clinicalContext: clinicalGroundingText(safeState),
+          // 对所有候选统一按「词表能力边界可批注、真实方向对立仍阻断」口径重跑 T1。
+          // 该参数不会豁免寒热对立；它只移除 unsupportedHighImpactHerbIssue 的 vocab 分支。
+          waiveTherapyCoverageAnnotated: true,
+        }) || "";
+        // 核心结构化编排器仍会在初次生成与修复轮严格驳回君药标签不一致；outputTransform 同时
+        // 也是修复耗尽后终审，不能在核心已按质量项受理后再次把同一码升级成剂量安全 T1。
+        // 真正的药物安全码不匹配本谓词，继续逐字硬拦。
+        return isM04FinalizerDeferredLabelIssue(detected) ? "" : detected;
+      };
+      let safetyIssue = finalSafetyIssueOf(directionPruned);
+      // 开方保底（第五十七轮，m04-salvage.ts）：终审仍不通过时按原因处理出问题的那一小块（去掉那味药/那条加减、普通药味压到上沿、
+      // 记账字段按已签名 M03 重算），每一步都重跑同一道终审；处理不了才照旧驳回、退成不给剂量。只删不加。
+      if (safetyIssue) {
+        const salvaged = salvageM04Content(directionPruned, {
+          prior: signedPriorReasoning as ClinicalReasoningResultV2,
+          clinicalContext: clinicalGroundingText(safeState),
+          issueOf: (candidateContent) => finalSafetyIssueOf(candidateContent) || undefined,
+          declassify: (candidateContent) => markTransparentFormulaDeclassification(candidateContent, signedPriorReasoning),
+          afterHerbRemoval: (candidateContent) => withoutPrecautionsNamingAbsentHerbs(
+            applyDeterministicDecoctionMethod(candidateContent, structuredClinicalContext, authoritativePatientAgeYears(gated)),
+          ),
+        });
+        console.warn("[tcm-cdss:telemetry] m04_salvage", {
+          stage: "prescribe",
+          site: "final_output_transform",
+          issue: safetyIssue,
+          salvaged: Boolean(salvaged),
+          steps: salvaged ? m04SalvageTelemetry(salvaged.steps) : [],
+        });
+        if (salvaged) {
+          directionPruned = salvaged.content;
+          reasoning = parseReasoningV2(directionPruned);
+          safetyIssue = "";
+        }
+      }
       const declassifiedAccepted = Boolean(reasoning?.formula?.candidates?.[0]?.identityDeclassified);
       const declassificationTherapyIssue = declassifiedAccepted
         ? transparentFormulaTherapyIssue(reasoning, signedPriorReasoning, true)
         : undefined;
-      // 最终出口必须每次先完整重跑 T1 安全底线。之前只在全量语义合同“已经有 issue”
-      // 的分支内才算 safetyIssue；若全量口径把审方风险当作 advisory，十八反会返回
-      // undefined 并绕过整个安全分支。安全底线不能依赖另一个质量问题先触发。
-      const detectedSafetyIssue = m04SafetyContractIssue(reasoning, signedPriorReasoning, {
-        isKnownHerbName: isKnownTcmHerbName,
-        trustedWorkbenchEdit: false,
-        auditedClinicalRisksAreAdvisory: false,
-        clinicalContext: clinicalGroundingText(safeState),
-        // 对所有候选统一按「词表能力边界可批注、真实方向对立仍阻断」口径重跑 T1。
-        // 该参数不会豁免寒热对立；它只移除 unsupportedHighImpactHerbIssue 的 vocab 分支。
-        waiveTherapyCoverageAnnotated: true,
-      }) || "";
-      // 核心结构化编排器仍会在初次生成与修复轮严格驳回君药标签不一致；outputTransform 同时
-      // 也是修复耗尽后终审，不能在核心已按质量项受理后再次把同一码升级成剂量安全 T1。
-      // 真正的药物安全码不匹配本谓词，继续逐字硬拦。
-      const safetyIssue = isM04FinalizerDeferredLabelIssue(detectedSafetyIssue) ? "" : detectedSafetyIssue;
       // ── 终审只有一条判据：T1 底线合同干不干净（甲方 2026-08-08 定口径）──────────────────
       // safetyIssue 非空 = 逐味药典剂量越界 / 十八反十九畏 / 特殊人群禁忌 / 管制毒性 / 方向对立——
       // 继续硬拦，医生拿到的是明确的安全拒绝。safetyIssue 为空时，剩下的方剂编译、降级治法覆盖与

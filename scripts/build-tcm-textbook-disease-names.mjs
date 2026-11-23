@@ -14,8 +14,14 @@ const BOOKS = new Set(["supplement", "neike", "fuke", "waike", "erke", "yanke", 
 const sectionNames = JSON.parse(fs.readFileSync(path.join(root, "src/data/tcm-textbook-section-names.source.json"), "utf8"));
 const fixedSection = (bookKey, name) => sectionNames.sectionNameFixes.find((fix) => fix.bookKey === bookKey && fix.from === name)?.to || name;
 const names = new Set();
+// 哪本书的哪一节让这个病名进了清单（急危重对照行可以来自候选书目以外，如中西医结合外科学的「休克」「急性阑尾炎」）。
+const contributingSections = new Set();
 for (const row of [...table.rows, ...supplement.rows]) {
-  if ((BOOKS.has(row.bookKey) || emergencyRows.has(row.id)) && typeof row.disease === "string" && row.disease.trim() && Array.isArray(row.formulas) && (row.formulas.length > 0 || row.referenceOnly === true && row.therapy)) names.add(fixedSection(row.bookKey, row.disease.trim()));
+  if ((BOOKS.has(row.bookKey) || emergencyRows.has(row.id)) && typeof row.disease === "string" && row.disease.trim() && Array.isArray(row.formulas) && (row.formulas.length > 0 || row.referenceOnly === true && row.therapy)) {
+    const section = fixedSection(row.bookKey, row.disease.trim());
+    names.add(section);
+    contributingSections.add(`${row.bookKey}|${section}`);
+  }
 }
 
 // 教材节名是西医病名、而教材自己在该节定义里写明「属中医学“X”范畴」的（中医外科学「血栓闭塞性脉管炎」：属中医学“脱疽”的范畴），
@@ -48,8 +54,9 @@ for (const disease of [...table.diseases, ...(supplement.diseases || [])]) {
 }
 // 节名是西医病名、教材在该节正文里（不只是首句定义）写明中医归属的（「中医称为痄腮」「属于中医“血虚”“虚劳”范畴」）：逐条核对过的
 // 表（tcm-textbook-section-names.source.json sectionTcmNames，带行号与原句）。首句定义里就有引号名的上面已取到，表里同节的不覆盖。
+// 只经急危重对照行进清单的节（书不在候选书目里）也收：清单里有这个节名，它就会原样交付。
 for (const item of sectionNames.sectionTcmNames) {
-  if (!BOOKS.has(item.bookKey) || !names.has(item.section) || tcmNameBySectionName[item.section]) continue;
+  if (!(BOOKS.has(item.bookKey) || contributingSections.has(`${item.bookKey}|${item.section}`)) || !names.has(item.section) || tcmNameBySectionName[item.section]) continue;
   tcmNameBySectionName[item.section] = item.tcmName;
   tcmNameBasis[item.section] = { line: item.line, quote: item.quote };
 }

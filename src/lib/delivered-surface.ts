@@ -60,7 +60,7 @@ import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { selfTakenMedicationMentions, recordedMedicationMentions, drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTaken } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, retainModificationFindings, modificationIsTextbookFill, fillTextbookModificationConditions, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
-import { modificationDoseWithinPharmacopoeia, canonicalTcmHerbIdentity, herbAdditionPopulationConflict } from "./diagnosis-stage-contract";
+import { modificationDoseWithinPharmacopoeia, canonicalTcmHerbIdentity, herbAdditionPopulationConflict, isDeclassifiedSelfDevisedCandidate } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { textbookDiseaseTypicalManifestation, textbookDefinitionSuitableForDisplay, textbookDifferentialTextWithoutNumber, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable, settledTextbookSyndromeName, withTextbookSubtypeSyndromeNames, textbookDiseaseIdentity } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
@@ -2444,6 +2444,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       candidate.constructionType = "self_devised";
       candidate.formulaNames = [];
       candidate.baseFormulas = [];
+      // 服务端在这里剥离了方名身份（小方加味过度），同上标记，交付后再过合同不判方名漂移。
+      candidate.identityDeclassified = true;
       candidate.formulaSource = { evidenceLevel: "model_inference", source: source || "自拟方", confidence: "中" };
     }
     // 方义开头与最终方名一致（自拟方 / 以某方为基础），三种写法同一个判据（withOpeningMatchingFormulaName）。
@@ -2574,7 +2576,12 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     if (typeof candidate.formulaAnalysis === "string" && /[？?]/.test(candidate.formulaAnalysis)) {
       candidate.formulaAnalysis = withoutQuestionChatter(candidate.formulaAnalysis);
     }
-    if (typeof candidate.name === "string" && SELF_COMPOSED_NAME.test(candidate.name.trim())) candidate.name = "自拟方";
+    if (typeof candidate.name === "string" && SELF_COMPOSED_NAME.test(candidate.name.trim())) {
+      // 改写前已是「剥离了方名的自拟方」（方名表为空、self_devised）的，标上服务端剥离标记：合同只在有这个标记时把「自拟方」认作已剥离，
+      // 交付前后同一个判定（isDeclassifiedSelfDevisedCandidate，第五十七轮 h10）。
+      if (isDeclassifiedSelfDevisedCandidate(candidate)) candidate.identityDeclassified = true;
+      candidate.name = "自拟方";
+    }
     // 模型把提示词里的「本例辨证组方」抄进方义（「故去辰砂，改以本例辨证组方」，第三十五轮甲方 100 例 C035）。
     if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = candidate.formulaAnalysis.replace(/本例辨证组方/gu, "自拟方");
     // 顿号并列里同一味药的两种写法（「去桃仁、燀桃仁」，第四十六轮 p100c-C065）：只留第一个。

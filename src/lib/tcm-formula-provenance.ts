@@ -356,6 +356,29 @@ function governedFormulaCompilationRow(value: string): GovernedFormulaCompilatio
 }
 
 /**
+ * 两个写法是不是同一首受治理的方（第五十七轮）：同名、写法表上的同方异写（栝蒌/瓜蒌、汤作丸散），或查到同一条编译行
+ *（目录别名、原方表同书异写：麻杏甘石汤 = 麻黄杏仁甘草石膏汤）。合同核「方名里写了所选方」时用它：formulaNames 记的是目录条目名，
+ * 方名显示的是教材写法，逐字比会判 formula_reference_display_mismatch，整页退成不给剂量（留出集 f27 黄连解毒汤合麻杏甘石汤，第五十五、五十六轮 11 次）。
+ */
+export function sameGovernedFormula(left: string, right: string): boolean {
+  const a = exactFormulaIdentityName(left);
+  const b = exactFormulaIdentityName(right);
+  if (!a || !b) return false;
+  if (a === b || sameFormulaNameSpelling(a, b)) return true;
+  const rowA = governedFormulaCompilationRow(a);
+  return Boolean(rowA) && rowA === governedFormulaCompilationRow(b);
+}
+
+/** 方名里写了这首方：逐字包含，或方名里识别出的某首方与它是同一首（sameGovernedFormula）。 */
+export function candidateNameMentionsFormula(candidateName: string, formulaName: string): boolean {
+  const name = String(candidateName || "");
+  const formula = String(formulaName || "").trim();
+  if (!formula) return false;
+  if (name.includes(formula)) return true;
+  return identifyKnownFormulaNames(name).some((mentioned) => sameGovernedFormula(mentioned, formula));
+}
+
+/**
  * 编译基准上记的方名：按目录条目名直接查到的用条目名（此前的行为）；按同方异写查到的保留问的那个写法，
  * 让辨证阶段锁定的方名、开方阶段候选方名与基准方名是同一个写法（教材写「葛根芩连汤」，医生看到的也是它）。
  */

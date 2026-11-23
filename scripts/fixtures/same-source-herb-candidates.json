@@ -1,0 +1,7645 @@
+{
+ "schemaVersion": "tcm-same-source-herb-candidates-v1",
+ "generatedBy": "scripts/build-same-source-herb-candidates.mjs",
+ "note": "生成物，勿手改。每一对都须在 tcm-same-source-herbs.source.json 的 groups / sameOriginDistinctUse / notRelated 里各归一处。bases: species=教材来源句拉丁学名相同；attached=教材附药；derived=来源句写明由另一味制得；statement=教材【鉴别用药】明说同出一物；name=药名构词同干。",
+ "source": {
+  "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+  "sha256": "fc365e7da68c1c14f18d0b411aba148ab76ee2032f342bc97ca494cca1f957c4",
+  "lines": "151400-161000"
+ },
+ "universeCount": 698,
+ "textbookRecords": [
+  {
+   "name": "麻黄",
+   "identity": "麻黄",
+   "line": 153138,
+   "source": "本品为麻黄科植物草麻黄Ephedra sinica Stapf、中麻黄Ephedra intermedia Schrenk et C.A.Mey.或木贼麻黄Ephedra equisetina Bge.的干燥草质茎。"
+  },
+  {
+   "name": "桂枝",
+   "identity": "桂枝",
+   "line": 153153,
+   "source": "本品为樟科植物肉桂Cinnamomum cassia Presl的干燥嫩枝。"
+  },
+  {
+   "name": "紫苏叶",
+   "identity": "紫苏叶",
+   "line": 153168,
+   "source": "本品为唇形科植物紫苏Perilla frutescens （L.）Britt.的干燥叶（或带嫩枝）。"
+  },
+  {
+   "name": "紫苏梗",
+   "identity": "紫苏梗",
+   "line": 153180,
+   "parentName": "紫苏叶",
+   "source": "本品为唇形科植物紫苏Perilla frutescens （L.）Britt.的干燥茎。"
+  },
+  {
+   "name": "生姜",
+   "identity": "生姜",
+   "line": 153183,
+   "source": "本品为姜科植物姜Zingiber officinale Rosc.的新鲜根茎。"
+  },
+  {
+   "name": "生姜皮",
+   "identity": "生姜皮",
+   "line": 153198,
+   "parentName": "生姜",
+   "source": "本品为姜科植物姜Zingiber officinale Rosc.的根茎切下的外表皮。"
+  },
+  {
+   "name": "生姜汁",
+   "identity": "生姜汁",
+   "line": 153199,
+   "parentName": "生姜",
+   "source": "本品系用生姜捣汁入药。"
+  },
+  {
+   "name": "香薷",
+   "identity": "香薷",
+   "line": 153202,
+   "source": "本品为唇形科植物石香薷Mosla chinensis Maxim.或江香薷Mosla chinensis Jiangxiangru的干燥地上部分。"
+  },
+  {
+   "name": "荆芥",
+   "identity": "荆芥",
+   "line": 153215,
+   "source": "本品为唇形科植物荆芥Schizonepeta tenuifolia Briq.的干燥地上部分。"
+  },
+  {
+   "name": "荆芥炭",
+   "identity": "荆芥炭",
+   "line": 153227,
+   "parentName": "荆芥",
+   "source": "本品为荆芥的炮制加工品。取荆芥段照炒炭法炒至表面焦黑色，内部焦黄色，喷淋清水少许，熄灭火星，取出，晾干。"
+  },
+  {
+   "name": "防风",
+   "identity": "防风",
+   "line": 153230,
+   "source": "本品为伞形科植物防风Saposhnikovia divaricata （Turcz.）Schischk.的干燥根。"
+  },
+  {
+   "name": "羌活",
+   "identity": "羌活",
+   "line": 153247,
+   "source": "本品为伞形科植物羌活Notopterygium incisum Ting ex H.T.Chang或宽叶羌活Notopterygium franchetii H.de Boiss.的干燥根茎及根。"
+  },
+  {
+   "name": "白芷",
+   "identity": "白芷",
+   "line": 153260,
+   "source": "本品为伞形科植物白芷Angelica dahurica （Fisch.ex Hoffm.）Benth.et Hook.f.或杭白芷Angelica dahurica （Fisch.ex Hoffm.）Benth.et Hook. f.var.formosana （Boiss.）Shan et Yuan的干燥根。"
+  },
+  {
+   "name": "细辛",
+   "identity": "细辛",
+   "line": 153277,
+   "source": "本品为马兜铃科植物北细辛Asarum heterotropoides Fr.Schmidt var.mandshuricum （Maxim.）Kitag.、汉城细辛Asarum sieboldii Miq. var. seoulense Nakai 或华细辛 Asarum sieboldii Miq.的干燥根和根茎。"
+  },
+  {
+   "name": "藁本",
+   "identity": "藁本",
+   "line": 153295,
+   "source": "本品为伞形科植物藁本Ligusticum sinensse Oliv.或辽藁本Ligusticum jeholense Nakai et Kitag.的干燥根茎和根。"
+  },
+  {
+   "name": "苍耳子",
+   "identity": "苍耳子",
+   "line": 153308,
+   "source": "本品为菊科植物苍耳Xanthium sibiricum Patr.的干燥成熟带总苞的果实。"
+  },
+  {
+   "name": "苍耳草",
+   "identity": "苍耳草",
+   "line": 153323,
+   "parentName": "苍耳子",
+   "source": "本品为菊科植物苍耳Xanthium sibiricum Patr.的茎叶。"
+  },
+  {
+   "name": "辛夷",
+   "identity": "辛夷",
+   "line": 153326,
+   "source": "本品为木兰科植物望春花Magnolia biondii Pamp.、玉兰Magnolia denudata Desr.或武当玉兰Magnolia sprengeri Pamp.的干燥花蕾。"
+  },
+  {
+   "name": "葱白",
+   "identity": "葱白",
+   "line": 153339,
+   "source": "本品为百合科植物葱Allium fistulosum L.近根部的鳞茎。"
+  },
+  {
+   "name": "胡荽",
+   "identity": "胡荽",
+   "line": 153352,
+   "source": "本品为伞形科植物芫荽Coriandrum sativum L.的全草。"
+  },
+  {
+   "name": "西河柳",
+   "identity": "西河柳",
+   "line": 153365,
+   "source": "本品为柽柳科植物柽柳Tamarix chinensis Lour.的干燥细嫩枝叶。"
+  },
+  {
+   "name": "薄荷",
+   "identity": "薄荷",
+   "line": 153380,
+   "source": "本品为唇形科植物薄荷Mentha haplocalyx Briq.的干燥地上部分。"
+  },
+  {
+   "name": "牛蒡子",
+   "identity": "牛蒡子",
+   "line": 153396,
+   "source": "本品为菊科植物牛蒡Arctium lappa L.的干燥成熟果实。"
+  },
+  {
+   "name": "蝉蜕",
+   "identity": "蝉蜕",
+   "line": 153410,
+   "source": "本品为蝉科昆虫黑蚱Cryptotympana pustulata Fabricius若虫羽化时脱落的皮壳。"
+  },
+  {
+   "name": "桑叶",
+   "identity": "桑叶",
+   "line": 153427,
+   "source": "本品为桑科植物桑Morus alba L.的干燥叶。"
+  },
+  {
+   "name": "菊花",
+   "identity": "菊花",
+   "line": 153442,
+   "source": "本品为菊科植物菊Chrysanthemum morifolium Ramat.的干燥头状花序。"
+  },
+  {
+   "name": "蔓荆子",
+   "identity": "蔓荆子",
+   "line": 153457,
+   "source": "本品为马鞭草科植物单叶蔓荆Vitex trifoli a L.var. simplicifolia Cham.或蔓荆Vitex trifolia L.的干燥成熟果实。"
+  },
+  {
+   "name": "柴胡",
+   "identity": "柴胡",
+   "line": 153471,
+   "source": "本品为伞形科植物柴胡Bupleurum chinense DC.或狭叶柴胡Bupleurum scorzonerifolium Willd.的干燥根。"
+  },
+  {
+   "name": "升麻",
+   "identity": "升麻",
+   "line": 153486,
+   "source": "本品为毛茛科植物大三叶升麻Cimicifuga heracleifolia Kom.、兴安升麻Cimicifuga dahurica （Turcz.）Maxim.或升麻Cimicifuga foetida L.的干燥根茎。"
+  },
+  {
+   "name": "葛根",
+   "identity": "葛根",
+   "line": 153501,
+   "source": "本品为豆科植物野葛Pueraria lobata （Willd.）Ohwi或甘葛藤Pueraria thomsonii Benth .的干燥根。"
+  },
+  {
+   "name": "葛花",
+   "identity": "葛花",
+   "line": 153517,
+   "parentName": "葛根",
+   "source": "本品为豆科植物野葛Pueraria lobata （Willd.）Ohwi或甘葛藤Pueraria thomsonii Benth.的未开放花蕾。"
+  },
+  {
+   "name": "淡豆豉",
+   "identity": "淡豆豉",
+   "line": 153520,
+   "source": "本品为豆科植物大豆Glycine max （ L.） Merr.的成熟种子的发酵加工品。"
+  },
+  {
+   "name": "大豆黄卷",
+   "identity": "大豆黄卷",
+   "line": 153531,
+   "parentName": "淡豆豉",
+   "source": "本品为豆科植物大豆Glycine max （L.） Merr. 的成熟种子经发芽干燥的炮制加工品。"
+  },
+  {
+   "name": "浮萍",
+   "identity": "浮萍",
+   "line": 153534,
+   "source": "本品为浮萍科植物紫萍Spirodela polyrrhiza （L.）Schleid.的干燥全草。"
+  },
+  {
+   "name": "木贼",
+   "identity": "木贼",
+   "line": 153549,
+   "source": "本品为木贼科植物木贼Equisetum hyemale L.的干燥地上部分。"
+  },
+  {
+   "name": "谷精草",
+   "identity": "谷精草",
+   "line": 153561,
+   "source": "本品为谷精草科植物谷精草Eriocaulon buergerianum Koern.的干燥带花茎的头状花序。"
+  },
+  {
+   "name": "石膏",
+   "identity": "石膏",
+   "line": 153586,
+   "source": "本品为硫酸盐类矿物硬石膏族石膏，主含含水硫酸钙（CaSO4 ·2H2 O）。"
+  },
+  {
+   "name": "寒水石",
+   "identity": "寒水石",
+   "line": 153602,
+   "source": "本品为碳酸盐类矿物方解石族方解石，主含碳酸钙（CaCO3 ），或硫酸盐类矿物硬石膏族红石膏，主含含水硫酸钙（CaSO4 ·2H2 O）。"
+  },
+  {
+   "name": "知母",
+   "identity": "知母",
+   "line": 153614,
+   "source": "本品为百合科植物知母Anemarrhena asphodeloides Bge.的干燥根茎。"
+  },
+  {
+   "name": "芦根",
+   "identity": "芦根",
+   "line": 153631,
+   "source": "本品为禾本科植物芦苇Phragmites communis Trin.的新鲜或干燥根茎。"
+  },
+  {
+   "name": "天花粉",
+   "identity": "天花粉",
+   "line": 153647,
+   "source": "本品为葫芦科植物栝楼Trichosanthes kirilowii Maxim.或双边栝楼Trichosanthes rosthornii Harms的干燥根。"
+  },
+  {
+   "name": "竹叶",
+   "identity": "竹叶",
+   "line": 153662,
+   "source": "本品为禾本科植物淡竹Phyllostachys nigra （Lodd.）.Munro var. henois （Mitf.）.Stapf ex Rendle的干燥叶。"
+  },
+  {
+   "name": "淡竹叶",
+   "identity": "淡竹叶",
+   "line": 153676,
+   "source": "本品为禾本科植物淡竹叶Lophatherum gracile Brongn.的干燥茎叶。"
+  },
+  {
+   "name": "鸭跖草",
+   "identity": "鸭跖草",
+   "line": 153689,
+   "source": "本品为鸭跖草科植物鸭跖草Commelina communis L.的干燥地上部分。"
+  },
+  {
+   "name": "栀子",
+   "identity": "栀子",
+   "line": 153703,
+   "source": "本品为茜草科植物栀子Gardenia jasminoides Ellis的干燥成熟果实。"
+  },
+  {
+   "name": "夏枯草",
+   "identity": "夏枯草",
+   "line": 153721,
+   "source": "本品为唇形科植物夏枯草Prunella vulgaris L.的干燥果穗。"
+  },
+  {
+   "name": "决明子",
+   "identity": "决明子",
+   "line": 153735,
+   "source": "本品为豆科植物决明Cassia obtusifolia L.或小决明Cassia tora L.的干燥成熟种子。"
+  },
+  {
+   "name": "密蒙花",
+   "identity": "密蒙花",
+   "line": 153749,
+   "source": "本品为马钱科植物密蒙花Buddleja officinalis Maxim.的干燥花蕾及花序。"
+  },
+  {
+   "name": "青葙子",
+   "identity": "青葙子",
+   "line": 153761,
+   "source": "本品为苋科植物青葙Celosia argentea L.的干燥成熟种子。"
+  },
+  {
+   "name": "黄芩",
+   "identity": "黄芩",
+   "line": 153777,
+   "source": "本品为唇形科植物黄芩Scutellaria baicalensis Georgi的干燥根。"
+  },
+  {
+   "name": "黄连",
+   "identity": "黄连",
+   "line": 153793,
+   "source": "本品为毛茛科植物黄连Coptis chinensis Franch.、三角叶黄连Coptis deltoidea C.Y.Cheng et Hsiao或云连Coptis teeta Wall. 的干燥根茎。"
+  },
+  {
+   "name": "黄柏",
+   "identity": "黄柏",
+   "line": 153811,
+   "source": "本品为芸香科植物黄皮树Phellodendron chinense Schneid. 或黄檗Phellodendron amurense Rupr.的干燥树皮。生用或盐水炙、炒炭用。"
+  },
+  {
+   "name": "龙胆",
+   "identity": "龙胆",
+   "line": 153826,
+   "source": "本品为龙胆科植物条叶龙胆Gentiana manshurica Kitag.、龙胆Gentiana scabra Bge.、三花龙胆Gentiana triflora Pall. 或滇龙胆Gentiana rigescens Franch.的干燥根及根茎。"
+  },
+  {
+   "name": "秦皮",
+   "identity": "秦皮",
+   "line": 153839,
+   "source": "本品为木犀科植物苦枥白蜡树Fraxinus rhynchophylla Hance、白蜡树Fraxinus chinensis Roxb.、尖叶白蜡树Fraxinus szaboana Lingelsh.或宿柱白蜡树Fraxinus stylosa Lingelsh.的干燥枝皮或干皮。"
+  },
+  {
+   "name": "苦参",
+   "identity": "苦参",
+   "line": 153852,
+   "source": "本品为豆科植物苦参Sophora flavescens Ait. 的干燥根。"
+  },
+  {
+   "name": "白鲜皮",
+   "identity": "白鲜皮",
+   "line": 153866,
+   "source": "本品为芸香科植物白鲜Dictamnus dasycarpus Turcz.干燥根皮。"
+  },
+  {
+   "name": "金银花",
+   "identity": "金银花",
+   "line": 153883,
+   "source": "本品为忍冬科植物忍冬Lonicera japonica Thund.的干燥花蕾或带初开的花。生用、炒用或制成露剂使用。"
+  },
+  {
+   "name": "忍冬藤",
+   "identity": "忍冬藤",
+   "line": 153896,
+   "parentName": "金银花",
+   "source": "本品为忍冬科植物忍冬Lonicera japonica Thund.的干燥茎枝，又名金银花藤。"
+  },
+  {
+   "name": "山银花",
+   "identity": "山银花",
+   "line": 153897,
+   "parentName": "金银花",
+   "source": "本品为忍冬科植物灰毡毛忍冬Lonicera macranthoides Hand.-Mazz.、红腺忍冬Lonicera hypoglauca Miq.、华南忍冬Lonicera confusa DC.或黄褐毛忍冬Lonicera fulvotomentosa Hsu et S.C.Cheng的干燥花蕾或带初开的花。"
+  },
+  {
+   "name": "连翘",
+   "identity": "连翘",
+   "line": 153900,
+   "source": "本品为木犀科植物连翘Forsythia suspensa （Thunb.）Vahl的干燥果实。"
+  },
+  {
+   "name": "穿心莲",
+   "identity": "穿心莲",
+   "line": 153915,
+   "source": "本品为爵床科植物穿心莲Andrographispaniculata （Burm. f.）Nees的干燥地上部分。"
+  },
+  {
+   "name": "大青叶",
+   "identity": "大青叶",
+   "line": 153931,
+   "source": "本品为十字花科植物菘蓝Isatis indigotica Fort.的干燥叶。"
+  },
+  {
+   "name": "板蓝根",
+   "identity": "板蓝根",
+   "line": 153945,
+   "source": "本品为十字花科植物菘蓝Isatis indigotica Fort.的干燥根。"
+  },
+  {
+   "name": "青黛",
+   "identity": "青黛",
+   "line": 153959,
+   "source": "本品为爵床科植物马蓝Baphicacanthus cusia （Nees） Bremek.、蓼科植物蓼蓝Polygonum tinctorium Ait.或十字花科植物菘蓝Isatis indigotica Fort.的叶或茎叶经加工制得的干燥粉末、团块或颗粒。秋季采收以上植物的落叶，加水浸泡，至叶腐烂，叶落脱皮时，捞去落叶，加适量石灰乳，充分搅拌至浸液由乌绿色转为深红色时，捞取液面泡沫，晒干而成。"
+  },
+  {
+   "name": "蒲公英",
+   "identity": "蒲公英",
+   "line": 153992,
+   "source": "本品为菊科植物蒲公英Taraxacum mongolicum Hand. –Mazz.、碱地蒲公英Taraxacum borealisinense Kitag.或同属数种植物的干燥全草。"
+  },
+  {
+   "name": "紫花地丁",
+   "identity": "紫花地丁",
+   "line": 154006,
+   "source": "本品为堇菜科植物紫花地丁Viola yedoensis Makino的干燥全草。"
+  },
+  {
+   "name": "野菊花",
+   "identity": "野菊花",
+   "line": 154021,
+   "source": "本品为菊科植物野菊Chrysanthemum indicum L.的干燥头状花序。"
+  },
+  {
+   "name": "重楼",
+   "identity": "重楼",
+   "line": 154034,
+   "source": "本品为百合科植物云南重楼Paris polyphylla Smith var. yunnanensis （Franch.） Hand.-Mazz或七叶一枝花Paris polyphylla Smith var. chinensis （Franch.）Hara的干燥根茎。"
+  },
+  {
+   "name": "拳参",
+   "identity": "拳参",
+   "line": 154049,
+   "source": "本品为蓼科植物拳参Polygonum bistorta L.的干燥根茎。"
+  },
+  {
+   "name": "漏芦",
+   "identity": "漏芦",
+   "line": 154065,
+   "source": "本品为菊科植物祁州漏芦Rhaponticum uniflorum （L.）DC.的干燥根。"
+  },
+  {
+   "name": "土茯苓",
+   "identity": "土茯苓",
+   "line": 154080,
+   "source": "本品为百合科植物光叶菝葜Smilax glabra Roxb.的干燥根茎。"
+  },
+  {
+   "name": "鱼腥草",
+   "identity": "鱼腥草",
+   "line": 154094,
+   "source": "本品为三白草科植物蕺菜Houttuynia cordata Thunb.的新鲜全草或干燥地上部分。"
+  },
+  {
+   "name": "金荞麦",
+   "identity": "金荞麦",
+   "line": 154108,
+   "source": "本品为蓼科植物金荞麦Fagopyrum dibotrys （D.Don） Hara的干燥根茎。"
+  },
+  {
+   "name": "大血藤",
+   "identity": "大血藤",
+   "line": 154121,
+   "source": "本品为木通科植物大血藤Sargentodoxa cuneata （oliv.）Rehd.et wi1s.的干燥藤茎。"
+  },
+  {
+   "name": "败酱草",
+   "identity": "败酱草",
+   "line": 154135,
+   "source": "本品为败酱科植物黄花败酱Patrinia scabiosaefolia Fisch. ex Link.、白花败酱Patrinia villose Juss.的干燥全草。"
+  },
+  {
+   "name": "墓头回",
+   "identity": "墓头回",
+   "line": 154147,
+   "parentName": "败酱草",
+   "source": "本品为败酱科植物异叶败酱Patrinia heterophylla Bunge及糙叶败酱Patrinia seabra Bunge的根。"
+  },
+  {
+   "name": "射干",
+   "identity": "射干",
+   "line": 154150,
+   "source": "本品为鸢尾科植物射干Belamcanda chinensis （L.） DC.的干燥根茎。"
+  },
+  {
+   "name": "山豆根",
+   "identity": "山豆根",
+   "line": 154163,
+   "source": "本品为豆科植物越南槐Sophora tonkinensis Gapnep.的干燥根及根茎。"
+  },
+  {
+   "name": "北豆根",
+   "identity": "北豆根",
+   "line": 154177,
+   "parentName": "山豆根",
+   "source": "本品为防己科植物蝙蝠葛Menispermum dauricum DC.的干燥根茎。"
+  },
+  {
+   "name": "马勃",
+   "identity": "马勃",
+   "line": 154180,
+   "source": "本品为灰包科真菌脱皮马勃Lasiosphaera fenzlii Reich.、大马勃Calvatia gigantea （Batsch ex Pers.）Lloyd或紫色马勃Calvatia li1acina （Mont.et Berk.）Lloyd的干燥子实体。"
+  },
+  {
+   "name": "青果",
+   "identity": "青果",
+   "line": 154193,
+   "source": "本品为橄榄科植物橄榄Canarium album Raeusch.的干燥成熟果实。"
+  },
+  {
+   "name": "西青果",
+   "identity": "西青果",
+   "line": 154205,
+   "parentName": "青果",
+   "source": "本品为使君子科植物诃子Terminalia chebula Retz.的干燥幼果。"
+  },
+  {
+   "name": "木蝴蝶",
+   "identity": "木蝴蝶",
+   "line": 154208,
+   "source": "本品为紫葳科植物木蝴蝶Oroxylum indicum （L.）Vent.的干燥成熟种子。"
+  },
+  {
+   "name": "白头翁",
+   "identity": "白头翁",
+   "line": 154220,
+   "source": "本品为毛茛科植物白头翁Pulsatilla chinensis （Bge.） Regel的干燥根。"
+  },
+  {
+   "name": "马齿苋",
+   "identity": "马齿苋",
+   "line": 154233,
+   "source": "本品为马齿苋科植物马齿苋Portolaca oleracea L.的干燥地上部分。"
+  },
+  {
+   "name": "鸦胆子",
+   "identity": "鸦胆子",
+   "line": 154248,
+   "source": "本品为苦木科植物鸦胆子Brucea javanica （L.）Merr.的干燥成熟果实。"
+  },
+  {
+   "name": "地锦草",
+   "identity": "地锦草",
+   "line": 154263,
+   "source": "本品为大戟科植物地锦Euphorbia humifusa Willd.或斑地锦Euphorbia maculata L.的干燥全草。"
+  },
+  {
+   "name": "半边莲",
+   "identity": "半边莲",
+   "line": 154277,
+   "source": "本品为桔梗科植物半边莲Lobelia chinensis Lour.的干燥全草。"
+  },
+  {
+   "name": "半枝莲",
+   "identity": "半枝莲",
+   "line": 154290,
+   "parentName": "半边莲",
+   "source": "本品为唇形科植物半枝莲Scutellaria barbata D.Don 的干燥全草。"
+  },
+  {
+   "name": "白花蛇舌草",
+   "identity": "白花蛇舌草",
+   "line": 154293,
+   "source": "本品为茜草科植物白花蛇舌草Oldenlandia diffusa （willd.） Roxb.的干燥全草。"
+  },
+  {
+   "name": "山慈菇",
+   "identity": "山慈菇",
+   "line": 154308,
+   "source": "本品为兰科植物杜鹃兰Cremastra appendiculata （D.Don）Makino、独蒜兰Pleione bulbocodioides （Franch.）Rolfe或云南独蒜兰Pleione yunnanens Rolfe的干燥假鳞茎。"
+  },
+  {
+   "name": "猪胆粉",
+   "identity": "猪胆粉",
+   "line": 154336,
+   "parentName": "熊胆粉",
+   "source": "本品为猪科动物猪Sus scrofadomestica Brisson.胆汁的干燥品。"
+  },
+  {
+   "name": "千里光",
+   "identity": "千里光",
+   "line": 154339,
+   "source": "本品为菊科植物千里光Senecio scandens Buch.-Ham. 的干燥地上部分。"
+  },
+  {
+   "name": "白蔹",
+   "identity": "白蔹",
+   "line": 154355,
+   "source": "本品为葡萄科植物白蔹Ampelopsis japonica （Thunb.） Makino的干燥块根。"
+  },
+  {
+   "name": "四季青",
+   "identity": "四季青",
+   "line": 154368,
+   "source": "本品为冬青科植物冬青Ilex chinensis Sims的干燥叶。"
+  },
+  {
+   "name": "绿豆",
+   "identity": "绿豆",
+   "line": 154381,
+   "source": "本品为豆科植物绿豆Phaseolus radiatus L.的干燥种子。"
+  },
+  {
+   "name": "绿豆衣",
+   "identity": "绿豆衣",
+   "line": 154395,
+   "parentName": "绿豆",
+   "source": "本品为豆科植物绿豆Phaseolus radiatus L.的种皮。"
+  },
+  {
+   "name": "赤小豆",
+   "identity": "赤小豆",
+   "line": 154396,
+   "parentName": "绿豆",
+   "source": "本品为豆科植物赤小豆Vigna umbeuata Ohwi et Ohashi或赤豆Vigna angularis Ohwi et Ohashi的干燥成熟种子。"
+  },
+  {
+   "name": "黑豆",
+   "identity": "黑豆",
+   "line": 154397,
+   "parentName": "绿豆",
+   "source": "本品为豆科草本植物大豆Glycine max （L.）Merr.的干燥成熟种子。"
+  },
+  {
+   "name": "生地黄",
+   "identity": "生地黄",
+   "line": 154402,
+   "source": "本品为玄参科植物地黄Rehmannia glutinosa Libosch.的干燥块根。"
+  },
+  {
+   "name": "玄参",
+   "identity": "玄参",
+   "line": 154420,
+   "source": "本品为玄参科植物玄参Scrophularia ningpoensis Hemsl.的干燥根。"
+  },
+  {
+   "name": "牡丹皮",
+   "identity": "牡丹皮",
+   "line": 154435,
+   "source": "本品为毛茛科植物牡丹Paeonia suffruticosa Andr.的干燥根皮。"
+  },
+  {
+   "name": "赤芍",
+   "identity": "赤芍",
+   "line": 154450,
+   "source": "本品为毛茛科植物芍药Paeonia lactiflora Pall.或川赤芍Paeonia veitchii Lynch的干燥根。"
+  },
+  {
+   "name": "紫草",
+   "identity": "紫草",
+   "line": 154464,
+   "source": "本品为紫草科植物新疆紫草Arnebia euchroma （Royle） Johnst.或内蒙紫草 Arnebia guttata Bunge的干燥根，主产于新疆、内蒙古。"
+  },
+  {
+   "name": "水牛角",
+   "identity": "水牛角",
+   "line": 154479,
+   "source": "本品为牛科动物水牛Bubalus bubalis Linnaeus的角。"
+  },
+  {
+   "name": "青蒿",
+   "identity": "青蒿",
+   "line": 154495,
+   "source": "本品为菊科植物黄花蒿Artemisia annua L. 的干燥地上部分。"
+  },
+  {
+   "name": "白薇",
+   "identity": "白薇",
+   "line": 154511,
+   "source": "本品为萝摩科植物白薇Cynanchum atratum Bge. 或蔓生白薇Cynanchum versicolor Bge. 的干燥根和根茎。"
+  },
+  {
+   "name": "地骨皮",
+   "identity": "地骨皮",
+   "line": 154526,
+   "source": "本品为茄科植物枸杞Lycium chinense Mill.或宁夏枸杞Lycium barbarum L. 的干燥根皮。"
+  },
+  {
+   "name": "银柴胡",
+   "identity": "银柴胡",
+   "line": 154541,
+   "source": "本品为石竹科植物银柴胡Stellaria dichotoma L. var. lanceolata Bge. 的干燥根。"
+  },
+  {
+   "name": "胡黄连",
+   "identity": "胡黄连",
+   "line": 154555,
+   "source": "本品为玄参科植物胡黄连Picrorhiza scrophulariiflora Pennell 的干燥根茎。"
+  },
+  {
+   "name": "大黄",
+   "identity": "大黄",
+   "line": 154582,
+   "source": "本品为蓼科植物掌叶大黄Rheum palmatum L.、唐古特大黄Rheum tanguticum Maxim.ex Balf.或药用大黄Rheum officinale Baill.的干燥根和根茎。生用，或酒炙（饮片称酒大黄），酒炖或蒸（饮片称熟大黄），炒炭（饮片称大黄炭）用。"
+  },
+  {
+   "name": "芒硝",
+   "identity": "芒硝",
+   "line": 154600,
+   "source": "本品为硫酸盐类矿物芒硝族芒硝，经加工精制而成的结晶体。芒硝经风化失去结晶水而成白色粉末称玄明粉（元明粉）。"
+  },
+  {
+   "name": "番泻叶",
+   "identity": "番泻叶",
+   "line": 154616,
+   "source": "本品为豆科植物狭叶番泻Cassia angustifolia Vah或尖叶番泻Cassia acutifolia Delile的干燥小叶。"
+  },
+  {
+   "name": "芦荟",
+   "identity": "芦荟",
+   "line": 154629,
+   "source": "本品为百合科植物库拉素芦荟Aloe barbadensis Miller.好望角芦荟Aloe ferox miller或其他同属近缘植物叶的汁液浓缩干燥物。"
+  },
+  {
+   "name": "火麻仁",
+   "identity": "火麻仁",
+   "line": 154646,
+   "source": "本品为桑科植物大麻Cannabis sativa L.的干燥成熟种子。"
+  },
+  {
+   "name": "郁李仁",
+   "identity": "郁李仁",
+   "line": 154656,
+   "source": "本品为蔷薇科植物欧李Prunus humilis Bge.、郁李Prunus japonica Thunb. 或长柄扁桃Prunus pedunculata Maxim.的干燥成熟种子。"
+  },
+  {
+   "name": "甘遂",
+   "identity": "甘遂",
+   "line": 154685,
+   "source": "本品为大戟科植物甘遂Euphorbia kansui T.N.Liou ex T.P.Wang的干燥块根。"
+  },
+  {
+   "name": "京大戟",
+   "identity": "京大戟",
+   "line": 154700,
+   "source": "本品为大戟科植物大戟Euphorbia pekinensis Rupr.的干燥根。"
+  },
+  {
+   "name": "红大戟",
+   "identity": "红大戟",
+   "line": 154713,
+   "parentName": "京大戟",
+   "source": "本品为茜草科植物红大戟knoxia vaierianoides Thotel et Pitard的根。"
+  },
+  {
+   "name": "芫花",
+   "identity": "芫花",
+   "line": 154716,
+   "source": "本品为瑞香科植物芫花Daphne genkwa Sieb.et Zucc.的干燥花蕾。"
+  },
+  {
+   "name": "商陆",
+   "identity": "商陆",
+   "line": 154733,
+   "source": "本品为商陆科植物商陆Phytolacca acinosa Roxb.或垂序商陆Phytolacca americana L.的干燥根。"
+  },
+  {
+   "name": "牵牛子",
+   "identity": "牵牛子",
+   "line": 154747,
+   "source": "本品为旋花科植物裂叶牵牛Pharbitis nil （L.） Choisy或圆叶牵牛Pharbitis purpurea （L.）Voigt的干燥成熟种子。"
+  },
+  {
+   "name": "巴豆霜",
+   "identity": "巴豆霜",
+   "line": 154762,
+   "source": "本品为大戟科植物巴豆Croton tiglium L.干燥净仁的炮制加工品。"
+  },
+  {
+   "name": "巴豆",
+   "identity": "巴豆",
+   "line": 154779,
+   "parentName": "巴豆霜",
+   "source": "本品为大戟科植物巴豆Croton tiglium L.的干燥成熟果实。"
+  },
+  {
+   "name": "千金子",
+   "identity": "千金子",
+   "line": 154782,
+   "source": "本品为大戟科植物续随子Euphorbia lathyris L.的干燥成熟种子。"
+  },
+  {
+   "name": "独活",
+   "identity": "独活",
+   "line": 154807,
+   "source": "本品为伞形科植物重齿毛当归Angelica pubescens Maxim. f. biserrata Shan et Yuan的干燥根。"
+  },
+  {
+   "name": "威灵仙",
+   "identity": "威灵仙",
+   "line": 154822,
+   "source": "本品为毛茛科植物威灵仙Clematis chinensis Osbeck、棉团铁线莲Clematis hexapetala Pall.或东北铁线莲Clematis manshurica Rupr.的干燥根及根茎。"
+  },
+  {
+   "name": "川乌",
+   "identity": "川乌",
+   "line": 154851,
+   "source": "本品为毛茛科植物乌头Aconitum carmichaelii Debx.的干燥母根。"
+  },
+  {
+   "name": "草乌",
+   "identity": "草乌",
+   "line": 154865,
+   "parentName": "川乌",
+   "source": "本品为毛茛科植物北乌头Aconitum kusnezoffii Reichb.的干燥根。"
+  },
+  {
+   "name": "蕲蛇",
+   "identity": "蕲蛇",
+   "line": 154868,
+   "source": "本品为蝰科动物五步蛇Agkistrodon acutus （Güenther）的干燥体。去头、鳞，切成寸段，生用或酒炙用；或去头，用黄酒润透后，去鳞、骨，干燥，制成蕲蛇肉用。"
+  },
+  {
+   "name": "金钱白花蛇",
+   "identity": "金钱白花蛇",
+   "line": 154883,
+   "parentName": "蕲蛇",
+   "source": "本品为眼镜蛇科动物银环蛇Bungarus multicinctus Blyth的幼蛇干燥体。"
+  },
+  {
+   "name": "乌梢蛇",
+   "identity": "乌梢蛇",
+   "line": 154886,
+   "source": "本品为游蛇科动物乌梢蛇Zaocys dhumnades （Cantor）的干燥体。"
+  },
+  {
+   "name": "蛇蜕",
+   "identity": "蛇蜕",
+   "line": 154902,
+   "parentName": "乌梢蛇",
+   "source": "本品为游蛇科动物黑眉锦蛇Elaphe taeniura Cope、锦蛇Elaphe carinata （Guenther），或乌梢蛇Zaocys dhumnades （Cantor）等蜕下的干燥表皮膜。"
+  },
+  {
+   "name": "木瓜",
+   "identity": "木瓜",
+   "line": 154905,
+   "source": "本品为蔷薇科植物贴梗海棠Chaenomeles speciosa （Sweet） Nakai的干燥近成熟果实。"
+  },
+  {
+   "name": "蚕沙",
+   "identity": "蚕沙",
+   "line": 154921,
+   "source": "本品为蚕蛾科昆虫家蚕Bombyx mori Linnaeus 的干燥粪便。"
+  },
+  {
+   "name": "伸筋草",
+   "identity": "伸筋草",
+   "line": 154935,
+   "source": "本品为石松科植物石松Lycopodium japonicum Thunb.的干燥全草。"
+  },
+  {
+   "name": "油松节",
+   "identity": "油松节",
+   "line": 154949,
+   "source": "本品为松科植物油松Pinus tabulieformis Carr.或马尾松Pinus massoniana Lamb.的干燥瘤状节或分枝节。"
+  },
+  {
+   "name": "松花粉",
+   "identity": "松花粉",
+   "line": 154961,
+   "parentName": "油松节",
+   "source": "本品为松科植物马尾松Pinus massoniana Lamb.、油松Pinus tabuliformis Carr.或同属数种植物的干燥花粉。"
+  },
+  {
+   "name": "海风藤",
+   "identity": "海风藤",
+   "line": 154964,
+   "source": "本品为胡椒科植物风藤Piper kadsura （Choisy） Ohwi的干燥藤茎。"
+  },
+  {
+   "name": "青风藤",
+   "identity": "青风藤",
+   "line": 154976,
+   "source": "本品为防己科植物青藤Sinomenium acutum （Thunb.） Rehd. et Wils.及毛青藤Sinomenium acutum （Thunb.） Rehd. et Wils. var. cinereum Rehd. et Wils.的干燥根茎。"
+  },
+  {
+   "name": "丁公藤",
+   "identity": "丁公藤",
+   "line": 154988,
+   "source": "本品为旋花科植物丁公藤Erycibe obtusifolia Benth.或光叶丁公藤Erycibe schmidtii Craib的干燥藤茎。"
+  },
+  {
+   "name": "路路通",
+   "identity": "路路通",
+   "line": 155016,
+   "source": "本品为金缕梅科植物枫香树Liquidambar formosana Hance的干燥成熟果序。"
+  },
+  {
+   "name": "穿山龙",
+   "identity": "穿山龙",
+   "line": 155033,
+   "source": "本品为薯蓣科植物穿龙薯蓣 Dioscorea nipponica Makino.的干燥根茎。"
+  },
+  {
+   "name": "秦艽",
+   "identity": "秦艽",
+   "line": 155049,
+   "source": "本品为龙胆科植物秦艽Gentiana macrophylla Pall.、麻花秦艽Gentiana straminea Maxim.、粗茎秦艽Gentiana crassicaulis Duthie ex Burk.或小秦艽Gentiana dahurica Fisch.的干燥根。"
+  },
+  {
+   "name": "防己",
+   "identity": "防己",
+   "line": 155063,
+   "source": "本品为防己科植物粉防己Stephania tetrandra S. Moore的干燥根。"
+  },
+  {
+   "name": "桑枝",
+   "identity": "桑枝",
+   "line": 155079,
+   "source": "本品为桑科植物桑Morus alba L.的干燥嫩枝。"
+  },
+  {
+   "name": "豨莶草",
+   "identity": "豨莶草",
+   "line": 155089,
+   "source": "本品为菊科植物豨莶Siegesbeckia orientalis L.、腺梗豨莶Siegesbeckia pubescens Makino或毛梗豨莶Siegesbeckia glabrescens Makino的干燥地上部分。"
+  },
+  {
+   "name": "臭梧桐",
+   "identity": "臭梧桐",
+   "line": 155103,
+   "source": "本品为马鞭草科植物海州常山Clerodendrum trichotomum Thunb.的干燥嫩枝和叶。"
+  },
+  {
+   "name": "海桐皮",
+   "identity": "海桐皮",
+   "line": 155117,
+   "source": "本品为豆科植物刺桐Erythrina variegata L.或乔木刺桐Erythrina arborescens Roxb.的树皮。"
+  },
+  {
+   "name": "络石藤",
+   "identity": "络石藤",
+   "line": 155129,
+   "source": "本品为夹竹桃科植物络石Trachelospermum jasminoides （Lindl.） Lem.的干燥带叶藤茎。"
+  },
+  {
+   "name": "老鹳草",
+   "identity": "老鹳草",
+   "line": 155159,
+   "source": "本品为牻牛儿苗科植物牻牛儿苗Erodium stephanianum Willd.、老鹳草Geranium wilfordii Maxim.或野老鹳草Geranium carolinianum L.的干燥地上部分，前者习称“长嘴老鹳草”，后两者习称“短嘴老鹳草”。"
+  },
+  {
+   "name": "丝瓜络",
+   "identity": "丝瓜络",
+   "line": 155173,
+   "source": "本品为葫芦科植物丝瓜Luffa cylindrica （L.） Roem.的干燥成熟果实的维管束。"
+  },
+  {
+   "name": "五加皮",
+   "identity": "五加皮",
+   "line": 155189,
+   "source": "本品为五加科植物细柱五加Acanthopanax gracilistylus W. W. Smith的干燥根皮。"
+  },
+  {
+   "name": "桑寄生",
+   "identity": "桑寄生",
+   "line": 155204,
+   "source": "本品为桑寄生科植物桑寄生Taxillus chinensis （DC.） Danser的干燥带叶茎枝。"
+  },
+  {
+   "name": "狗脊",
+   "identity": "狗脊",
+   "line": 155218,
+   "source": "本品为蚌壳蕨科植物金毛狗脊Cibotium barometz （L.） J. Sm.的干燥根茎。"
+  },
+  {
+   "name": "千年健",
+   "identity": "千年健",
+   "line": 155233,
+   "source": "本品为天南星科植物千年健Homalomena occulta （Lour.） Schott的干燥根茎。"
+  },
+  {
+   "name": "天山雪莲",
+   "identity": "天山雪莲",
+   "line": 155258,
+   "parentName": "千年健",
+   "source": "本品系维吾尔族习用药材，为菊科植物天山雪莲Saussurea involucrata （Kar.et Kir.）Sch.-Bip 的干燥地上部分。"
+  },
+  {
+   "name": "广藿香",
+   "identity": "广藿香",
+   "line": 155268,
+   "source": "本品为唇形科植物广藿香Pogostemon cablin （Blanco） Benth的干燥地上部分。"
+  },
+  {
+   "name": "佩兰",
+   "identity": "佩兰",
+   "line": 155281,
+   "source": "本品为菊科植物佩兰Eupatorium fortunei Turcz. 的干燥地上部分。"
+  },
+  {
+   "name": "苍术",
+   "identity": "苍术",
+   "line": 155294,
+   "source": "本品为菊科植物茅苍术Atractylodes lancea （Thunb.）DC.或北苍术 Atractylodes chinensis （DC.） Koidz.的干燥根茎。"
+  },
+  {
+   "name": "厚朴",
+   "identity": "厚朴",
+   "line": 155309,
+   "source": "本品为木兰科植物厚朴Magnolia officinalis Rehd.et Wils.或凹叶厚朴Magnolia officinalis Rehd.et Wils.var. biloba Rehd.et Wils.的干燥干皮、根皮及枝皮。"
+  },
+  {
+   "name": "厚朴花",
+   "identity": "厚朴花",
+   "line": 155324,
+   "parentName": "厚朴",
+   "source": "本品为木兰科植物厚朴Magnolia officinalis Rehd.et Wils.，或凹叶厚朴Magnolia officinalis Rehd.et Wils.var. biloba Rehd.et Wils.的干燥花蕾。"
+  },
+  {
+   "name": "砂仁",
+   "identity": "砂仁",
+   "line": 155327,
+   "source": "本品为姜科植物阳春砂Amomum uillosum Lour.、绿壳砂Amomum uillosum Lour. var. xanthioides T.L.Wu et Senjen，或海南砂 Amomumlongiligulare T.L.Wu的干燥成熟果实。"
+  },
+  {
+   "name": "豆蔻",
+   "identity": "豆蔻",
+   "line": 155343,
+   "source": "本品为姜科植物白豆蔻Amomum kravanh Pierre ex Gagnep. 或爪哇白豆蔻Amomum compactum Soland ex Maton的干燥成熟果实。"
+  },
+  {
+   "name": "草豆蔻",
+   "identity": "草豆蔻",
+   "line": 155360,
+   "source": "本品为姜科植物草豆蔻Alpinia katsumadai Hayata的干燥近成熟种子。"
+  },
+  {
+   "name": "草果",
+   "identity": "草果",
+   "line": 155374,
+   "source": "本品为姜科植物草果Amomum tsao-ko Crevost et Lemaire的干燥成熟果实。"
+  },
+  {
+   "name": "茯苓",
+   "identity": "茯苓",
+   "line": 155397,
+   "source": "本品为多孔菌科真菌茯苓Poria cocos （Schw.） Wolf的干燥菌核。"
+  },
+  {
+   "name": "茯苓皮",
+   "identity": "茯苓皮",
+   "line": 155410,
+   "parentName": "茯苓",
+   "source": "本品为多孔菌科真菌茯苓Poria cocos （Schw.） Wolf菌核的干燥外皮。"
+  },
+  {
+   "name": "茯神",
+   "identity": "茯神",
+   "line": 155411,
+   "parentName": "茯苓",
+   "source": "本品为多孔菌科真菌茯苓Poria cocos （Schw.） Wolf干燥菌核中间带有松根的部分。"
+  },
+  {
+   "name": "薏苡仁",
+   "identity": "薏苡仁",
+   "line": 155414,
+   "source": "本品为禾本科植物薏苡Coix lacryma-jobi L.var.ma-yuen （Roman.） Stapf的干燥成熟种仁。"
+  },
+  {
+   "name": "猪苓",
+   "identity": "猪苓",
+   "line": 155431,
+   "source": "本品为多孔菌科真菌猪苓Polyporus umbellatus （Pers.） Fries的干燥菌核。"
+  },
+  {
+   "name": "泽泻",
+   "identity": "泽泻",
+   "line": 155442,
+   "source": "本品为泽泻科植物泽泻Alisma orientale （ Sam. ） Juzep.的干燥块茎。"
+  },
+  {
+   "name": "冬瓜皮",
+   "identity": "冬瓜皮",
+   "line": 155455,
+   "source": "本品为葫芦科植物冬瓜Benincasa hispida （Thunb.） Cogn.的干燥外层果皮。"
+  },
+  {
+   "name": "冬瓜子",
+   "identity": "冬瓜子",
+   "line": 155466,
+   "parentName": "冬瓜皮",
+   "source": "本品为葫芦科植物冬瓜Benincasa hispida （Thunb.） Cogn.的干燥成熟种子。"
+  },
+  {
+   "name": "玉米须",
+   "identity": "玉米须",
+   "line": 155469,
+   "source": "本品为禾本科植物玉蜀黍Zea mays L. 的花柱和柱头。"
+  },
+  {
+   "name": "葫芦",
+   "identity": "葫芦",
+   "line": 155481,
+   "source": "本品为葫芦科植物瓢瓜Lagenariasiceraria （Molina）Standl.var.depressa （Ser.） Hara的干燥果皮。"
+  },
+  {
+   "name": "香加皮",
+   "identity": "香加皮",
+   "line": 155494,
+   "source": "本品为萝藦科植物杠柳Periploca sepium Bge.的干燥根皮。"
+  },
+  {
+   "name": "枳椇子",
+   "identity": "枳椇子",
+   "line": 155509,
+   "source": "本品为鼠李科植物枳椇Hovenia dulcis Thunb.的干燥成熟种子。"
+  },
+  {
+   "name": "车前子",
+   "identity": "车前子",
+   "line": 155523,
+   "source": "本品为车前科植物车前Plantago asiatica L.，或平车前Plantago depressa Willd.的干燥成熟种子。"
+  },
+  {
+   "name": "车前草",
+   "identity": "车前草",
+   "line": 155537,
+   "parentName": "车前子",
+   "source": "本品为车前科植物车前Plantago asiatica L.或平车前Plantago depressa Willd.的干燥全草。"
+  },
+  {
+   "name": "滑石",
+   "identity": "滑石",
+   "line": 155540,
+   "source": "本品为硅酸盐类矿物滑石族滑石，主含含水硅酸镁[ Mg3 ·（Si4 O10 ）·（OH）2 ]。"
+  },
+  {
+   "name": "木通",
+   "identity": "木通",
+   "line": 155556,
+   "source": "本品为木通科植物木通Akebia quinata （Thunb.）Decne、三叶木通 Akebia trifoliate （Thunb.）Koidz.，或白木通 Akebia trifoliate （Tunb.）Koidz.var.australis （Diels）Rehd.的干燥藤茎。"
+  },
+  {
+   "name": "川木通",
+   "identity": "川木通",
+   "line": 155572,
+   "parentName": "木通",
+   "source": "本品为毛茛科植物小木通Clematis armandii Franch. 或绣球藤Clematis Montana Buch.-Ham.的干燥藤茎。"
+  },
+  {
+   "name": "通草",
+   "identity": "通草",
+   "line": 155575,
+   "source": "本品为五加科植物通脱木Tetrapanax papyrifer （Hook.）K.Koch的干燥茎髓。"
+  },
+  {
+   "name": "瞿麦",
+   "identity": "瞿麦",
+   "line": 155591,
+   "source": "本品为石竹科植物瞿麦Dianthus superbus L.或石竹Dianthus chinensis L.的干燥地上部分。"
+  },
+  {
+   "name": "萹蓄",
+   "identity": "萹蓄",
+   "line": 155604,
+   "source": "本品为蓼科植物萹蓄Polygonum aviculare L.的干燥地上部分。"
+  },
+  {
+   "name": "地肤子",
+   "identity": "地肤子",
+   "line": 155616,
+   "source": "本品为藜科植物地肤Kochia scoparia （L.） Schrad. 的干燥成熟果实。"
+  },
+  {
+   "name": "海金沙",
+   "identity": "海金沙",
+   "line": 155628,
+   "source": "本品为海金沙科植物海金沙Lygodium japonicum （Thunb.） Sw.的干燥成熟孢子。"
+  },
+  {
+   "name": "海金沙藤",
+   "identity": "海金沙藤",
+   "line": 155637,
+   "parentName": "海金沙",
+   "source": "本品为海金沙科植物海金沙Lygodium japonicum （Thunb.） Sw.的干燥地上部分。"
+  },
+  {
+   "name": "石韦",
+   "identity": "石韦",
+   "line": 155640,
+   "source": "本品为水龙骨科植物庐山石韦Pyrrosia sheareri （Bak.）Ching、石韦Pyrrosialingua （Thunb.）Farwell或有柄石韦Pyrrosia petio1osa （Christ） Ching的干燥叶。"
+  },
+  {
+   "name": "冬葵子",
+   "identity": "冬葵子",
+   "line": 155653,
+   "source": "本品为锦葵科植物冬葵Malva verticillata L.的干燥成熟种子。"
+  },
+  {
+   "name": "灯心草",
+   "identity": "灯心草",
+   "line": 155667,
+   "source": "本品为灯心草科植物灯心草Juncus effusus L.的干燥茎髓。"
+  },
+  {
+   "name": "茵陈",
+   "identity": "茵陈",
+   "line": 155694,
+   "source": "本品为菊科植物滨蒿 Artemisia scoparia Waldst. et Kit.或茵陈蒿Artemisiacapillaries Thunb.的干燥地上部分。"
+  },
+  {
+   "name": "金钱草",
+   "identity": "金钱草",
+   "line": 155708,
+   "source": "本品为报春花科植物过路黄 Lysimachia christinae Hance的干燥全草。"
+  },
+  {
+   "name": "连钱草",
+   "identity": "连钱草",
+   "line": 155720,
+   "parentName": "金钱草",
+   "source": "本品为唇形科植物活血丹G1echoma longituba （Nakai） Kupr.的干燥地上部分，药材也称江苏金钱草，为江苏、浙江所习用。"
+  },
+  {
+   "name": "广金钱草",
+   "identity": "广金钱草",
+   "line": 155721,
+   "parentName": "金钱草",
+   "source": "本品为豆科植物广金钱草Desmodium styracifo1ium （Osb.） Merr. 的干燥地上部分，为广东、广西所习用。"
+  },
+  {
+   "name": "虎杖",
+   "identity": "虎杖",
+   "line": 155726,
+   "source": "本品为蓼科植物虎杖Polygonum cuspidatum Sieb. et Zucc.的干燥根茎和根。"
+  },
+  {
+   "name": "地耳草",
+   "identity": "地耳草",
+   "line": 155742,
+   "source": "本品为藤黄科植物地耳草Hypericum japonicum Thunb.的干燥全草。"
+  },
+  {
+   "name": "垂盆草",
+   "identity": "垂盆草",
+   "line": 155755,
+   "source": "本品为景天科植物垂盆草Sedum sarmentosum Bunge的干燥全草。"
+  },
+  {
+   "name": "鸡骨草",
+   "identity": "鸡骨草",
+   "line": 155767,
+   "source": "本品为豆科植物广州相思子Abrus cantoniensis Hance 的干燥全株。"
+  },
+  {
+   "name": "珍珠草",
+   "identity": "谷精草",
+   "line": 155780,
+   "source": "本品为大戟科植物叶下珠Phyllanthus urinaria L.的干燥全草或带根全草。"
+  },
+  {
+   "name": "附子",
+   "identity": "附子",
+   "line": 155802,
+   "source": "本品为毛茛科植物乌头Aconitum carmichaeli Debx.的子根的加工品。6月下旬至8月上旬采挖，除去母根、须根及泥沙，习称“泥附子”，加工制成盐附子、黑附片（黑顺片）、白附片。"
+  },
+  {
+   "name": "干姜",
+   "identity": "干姜",
+   "line": 155817,
+   "source": "本品为姜科植物姜Zingiber officinale Rosc.的干燥根茎。切厚片或块，生用或炒炭用。"
+  },
+  {
+   "name": "肉桂",
+   "identity": "肉桂",
+   "line": 155831,
+   "source": "本品为樟科植物肉桂Cinnamomum cassia Presl的干燥树皮。"
+  },
+  {
+   "name": "吴茱萸",
+   "identity": "吴茱萸",
+   "line": 155849,
+   "source": "本品为芸香科植物吴茱萸Evodia rutaecarpa （Juss.） Benth.、石虎E. rutaecarpa （Juss.）Benth.Var.officinalis （Dode） Huang 或疏毛吴茱萸E. rutaecarpa （Juss.） Benth.Var.bodinieri （Dode）Huang的干燥近成熟果实。"
+  },
+  {
+   "name": "小茴香",
+   "identity": "小茴香",
+   "line": 155865,
+   "source": "本品为伞形科植物茴香Foeniculum vulgare Mill.的干燥成熟果实。"
+  },
+  {
+   "name": "八角茴香",
+   "identity": "八角茴香",
+   "line": 155877,
+   "parentName": "小茴香",
+   "source": "本品为木兰科植物八角茴香Illicium verum Hook.F.的干燥成熟果实。"
+  },
+  {
+   "name": "丁香",
+   "identity": "丁香",
+   "line": 155880,
+   "source": "本品为桃金娘科植物丁香Eugenia caryophyllata Thunb.的干燥花蕾。"
+  },
+  {
+   "name": "母丁香",
+   "identity": "母丁香",
+   "line": 155893,
+   "parentName": "丁香",
+   "source": "本品为桃金娘科植物丁香Eugenia caryophyllata Thunb.的干燥近成熟果实，又名鸡舌香。"
+  },
+  {
+   "name": "高良姜",
+   "identity": "高良姜",
+   "line": 155896,
+   "source": "本品为姜科植物高良姜Alpinia officinarun Hance 的干燥根茎。"
+  },
+  {
+   "name": "红豆蔻",
+   "identity": "红豆蔻",
+   "line": 155907,
+   "parentName": "高良姜",
+   "source": "本品为姜科植物大高良姜Alpinia galanga （L.） willd的干燥成熟果实。"
+  },
+  {
+   "name": "花椒",
+   "identity": "花椒",
+   "line": 155910,
+   "source": "本品为芸香科植物青椒Zanthoxylum schinifolium Sieb.et Zucc.或花椒Z. bungeanum Maxim.的干燥成熟果皮。"
+  },
+  {
+   "name": "椒目",
+   "identity": "椒目",
+   "line": 155923,
+   "parentName": "花椒",
+   "source": "本品为芸香科植物青椒Zanthoxylum schinifolium Sieb.et Zucc.，或花椒Z. bungeanum Maxim.的种子。"
+  },
+  {
+   "name": "胡椒",
+   "identity": "胡椒",
+   "line": 155926,
+   "source": "本品为胡椒科植物胡椒Piper nigrum L.的干燥近成熟或成熟果实。"
+  },
+  {
+   "name": "荜茇",
+   "identity": "荜茇",
+   "line": 155939,
+   "source": "本品为胡椒科植物荜茇Piper longum L.的干燥近成熟或成熟果穗。"
+  },
+  {
+   "name": "荜澄茄",
+   "identity": "荜澄茄",
+   "line": 155951,
+   "source": "本品为樟科植物山鸡椒Litsea cubeba （Lour.） Pers.的干燥成熟果实。"
+  },
+  {
+   "name": "陈皮",
+   "identity": "陈皮",
+   "line": 155970,
+   "source": "本品为芸香科植物橘 Citrus reticulata Blanco及其栽培变种的干燥成熟果皮。"
+  },
+  {
+   "name": "橘红",
+   "identity": "橘红",
+   "line": 155984,
+   "parentName": "陈皮",
+   "source": "为芸香科植物橘 Citrus reticulata Blanco 及其栽培变种的干燥外层果皮。"
+  },
+  {
+   "name": "橘核",
+   "identity": "橘核",
+   "line": 155985,
+   "parentName": "陈皮",
+   "source": "为芸香科植物橘 Citrus reticulata Blanco 及其栽培变种的干燥成熟种子。"
+  },
+  {
+   "name": "橘叶",
+   "identity": "橘叶",
+   "line": 155987,
+   "parentName": "陈皮",
+   "source": "为芸香科植物橘 Citrus reticulata Blanco 及其栽培变种的叶。"
+  },
+  {
+   "name": "化橘红",
+   "identity": "化橘红",
+   "line": 155988,
+   "parentName": "陈皮",
+   "source": "为芸香科植物化州柚 Citrus grandis ‘Tomentosa’或柚Citrus grandis （L.）Osbeck 的未成熟或接近成熟外层果皮。"
+  },
+  {
+   "name": "青皮",
+   "identity": "青皮",
+   "line": 155991,
+   "source": "本品为芸香科植物橘 Citrus reticulata Blanco及其栽培变种的幼果或未成熟果实的果皮。"
+  },
+  {
+   "name": "枳实",
+   "identity": "枳实",
+   "line": 156006,
+   "source": "本品为芸香科植物酸橙Citrus aurantium L.及其栽培变种或甜橙Citrus sinensis Osbeck的干燥幼果。"
+  },
+  {
+   "name": "枳壳",
+   "identity": "枳壳",
+   "line": 156019,
+   "parentName": "枳实",
+   "source": "本品为芸香科植物酸橙Citrus aurantium L.及其栽培变种的干燥未成熟果实。"
+  },
+  {
+   "name": "木香",
+   "identity": "木香",
+   "line": 156022,
+   "source": "本品为菊科植物木香 Aucklandia lappa Decne.的干燥根。"
+  },
+  {
+   "name": "川木香",
+   "identity": "川木香",
+   "line": 156036,
+   "parentName": "木香",
+   "source": "本品为菊科植物川木香Vladimiria souliei （Frannch.）Ling或灰毛川木香Vladimiria souliei （Frannch.）Ling var.cinera Ling的干燥根。"
+  },
+  {
+   "name": "土木香",
+   "identity": "土木香",
+   "line": 156037,
+   "parentName": "木香",
+   "source": "本品为菊科植物土木香 Inula helenium L.的干燥根。"
+  },
+  {
+   "name": "沉香",
+   "identity": "沉香",
+   "line": 156040,
+   "source": "本品为瑞香科植物白木香Aquilaria Sinensis （Lour.）Gilg.含有树脂的木材。"
+  },
+  {
+   "name": "檀香",
+   "identity": "檀香",
+   "line": 156054,
+   "source": "本品为檀香科植物檀香Santalum album L.树干的干燥心材。"
+  },
+  {
+   "name": "川楝子",
+   "identity": "川楝子",
+   "line": 156064,
+   "source": "本品为楝科植物川楝树Melia toosendan Sieb.et Zucc.的干燥成熟果实。"
+  },
+  {
+   "name": "乌药",
+   "identity": "乌药",
+   "line": 156079,
+   "source": "本品为樟科植物乌药Lindera aggregata （Sims） Kosterm.的干燥块根。"
+  },
+  {
+   "name": "荔枝核",
+   "identity": "荔枝核",
+   "line": 156091,
+   "source": "本品为无患子科植物荔枝Litchi chinensis Sonn.的干燥成熟种子。"
+  },
+  {
+   "name": "香附",
+   "identity": "香附",
+   "line": 156103,
+   "source": "本品为莎草科植物莎草 Cyperus rotundus L.的干燥根茎。"
+  },
+  {
+   "name": "佛手",
+   "identity": "佛手",
+   "line": 156117,
+   "source": "本品为芸香科植物佛手Citrus medica L. var. Sarcodactylis Swingle 的干燥果实。"
+  },
+  {
+   "name": "香橼",
+   "identity": "香橼",
+   "line": 156130,
+   "source": "本品为芸香科植物枸橼Gitrus medica L.或香圆Gitrus wilsonii Tanaka的干燥成熟果实。"
+  },
+  {
+   "name": "玫瑰花",
+   "identity": "玫瑰花",
+   "line": 156144,
+   "source": "本品为蔷薇科植物玫瑰Rosa rugosa Thunb.的干燥花蕾。"
+  },
+  {
+   "name": "梅花",
+   "identity": "梅花",
+   "line": 156157,
+   "source": "本品为蔷薇科植物梅Prunus mume （Sieb.） Sieb.et Zucc.的干燥花蕾。"
+  },
+  {
+   "name": "娑罗子",
+   "identity": "娑罗子",
+   "line": 156169,
+   "source": "本品为七叶树科植物七叶树Aesculus chinensis Bge.、浙江七叶树Aesculus chinensis Bge. Var.chekiangensis （Hu et Fang） Fang或天师栗Aesculus Wilsonii Rehd.的干燥成熟种子。"
+  },
+  {
+   "name": "薤白",
+   "identity": "薤白",
+   "line": 156179,
+   "source": "本品为百合科植物小根蒜Allium macrostemon Bge. 或薤Allium chinensis G. Don的干燥鳞茎。"
+  },
+  {
+   "name": "大腹皮",
+   "identity": "大腹皮",
+   "line": 156191,
+   "source": "本品为棕榈科植物槟榔Areca catechu L.的干燥果皮。"
+  },
+  {
+   "name": "甘松",
+   "identity": "甘松",
+   "line": 156203,
+   "source": "本品为败酱科植物甘松Nardostachys jatamansi DC.的干燥根及根茎。"
+  },
+  {
+   "name": "九香虫",
+   "identity": "九香虫",
+   "line": 156215,
+   "source": "本品为蝽科昆虫九香虫Aspongopus chinensis Dallas的干燥体。"
+  },
+  {
+   "name": "刀豆",
+   "identity": "刀豆",
+   "line": 156227,
+   "source": "本品为豆科植物刀豆Canavalia gladiata （Jacq.） DC.的干燥成熟种子。"
+  },
+  {
+   "name": "柿蒂",
+   "identity": "柿蒂",
+   "line": 156239,
+   "source": "本品为柿树科植物柿Diospyros kaki Thunb.的干燥宿萼。"
+  },
+  {
+   "name": "山楂",
+   "identity": "山楂",
+   "line": 156256,
+   "source": "本品为蔷薇科植物山里红Crataegus pinnatifida Bge. var. major N. E. Br. 或山楂Crataegus pinnatifida Bge. 的干燥成熟果实。"
+  },
+  {
+   "name": "六神曲",
+   "identity": "六神曲",
+   "line": 156271,
+   "source": "本品为辣蓼、青蒿、杏仁等药加入面粉混合后经发酵而成的曲剂。"
+  },
+  {
+   "name": "麦芽",
+   "identity": "麦芽",
+   "line": 156284,
+   "source": "本品为禾本科植物大麦Hordeum vulgare L. 的成熟果实经发芽干燥的炮制加工品。"
+  },
+  {
+   "name": "稻芽",
+   "identity": "稻芽",
+   "line": 156298,
+   "source": "本品为禾本科植物稻Oryza sativa L.的成熟果实经发芽干燥的炮制加工品。"
+  },
+  {
+   "name": "谷芽",
+   "identity": "谷芽",
+   "line": 156308,
+   "parentName": "稻芽",
+   "source": "本品为禾本科植物粟Setaria italica （L.） Beauv.的成熟果实经发芽干燥的炮制加工品。"
+  },
+  {
+   "name": "莱菔子",
+   "identity": "莱菔子",
+   "line": 156311,
+   "source": "本品为十字花科植物萝卜Raphanus sativus L.的干燥成熟种子。"
+  },
+  {
+   "name": "鸡内金",
+   "identity": "鸡内金",
+   "line": 156325,
+   "source": "本品为雉科动物家鸡Gallus gallus domesticus Brisson 的干燥沙囊内壁。"
+  },
+  {
+   "name": "使君子",
+   "identity": "使君子",
+   "line": 156345,
+   "source": "本品为使君子科植物使君子Quisqualis indica L.的干燥成熟果实。"
+  },
+  {
+   "name": "苦楝皮",
+   "identity": "苦楝皮",
+   "line": 156359,
+   "source": "本品为楝科植物川楝Melia toosendan Sieb.et Zucc.或楝Melia azedarach L.的干燥树皮和根皮。"
+  },
+  {
+   "name": "槟榔",
+   "identity": "槟榔",
+   "line": 156373,
+   "source": "本品为棕榈科植物槟榔Areca catechu L.的干燥成熟种子。"
+  },
+  {
+   "name": "南瓜子",
+   "identity": "南瓜子",
+   "line": 156388,
+   "source": "本品为葫芦科植物南瓜Cucurbita moschata （Duch.） poiret的种子。"
+  },
+  {
+   "name": "鹤草芽",
+   "identity": "鹤草芽",
+   "line": 156399,
+   "source": "本品为蔷薇科植物龙芽草（即仙鹤草）Agrimonia pilosa Ledeb.的干燥冬芽。"
+  },
+  {
+   "name": "雷丸",
+   "identity": "雷丸",
+   "line": 156411,
+   "source": "本品为白蘑科真菌雷丸Omphalia lapidescens Schroet.的干燥菌核。"
+  },
+  {
+   "name": "鹤虱",
+   "identity": "鹤虱",
+   "line": 156424,
+   "source": "本品为菊科植物天名精Carpesium abrotanoides L.或伞形科植物野胡萝卜Daucus carota L.的干燥成熟果实。"
+  },
+  {
+   "name": "榧子",
+   "identity": "榧子",
+   "line": 156438,
+   "source": "本品为红豆杉科植物榧Torreya grandis Fort.的干燥成熟种子。"
+  },
+  {
+   "name": "芜荑",
+   "identity": "芜荑",
+   "line": 156453,
+   "source": "本品为榆科植物大果榆Ulmus macrocarpa Hance果实的加工品。"
+  },
+  {
+   "name": "小蓟",
+   "identity": "小蓟",
+   "line": 156479,
+   "source": "本品为菊科植物刺儿菜Cirsium setosum （Willd.）MB.的干燥地上部分。生用或炒炭用。"
+  },
+  {
+   "name": "大蓟",
+   "identity": "大蓟",
+   "line": 156491,
+   "source": "本品为菊科植物蓟Cirsium japonicum Fisch.ex DC.的干燥地上部分。生用或炒炭用。"
+  },
+  {
+   "name": "地榆",
+   "identity": "地榆",
+   "line": 156504,
+   "source": "本品为蔷薇科植物地榆Sanguisorba officinalis L.或长叶地榆Sanguisorba. officinalis L.var. longifolia （Bert.） Yü et Li的干燥根。生用或炒炭用。"
+  },
+  {
+   "name": "槐花",
+   "identity": "槐花",
+   "line": 156517,
+   "source": "本品为豆科植物槐Sophora japonica L.的干燥花及花蕾。生用、炒黄或炒炭用。"
+  },
+  {
+   "name": "槐角",
+   "identity": "槐角",
+   "line": 156530,
+   "parentName": "槐花",
+   "source": "本品为豆科植物槐Sophora japonica L.的干燥成熟果实，原名槐实。"
+  },
+  {
+   "name": "侧柏叶",
+   "identity": "侧柏叶",
+   "line": 156533,
+   "source": "本品为柏科植物侧柏Platycladus orientalis （L.）Franco的干燥枝梢及叶。生用或炒炭用。"
+  },
+  {
+   "name": "白茅根",
+   "identity": "白茅根",
+   "line": 156546,
+   "source": "本品为禾本科植物白茅Imperatacylindrica Beauv.var.major （Nees）C.E.Hubb.的干燥根茎。生用或炒炭用。"
+  },
+  {
+   "name": "苎麻根",
+   "identity": "苎麻根",
+   "line": 156560,
+   "source": "本品为荨麻科植物苎麻Boehmeria nivea （L.） Gaud.的干燥根和根茎。"
+  },
+  {
+   "name": "羊蹄",
+   "identity": "羊蹄",
+   "line": 156573,
+   "source": "本品为蓼科植物羊蹄Rumex japonicus Houtt.或尼泊尔酸模Rumex nepalensis Spreng的干燥根。"
+  },
+  {
+   "name": "土大黄",
+   "identity": "土大黄",
+   "line": 156585,
+   "parentName": "羊蹄",
+   "source": "本品为蓼科植物巴天酸模Rumex patientia L.或皱叶酸模Rumex crispus L.的干燥根。"
+  },
+  {
+   "name": "三七",
+   "identity": "三七",
+   "line": 156591,
+   "source": "本品为五加科植物三七Panax notoginseng （Burk.） F.H.Chen的干燥根和根茎。"
+  },
+  {
+   "name": "茜草",
+   "identity": "茜草",
+   "line": 156607,
+   "source": "本品为茜草科植物茜草Rubia cordifolia L.的干燥根及根茎。生用或炒炭用。"
+  },
+  {
+   "name": "蒲黄",
+   "identity": "蒲黄",
+   "line": 156620,
+   "source": "本品为香蒲科植物水烛香蒲Typha angustifolia L.、东方香蒲Typhaorientalis Presl或同属植物的干燥花粉。生用或炒炭用。"
+  },
+  {
+   "name": "花蕊石",
+   "identity": "花蕊石",
+   "line": 156634,
+   "source": "本品为变质岩类岩石蛇纹大理岩。"
+  },
+  {
+   "name": "白及",
+   "identity": "白及",
+   "line": 156650,
+   "source": "本品为兰科植物白及Bletilla striata （Thunb.） Reichb.f.的干燥块茎。"
+  },
+  {
+   "name": "仙鹤草",
+   "identity": "仙鹤草",
+   "line": 156663,
+   "source": "本品为蔷薇科植物龙芽草Agrimonia pilosa Ledeb.的干燥地上部分。"
+  },
+  {
+   "name": "紫珠叶",
+   "identity": "紫珠叶",
+   "line": 156679,
+   "source": "本品为马鞭草科植物杜虹花Callicarpa formosana Rolfe的干燥叶。"
+  },
+  {
+   "name": "大叶紫珠",
+   "identity": "大叶紫珠",
+   "line": 156690,
+   "parentName": "紫珠叶",
+   "source": "本品为马鞭草科植物大叶紫珠Callicarpa macrophylla Vahl的干燥叶或带叶嫩枝。"
+  },
+  {
+   "name": "棕榈炭",
+   "identity": "棕榈",
+   "line": 156693,
+   "source": "本品为棕榈科植物棕榈Trachycarpus fortunei （HooK.f.） H.Wendl的干燥叶柄。"
+  },
+  {
+   "name": "血余炭",
+   "identity": "血余炭",
+   "line": 156705,
+   "source": "本品为人发制成的炭化物。"
+  },
+  {
+   "name": "炮姜",
+   "identity": "炮姜",
+   "line": 156747,
+   "source": "本品为姜科植物姜Zingiberofficinale Rosc.的干燥根茎的炮制加工品。"
+  },
+  {
+   "name": "灶心土",
+   "identity": "灶心土",
+   "line": 156760,
+   "source": "本品为烧木柴或杂草的土灶内底部中心的焦黄土块。"
+  },
+  {
+   "name": "川芎",
+   "identity": "川芎",
+   "line": 156783,
+   "source": "本品为伞形科植物川芎Ligusticum chuanxiong Hort.的干燥根茎。"
+  },
+  {
+   "name": "延胡索",
+   "identity": "延胡索（元胡）",
+   "line": 156798,
+   "source": "本品为罂粟科多年生植物延胡索Corydalis yanhusuo W. T. Wang的干燥块茎。"
+  },
+  {
+   "name": "郁金",
+   "identity": "郁金",
+   "line": 156808,
+   "source": "本品为姜科植物温郁金Curcuma wenyujin Y.H.Chen et C.Ling、姜黄Curcuma longa L.、广西莪术Curcuma kwangsiensis S.G.Lee et C.F.Liang 或蓬莪术Curcuma phaeocaulis Val.的干燥块根。"
+  },
+  {
+   "name": "姜黄",
+   "identity": "姜黄",
+   "line": 156824,
+   "source": "本品为姜科植物姜黄Curcuma longa .L.的干燥根茎。"
+  },
+  {
+   "name": "片姜黄",
+   "identity": "片姜黄",
+   "line": 156837,
+   "parentName": "姜黄",
+   "source": "本品为姜科植物温郁金Curcuma wenyujin Y.H.Chen etC.Ling的干燥根茎。"
+  },
+  {
+   "name": "乳香",
+   "identity": "乳香",
+   "line": 156840,
+   "source": "本品为橄榄科植物乳香树Boswellia carterii Birdw.及同属植物Boswellia bhawdajian Birdw.树皮渗出的树脂。"
+  },
+  {
+   "name": "没药",
+   "identity": "没药",
+   "line": 156853,
+   "source": "本品为橄榄科植物地丁树Commiphora myrrha Engl.或哈地丁树Comniphora molmol Engl.的干燥树脂。"
+  },
+  {
+   "name": "五灵脂",
+   "identity": "五灵脂",
+   "line": 156864,
+   "source": "本品为鼯鼠科动物复齿鼯鼠Trogopterus xanthipes Milne-Edwards的干燥粪便。"
+  },
+  {
+   "name": "降香",
+   "identity": "降香",
+   "line": 156877,
+   "source": "本品为豆科植物降香檀Dalbergia odorifera T. Chen树干和根的干燥心材。"
+  },
+  {
+   "name": "丹参",
+   "identity": "丹参",
+   "line": 156892,
+   "source": "本品为唇形科植物丹参Salvia miltiorrhiza Bge.的干燥根及根茎。"
+  },
+  {
+   "name": "红花",
+   "identity": "红花",
+   "line": 156907,
+   "source": "本品为菊科植物红花Carthamus tinctorius L.的干燥花。"
+  },
+  {
+   "name": "西红花",
+   "identity": "西红花",
+   "line": 156921,
+   "parentName": "红花",
+   "source": "本品为鸢尾科植物番红花Crocus sativus L.的干燥柱头。"
+  },
+  {
+   "name": "桃仁",
+   "identity": "桃仁",
+   "line": 156924,
+   "source": "本品为蔷薇科植物桃Prunus persica （L.） Batsch或山桃Prunus davidiana （Carr.） Franch.的干燥成熟种子。"
+  },
+  {
+   "name": "益母草",
+   "identity": "益母草",
+   "line": 156939,
+   "source": "本品为唇形科植物益母草Leonurus japonicus Houtt.的新鲜或干燥地上部分。"
+  },
+  {
+   "name": "茺蔚子",
+   "identity": "茺蔚子",
+   "line": 156952,
+   "parentName": "益母草",
+   "source": "本品为唇形科植物益母草Leonurus japonicus Houtt.的干燥成熟果实。"
+  },
+  {
+   "name": "泽兰",
+   "identity": "泽兰",
+   "line": 156955,
+   "source": "本品为唇形科植物毛叶地瓜儿苗Lycopus lucidus Turcz . var. hirtus Regel的干燥地上部分。"
+  },
+  {
+   "name": "牛膝",
+   "identity": "牛膝",
+   "line": 156969,
+   "source": "本品为苋科植物牛膝（怀牛膝）Achyranthes bidentata Bl.的干燥根，主产于河南。"
+  },
+  {
+   "name": "川牛膝",
+   "identity": "川牛膝",
+   "line": 156984,
+   "parentName": "牛膝",
+   "source": "本品为苋科植物川牛膝Cyathula officinalis Kuan的干燥根。"
+  },
+  {
+   "name": "土牛膝",
+   "identity": "土牛膝",
+   "line": 156985,
+   "parentName": "牛膝",
+   "source": "本品为苋科植物牛膝的野生种及柳叶牛膝Achyranthes longifolia Mak.、粗毛牛膝Achyranthes aspera L.等的干燥根及根茎。"
+  },
+  {
+   "name": "鸡血藤",
+   "identity": "鸡血藤",
+   "line": 156988,
+   "source": "本品为豆科植物密花豆Spatholobus suberectus Dunn的干燥藤茎。"
+  },
+  {
+   "name": "王不留行",
+   "identity": "王不留行",
+   "line": 157000,
+   "source": "本品为石竹科植物麦蓝菜Vaccaria segetalis （Neck.）Garcke的干燥成熟种子。"
+  },
+  {
+   "name": "月季花",
+   "identity": "月季花",
+   "line": 157014,
+   "source": "本品为蔷薇科植物月季Rosa chinensis Jacq.的干燥花。"
+  },
+  {
+   "name": "凌霄花",
+   "identity": "凌霄花",
+   "line": 157026,
+   "source": "本品为紫葳科植物凌霄Campsis grandiflora （Thunb.）K.Schum.或美洲凌霄Campsis radicans （L.）Seem.的干燥花。"
+  },
+  {
+   "name": "土鳖虫",
+   "identity": "土鳖虫（䗪虫）",
+   "line": 157041,
+   "source": "本品为鳖蠊科昆虫地鳖Eupolyphaga sinensis Walker.或冀地鳖Steleophaga plancyi （Boleny）的雌虫干燥体。"
+  },
+  {
+   "name": "马钱子",
+   "identity": "马钱子",
+   "line": 157055,
+   "source": "本品为马钱科植物马钱S.nux -vomica L.的成熟种子。"
+  },
+  {
+   "name": "自然铜",
+   "identity": "自然铜",
+   "line": 157070,
+   "source": "本品为硫化物类矿物黄铁矿族黄铁矿，主含二硫化铁（FeS2 ）。"
+  },
+  {
+   "name": "苏木",
+   "identity": "苏木",
+   "line": 157081,
+   "source": "本品为豆科植物苏木Caesalpinia sappan L.的干燥心材。"
+  },
+  {
+   "name": "骨碎补",
+   "identity": "骨碎补",
+   "line": 157094,
+   "source": "本品为水龙骨科植物槲蕨Drynaria fortunei （Kunze）J.Sm.的干燥根茎。"
+  },
+  {
+   "name": "血竭",
+   "identity": "血竭",
+   "line": 157108,
+   "source": "本品为棕榈科植物麒麟竭Daemonorops draco Bl.果实渗出的树脂经加工制成。秋季采集果实，置蒸笼内蒸煮，使树脂渗出，凝固而成。"
+  },
+  {
+   "name": "刘寄奴",
+   "identity": "刘寄奴",
+   "line": 157136,
+   "source": "本品为菊科植物奇蒿Artemisia anomala S.Moore或白苞蒿Artemisia actiflora Wall.ex DC.的干燥地上部分。"
+  },
+  {
+   "name": "北刘寄奴",
+   "identity": "北刘寄奴",
+   "line": 157149,
+   "parentName": "刘寄奴",
+   "source": "本品为玄参科植物阴行草Siphonostegia chinensis Bentth.的干燥全草。"
+  },
+  {
+   "name": "三棱",
+   "identity": "三棱",
+   "line": 157168,
+   "source": "本品为黑三棱科植物黑三棱Sparganium stoloniferum Buch.-Ham 的干燥块茎。"
+  },
+  {
+   "name": "水蛭",
+   "identity": "水蛭",
+   "line": 157179,
+   "source": "本品为水蛭科动物蚂蟥Whitemania pigra Whitman、水蛭Hirudo nipponia Whitman或柳叶蚂蟥Whitemania.acranulata Whitman的干燥全体。"
+  },
+  {
+   "name": "虻虫",
+   "identity": "虻虫",
+   "line": 157193,
+   "source": "本品为虻科昆虫复带虻Tabanus bivittatus Matsumura等的雌虫体。"
+  },
+  {
+   "name": "斑蝥",
+   "identity": "斑蝥",
+   "line": 157206,
+   "source": "本品为芫青科昆虫南方大斑蝥Mylabris phalerata Pallas或黄黑小斑蝥Mylabris.cichorii Linnaeus的干燥体。"
+  },
+  {
+   "name": "穿山甲",
+   "identity": "穿山甲",
+   "line": 157221,
+   "source": "本品为鲮鲤科动物穿山甲Manis pentadactyia Linnaeus的鳞甲。"
+  },
+  {
+   "name": "半夏",
+   "identity": "半夏",
+   "line": 157247,
+   "source": "本品为天南星科植物半夏Pinellia ternata （Thunb.） Breit.的干燥块茎。捣碎生用，或用生石灰、甘草制成法半夏，用生姜、白矾制成姜半夏，用白矾制成清半夏。"
+  },
+  {
+   "name": "半夏曲",
+   "identity": "半夏曲",
+   "line": 157263,
+   "parentName": "半夏",
+   "source": "本品为法半夏、赤小豆、苦杏仁、鲜青蒿、鲜辣蓼、鲜苍耳草与面粉经加工发酵而成。"
+  },
+  {
+   "name": "天南星",
+   "identity": "天南星",
+   "line": 157267,
+   "source": "本品为天南星科植物天南星Arisaema erubescens （Wall.） Schott、异叶天南星Arisaema heterophyllum Bl.或东北天南星Arisaema amurense Maxim.的干燥块茎。"
+  },
+  {
+   "name": "胆南星",
+   "identity": "胆南星",
+   "line": 157282,
+   "parentName": "天南星",
+   "source": "本品为制天南星的细粉与牛、羊或猪胆汁经加工而成，或为生天南星细粉与牛、羊或猪胆汁经发酵而成。"
+  },
+  {
+   "name": "白附子",
+   "identity": "白附子",
+   "line": 157285,
+   "source": "本品为天南星科植物独角莲Typhonium giganteum Engl.的干燥块茎。"
+  },
+  {
+   "name": "芥子",
+   "identity": "芥子",
+   "line": 157302,
+   "source": "本品为十字花科植物白芥Sinapis alba L.或芥Brassica juncea （L.）Czern.et Coss.的干燥成熟种子。"
+  },
+  {
+   "name": "皂角刺",
+   "identity": "皂角刺",
+   "line": 157331,
+   "parentName": "皂荚",
+   "source": "本品为豆科植物皂荚Gleditsia sinensis Lam.的干燥棘刺，又名皂角针。"
+  },
+  {
+   "name": "旋覆花",
+   "identity": "旋覆花",
+   "line": 157334,
+   "source": "本品为菊科植物旋覆花Inula japonica Thunb.，或欧亚旋覆花Inula britannica L.的干燥头状花序。"
+  },
+  {
+   "name": "金沸草",
+   "identity": "金沸草",
+   "line": 157347,
+   "parentName": "旋覆花",
+   "source": "本品为菊科植物条叶旋覆花Inula linariifolia Turcz.，或旋覆花Inula japonica Thunb.的干燥地上部分。"
+  },
+  {
+   "name": "白前",
+   "identity": "白前",
+   "line": 157350,
+   "source": "本品为萝摩科植物柳叶白前Cynanchum stauntonii （Decne.） Schltr.ex Levl.或芫花叶白前Cynanchum glaucescens （Decne.）Hand.-Mazz.的干燥根茎及根。"
+  },
+  {
+   "name": "猫爪草",
+   "identity": "猫爪草",
+   "line": 157360,
+   "source": "本品为毛茛科植物小毛茛Rununculus ternatus Thunb.的干燥块根。"
+  },
+  {
+   "name": "川贝母",
+   "identity": "川贝母",
+   "line": 157375,
+   "source": "本品为百合科植物川贝母 Fritillaria cirrhosa D.Don、暗紫贝母Fritillaria unibracteata Hsiao et K.C.Hsia、甘肃贝母Fritillaria przewalskii Maxim.、梭砂贝母 Fritillaria delavayi Franch.、太白贝母Fritillaria taipaiensis P.Y.Li或瓦布贝母Fritillaria unibracteata Hsiao et K.C.Hsia var. wabuensis （S.Y.Tang et S.C.Yue）Z.D.Liu，S.Wang et S.C.Chen 的干燥鳞茎。"
+  },
+  {
+   "name": "平贝母",
+   "identity": "平贝母",
+   "line": 157387,
+   "parentName": "川贝母",
+   "source": "本品为百合科植物平贝母Fritillaria ussuriensis Maxim.的干燥鳞茎。"
+  },
+  {
+   "name": "伊贝母",
+   "identity": "伊贝母",
+   "line": 157388,
+   "parentName": "川贝母",
+   "source": "本品为百合科植物新疆贝母Fritillaria walujewii Regel或伊犁贝母Fritillaria pallidiflora Schrenk的干燥鳞茎。"
+  },
+  {
+   "name": "浙贝母",
+   "identity": "浙贝母",
+   "line": 157391,
+   "source": "本品为百合科植物浙贝母 Fritillaria thunbergii Miq.的干燥鳞茎。"
+  },
+  {
+   "name": "湖北贝母",
+   "identity": "湖北贝母",
+   "line": 157404,
+   "parentName": "浙贝母",
+   "source": "本品为百合科植物湖北贝母Fritillaria hupehensis Hsiao et K.C.Hsia的干燥鳞茎。"
+  },
+  {
+   "name": "土贝母",
+   "identity": "土贝母",
+   "line": 157405,
+   "parentName": "浙贝母",
+   "source": "本品为葫芦科植物土贝母Bolbostemma paniculatum （Maxim.） Franquet的干燥块茎。"
+  },
+  {
+   "name": "瓜蒌",
+   "identity": "瓜蒌",
+   "line": 157408,
+   "source": "本品为葫芦科植物栝楼 Trichosanthes kirilowii Maxim.或双边栝楼Trichosanthes rosthornii Harms的干燥成熟果实。"
+  },
+  {
+   "name": "瓜蒌皮",
+   "identity": "瓜蒌皮",
+   "line": 157422,
+   "parentName": "瓜蒌",
+   "source": "本品为葫芦科植物栝楼 Trichosanthes kirilowii Maxim.或双边栝楼Trichosanthes rosthornii Harms的干燥成熟果皮。"
+  },
+  {
+   "name": "瓜蒌子",
+   "identity": "瓜蒌子",
+   "line": 157423,
+   "parentName": "瓜蒌",
+   "source": "本品为葫芦科植物栝楼 Trichosanthes kirilowii Maxim.或双边栝楼Trichosanthes rosthornii Harms的干燥成熟种子。"
+  },
+  {
+   "name": "竹茹",
+   "identity": "竹茹",
+   "line": 157426,
+   "source": "本品为禾本科植物青竿竹Bambusa tuldoides Munro、大头典竹Sinocalamus beecheyanus （Munro） McClure var.pubescens P.F.Li.，或淡竹 Phyllostachy nigra （Lodd.）Munro var. henonis （Mitf）Stapf ex Rendle的茎竿的干燥中间层。"
+  },
+  {
+   "name": "天竺黄",
+   "identity": "天竺黄",
+   "line": 157453,
+   "source": "本品为禾本科植物青皮竹Bambusa textilis McClure或华思劳竹Schizostachyum chinense Rendle等竿内分泌液干燥后的块状物。"
+  },
+  {
+   "name": "前胡",
+   "identity": "前胡",
+   "line": 157466,
+   "source": "本品为伞形科植物白花前胡Peucedanum praeruptorum Dunn或紫花前胡Peucedanum decursivum Maxim.的干燥根。"
+  },
+  {
+   "name": "桔梗",
+   "identity": "桔梗",
+   "line": 157479,
+   "source": "本品为桔梗科植物桔梗Platycodon grandiflorum （Jacq.） A. DC.的干燥根。"
+  },
+  {
+   "name": "罗汉果",
+   "identity": "罗汉果",
+   "line": 157506,
+   "parentName": "胖大海",
+   "source": "本品为葫芦科植物罗汉果Siraitia grosvenorii （Swingle）C. Jeffrey ex A. M. Lu et Z. Y. Zhang的干燥果实。"
+  },
+  {
+   "name": "海藻",
+   "identity": "海藻",
+   "line": 157509,
+   "source": "本品为马尾藻科植物海蒿子Sargassum pallidum （Turn.） C. Ag.或羊栖菜Sargassum fusiforme .（Harv.）Setch.的干燥藻体。"
+  },
+  {
+   "name": "昆布",
+   "identity": "昆布",
+   "line": 157522,
+   "source": "本品为海带科植物海带Laminaria japonica Aresch.或翅藻科植物昆布 Ecklonia kurome Okam.的干燥叶状体。"
+  },
+  {
+   "name": "海蛤壳",
+   "identity": "蛤壳",
+   "line": 157549,
+   "source": "本品为帘蛤科动物文蛤Meretrix meretrix Linnaeus.或青蛤Cyclina sinensis Gmelin 的贝壳。"
+  },
+  {
+   "name": "海浮石",
+   "identity": "海浮石",
+   "line": 157564,
+   "source": "本品为胞孔科动物脊突苔虫Costazia aculeala Canu et Bassler或瘤苔虫Costazia costazii Audouim的骨骼，俗称石花；或火山喷出的岩浆形成的多孔状石块，又称浮海石。"
+  },
+  {
+   "name": "瓦楞子",
+   "identity": "瓦楞子",
+   "line": 157577,
+   "source": "本品为蚶科动物毛蚶Arca subcrenata Lischke、泥蚶Arca granosa Linnaeus或魁蚶Arca inflata Reeve的贝壳。"
+  },
+  {
+   "name": "苦杏仁",
+   "identity": "苦杏仁",
+   "line": 157606,
+   "source": "本品为蔷薇科植物山杏Prunus armeniaca L. var. ansu Maxim.、西伯利亚杏Prunus sibirica L. 、东北杏Prunus mandshurica （ Maxim.） Koehne或杏Prunus armeniaca L.的干燥成熟种子。"
+  },
+  {
+   "name": "甜杏仁",
+   "identity": "甜杏仁",
+   "line": 157620,
+   "parentName": "苦杏仁",
+   "source": "本品为蔷薇科植物杏Prunus armeniaca L.及其栽培变种的干燥成熟味甜的种子。"
+  },
+  {
+   "name": "紫苏子",
+   "identity": "紫苏子",
+   "line": 157623,
+   "source": "本品为唇形科植物紫苏Perilla frutescens （L.） Britt的干燥成熟果实。"
+  },
+  {
+   "name": "百部",
+   "identity": "百部",
+   "line": 157637,
+   "source": "本品为百部科植物直立百部Stemona sessilifolia （Miq.） Miq.、蔓生百部Stemona japonica （Bl.） Miq.或对叶百部Stemona tuberosa Lour.的干燥块根。"
+  },
+  {
+   "name": "紫菀",
+   "identity": "紫菀",
+   "line": 157649,
+   "source": "本品为菊科植物紫菀Aster tataricus L. f.的干燥根和根茎。"
+  },
+  {
+   "name": "款冬花",
+   "identity": "款冬花",
+   "line": 157659,
+   "source": "本品为菊科植物款冬Tussilago farfara L.的干燥花蕾。"
+  },
+  {
+   "name": "马兜铃",
+   "identity": "马兜铃",
+   "line": 157670,
+   "source": "本品为马兜铃科植物北马兜铃Aristolochia contorta Bge.或马兜铃Aristolochia debilis Sieb. et Zucc.的干燥成熟果实。"
+  },
+  {
+   "name": "天仙藤",
+   "identity": "天仙藤",
+   "line": 157684,
+   "parentName": "马兜铃",
+   "source": "本品为马兜铃科植物马兜铃Aristolochia debilis Sieb.et Zucc.，或北马兜铃Aristolochia contorta Bge的干燥地上部分。"
+  },
+  {
+   "name": "枇杷叶",
+   "identity": "枇杷叶",
+   "line": 157687,
+   "source": "本品为蔷薇科植物枇杷Eriobotrya japonica （Thunb.） Lindl.的干燥叶。"
+  },
+  {
+   "name": "桑白皮",
+   "identity": "桑白皮",
+   "line": 157699,
+   "source": "本品为桑科植物桑Morus alba L.的干燥根皮。"
+  },
+  {
+   "name": "葶苈子",
+   "identity": "葶苈子",
+   "line": 157712,
+   "source": "本品为十字花科植物播娘蒿Descurainia sophia （L.） Webb. ex Prantl. 或独行菜 Lepidium apetalum Willd. 的干燥成熟种子。"
+  },
+  {
+   "name": "白果",
+   "identity": "白果",
+   "line": 157725,
+   "source": "本品为银杏科植物银杏Ginkgo biloba L.的干燥成熟种子。"
+  },
+  {
+   "name": "银杏叶",
+   "identity": "银杏叶",
+   "line": 157738,
+   "parentName": "白果",
+   "source": "本品为银杏科植物银杏Ginkgo biloba L.的干燥叶。"
+  },
+  {
+   "name": "洋金花",
+   "identity": "洋金花",
+   "line": 157754,
+   "source": "本品为茄科植物白花曼陀罗Datura metel L.的干燥花。"
+  },
+  {
+   "name": "朱砂",
+   "identity": "朱砂",
+   "line": 157780,
+   "source": "本品为硫化物类矿物辰砂族辰砂，主含硫化汞（HgS）。"
+  },
+  {
+   "name": "磁石",
+   "identity": "磁石",
+   "line": 157796,
+   "source": "本品为氧化物类矿物尖晶石族磁铁矿，主含四氧化三铁（Fe3 O4 ）。"
+  },
+  {
+   "name": "龙骨",
+   "identity": "龙骨",
+   "line": 157811,
+   "source": "本品为古代哺乳动物如三趾马类、犀类、鹿类、牛类、象类等骨骼的化石或象类门齿的化石。"
+  },
+  {
+   "name": "龙齿",
+   "identity": "龙齿",
+   "line": 157825,
+   "parentName": "龙骨",
+   "source": "本品为古代哺乳动物如三趾马类、犀类、鹿类、牛类、象类等的牙齿化石。"
+  },
+  {
+   "name": "琥珀",
+   "identity": "琥珀",
+   "line": 157828,
+   "source": "本品为古松科松属植物的树脂埋藏地下经年久转化而成。"
+  },
+  {
+   "name": "酸枣仁",
+   "identity": "酸枣仁",
+   "line": 157843,
+   "source": "本品为鼠李科植物酸枣Ziziphus jujuba Mill. var. spinosa （Bunge）Hu ex H. F. Chou的干燥成熟种子。"
+  },
+  {
+   "name": "柏子仁",
+   "identity": "柏子仁",
+   "line": 157856,
+   "source": "本品为柏科植物侧柏Platycladus orientalis （L.） Franco的干燥成熟种仁。"
+  },
+  {
+   "name": "灵芝",
+   "identity": "灵芝",
+   "line": 157871,
+   "source": "本品为多孔菌科真菌赤芝Ganoderma lucidum （Leyss.ex Fr.） Karst.或紫芝Ganoderma sinense Zhao. Xu et Zhang的干燥子实体。"
+  },
+  {
+   "name": "首乌藤",
+   "identity": "首乌藤",
+   "line": 157884,
+   "source": "本品为蓼科植物何首乌Polygonum multiflorum Thunb.的干燥藤茎。"
+  },
+  {
+   "name": "合欢皮",
+   "identity": "合欢皮",
+   "line": 157897,
+   "source": "本品为豆科植物合欢Albizia julibrissin Durazz.的干燥树皮。"
+  },
+  {
+   "name": "合欢花",
+   "identity": "合欢花",
+   "line": 157910,
+   "parentName": "合欢皮",
+   "source": "本品为豆科植物合欢Albizia julibrissin Durazz.的干燥花序或花蕾。"
+  },
+  {
+   "name": "远志",
+   "identity": "远志",
+   "line": 157913,
+   "source": "本品为远志科植物远志Polygala tenuifolia Willd.或卵叶远志Polygala sibirica L.的干燥根。"
+  },
+  {
+   "name": "石决明",
+   "identity": "石决明",
+   "line": 157938,
+   "source": "本品为鲍科动物杂色鲍Haliotis diversicolor Reeve、皱纹盘鲍Haliotis discus Hannailno、羊鲍Haliotis ovina Gmelin、澳洲鲍Haliotis ruber （Leach）、耳鲍Haliotis asinina Linnaeus或白鲍Haliotis 1aevigata （Donovan）的贝壳。"
+  },
+  {
+   "name": "珍珠母",
+   "identity": "珍珠母",
+   "line": 157953,
+   "source": "本品为蚌科动物三角帆蚌Hyriopsis cumingii （Lea）、褶纹冠蚌Cristaria plicata （Leach） 或珍珠贝科动物马氏珍珠贝Pteria martensii （Dunker） 的贝壳。"
+  },
+  {
+   "name": "牡蛎",
+   "identity": "牡蛎",
+   "line": 157969,
+   "source": "本品为牡蛎科动物长牡蛎Ostrea gigas Thunberg、大连湾牡蛎Ostrea talienwhanensis Crosse或近江牡蛎Ostrea rivularis Gould的贝壳。"
+  },
+  {
+   "name": "紫贝齿",
+   "identity": "紫贝齿",
+   "line": 157985,
+   "source": "本品为宝贝科动物蛇首眼球贝Erosaria caputserpentis （Linnaeus）、山猫眼宝贝Cypraea lynx （Linnaeus） 或阿纹绶贝Mauritia arabica （Linnaeus） 等的贝壳。"
+  },
+  {
+   "name": "代赭石",
+   "identity": "赭石",
+   "line": 157999,
+   "source": "本品为氧化物类矿物刚玉族赤铁矿，主含三氧化二铁（Fe2 O3 ）。"
+  },
+  {
+   "name": "刺蒺藜",
+   "identity": "蒺藜",
+   "line": 158015,
+   "source": "本品为蒺藜科植物蒺藜Tribulus terrestris L.的干燥成熟果实。"
+  },
+  {
+   "name": "罗布麻叶",
+   "identity": "罗布麻叶",
+   "line": 158031,
+   "source": "本品为夹竹桃科植物罗布麻Apocynum venetum L. 的干燥叶。"
+  },
+  {
+   "name": "羚羊角",
+   "identity": "羚羊角",
+   "line": 158045,
+   "source": "本品为牛科动物赛加羚羊Saiga tatarica Linnaeus的角。"
+  },
+  {
+   "name": "山羊角",
+   "identity": "山羊角",
+   "line": 158061,
+   "parentName": "羚羊角",
+   "source": "本品为牛科动物青羊Naemorhedus goral Ltardwicke的角。"
+  },
+  {
+   "name": "牛黄",
+   "identity": "牛黄",
+   "line": 158064,
+   "source": "本品为牛科动物牛Bos taurus domesticus Gmelin的干燥胆结石。"
+  },
+  {
+   "name": "体外培育牛黄",
+   "identity": "体外培育牛黄",
+   "line": 158077,
+   "parentName": "牛黄",
+   "source": "本品以牛科动物牛Bos taurus domesticus Gmelin的新鲜胆汁作母液，加入去氧胆酸、胆酸、复合胆红素钙等制成。"
+  },
+  {
+   "name": "人工牛黄",
+   "identity": "人工牛黄",
+   "line": 158078,
+   "parentName": "牛黄",
+   "source": "本品由牛胆粉、胆酸、猪去氧胆酸、牛磺酸、胆红素、胆固醇、微量元素等加工制成。"
+  },
+  {
+   "name": "珍珠",
+   "identity": "珍珠",
+   "line": 158081,
+   "source": "本品为珍珠贝科动物马氏珍珠贝Pteria martensii （Dunker）、蚌科动物三角帆蚌Hyriopsis cumingii （Lea） ，或褶纹冠蚌Cristaria plicata （Leach） 等双壳类动物受刺激形成的珍珠。碾细，水飞制成最细粉用。"
+  },
+  {
+   "name": "钩藤",
+   "identity": "钩藤",
+   "line": 158097,
+   "source": "本品为茜草科植物钩藤Uncaria rhynchophylla （Miq.） Miq.ex Havil.、大叶钩藤Uncaria macrophylla Wall.、毛钩藤Uncaria hirsuta Havil. 、华钩藤Uncaria sinensis （Oliv.） Havil.或无柄果钩藤Uncaria sessilifructus Roxb.的干燥带钩茎枝。"
+  },
+  {
+   "name": "天麻",
+   "identity": "天麻",
+   "line": 158110,
+   "source": "本品为兰科植物天麻Gastrodia elata Bl.的干燥块茎。"
+  },
+  {
+   "name": "密环菌",
+   "identity": "密环菌",
+   "line": 158123,
+   "parentName": "天麻",
+   "source": "本品为白蘑科真菌假蜜环菌Armillariella mellea （Vahl.ex Fr.） Karst.的子实体。"
+  },
+  {
+   "name": "地龙",
+   "identity": "地龙",
+   "line": 158126,
+   "source": "本品为钜蚓科动物参环毛蚓Pheretima aspergillum （E. Perrier）、通俗环毛蚓Pheretima vulgaris Chen、威廉环毛蚓Pheretima guillelmi （Michaelsen）或栉盲环毛蚓Pheretima pectinifera Michaelsen 的干燥体。"
+  },
+  {
+   "name": "全蝎",
+   "identity": "全蝎",
+   "line": 158141,
+   "source": "本品为钳蝎科动物东亚钳蝎Buthus martensii Karsch的干燥体。"
+  },
+  {
+   "name": "蜈蚣",
+   "identity": "蜈蚣",
+   "line": 158156,
+   "source": "本品为蜈蚣科动物少棘巨蜈蚣Scolopendra subspinipes mutilans L. Koch的干燥体。"
+  },
+  {
+   "name": "僵蚕",
+   "identity": "僵蚕",
+   "line": 158172,
+   "source": "本品为蚕蛾科昆虫家蚕Bombyx mori Linnaeus 4～5龄的幼虫感染（或人工接种）白僵菌Beauveria bassiana （Bals.） Vuillant而致死的干燥体。"
+  },
+  {
+   "name": "麝香",
+   "identity": "麝香",
+   "line": 158196,
+   "source": "本品为鹿科动物林麝Moschus berezovskii Flerov、马麝Moschus sifanicus Przewalski或原麝Moschus moschiferus Linnaeus成熟雄体香囊中的干燥分泌物。"
+  },
+  {
+   "name": "冰片",
+   "identity": "天然冰片（右旋龙脑）",
+   "line": 158214,
+   "source": "本品为龙脑香科植物龙脑香Dryobalanops aromatica Gaertn. f.树脂的加工品，或龙脑香树的树干、树枝切碎，经蒸馏冷却而得的结晶，称“龙脑冰片”，亦称“梅片”。由菊科植物艾纳香Blumea balsamifera （L.）DC.的新鲜叶经提取加工制成的结晶，称“艾片（左旋龙脑）”。由樟科植物樟Cinnamomum camphora （L.）Presl 的新鲜枝、叶经提取加工制成，称天然冰片（右旋龙脑）。"
+  },
+  {
+   "name": "苏合香",
+   "identity": "苏合香",
+   "line": 158230,
+   "source": "本品为金缕梅科植物苏合香树Liquidambar orientalis Mill.的树干渗出的香树脂经加工精制而成。"
+  },
+  {
+   "name": "安息香",
+   "identity": "安息香",
+   "line": 158241,
+   "parentName": "苏合香",
+   "source": "本品为安息香科植物白花树Styrax tonkinensis （Pierre） Craib ex Hart.的干燥树脂。"
+  },
+  {
+   "name": "石菖蒲",
+   "identity": "石菖蒲",
+   "line": 158244,
+   "source": "本品为天南星科植物石菖蒲Acorus tatarinowii Schott.的干燥根茎。"
+  },
+  {
+   "name": "人参",
+   "identity": "人参",
+   "line": 158272,
+   "source": "本品为五加科植物人参Panax ginseng C.A. Mey.的干燥根和根茎。"
+  },
+  {
+   "name": "红参",
+   "identity": "红参",
+   "line": 158291,
+   "parentName": "人参",
+   "source": "本品为五加科植物人参Panax ginseng C.A.Mey.的栽培品经蒸制后的干燥根及根茎。"
+  },
+  {
+   "name": "人参叶",
+   "identity": "人参叶",
+   "line": 158292,
+   "parentName": "人参",
+   "source": "本品为五加科植物人参Panax ginseng C.A.Mey.的干燥叶。"
+  },
+  {
+   "name": "西洋参",
+   "identity": "西洋参",
+   "line": 158295,
+   "source": "本品为五加科植物西洋参 Panax quinquefolium L.的干燥根。"
+  },
+  {
+   "name": "党参",
+   "identity": "党参",
+   "line": 158312,
+   "source": "本品为桔梗科植物党参 Codonopsis pilosula （Franch.） Nannf.、素花党参Codonopsis pilosula Nannf. var. modesta （Nannf.） L.T.Shen 或川党参Codonopsis tangshen Oliv. 的干燥根。"
+  },
+  {
+   "name": "明党参",
+   "identity": "明党参",
+   "line": 158326,
+   "parentName": "党参",
+   "source": "本品为伞形科植物明党参Changium smyrnioides Wolff的干燥根。"
+  },
+  {
+   "name": "太子参",
+   "identity": "太子参",
+   "line": 158329,
+   "source": "本品为石竹科植物孩儿参Pseudostellaria heterophylla （Miq.） Pax ex Pax et Hoffm.的干燥块根。"
+  },
+  {
+   "name": "黄芪",
+   "identity": "黄芪",
+   "line": 158343,
+   "source": "本品为豆科植物蒙古黄芪Astragalus membranaceus （Fisch.） Bge. var. mongholicus （Bge.）Hsiao或膜荚黄芪Astragalus membranaceus （Fisch.）Bge.的干燥根。"
+  },
+  {
+   "name": "红芪",
+   "identity": "红芪",
+   "line": 158361,
+   "parentName": "黄芪",
+   "source": "本品为豆科植物多序岩黄芪Hedysarum polybotrys Hand.-Mazz.的干燥根。"
+  },
+  {
+   "name": "白术",
+   "identity": "白术",
+   "line": 158364,
+   "source": "本品为菊科植物白术Atractylodes macrocephala Koidz.的干燥根茎。"
+  },
+  {
+   "name": "山药",
+   "identity": "山药",
+   "line": 158378,
+   "source": "本品为薯蓣科植物薯蓣Dioscorea opposita Thunb.的干燥根茎。"
+  },
+  {
+   "name": "白扁豆",
+   "identity": "白扁豆",
+   "line": 158393,
+   "source": "本品为豆科植物扁豆Dolichos lablab L.的干燥成熟种子。"
+  },
+  {
+   "name": "扁豆花",
+   "identity": "扁豆花",
+   "line": 158405,
+   "parentName": "白扁豆",
+   "source": "本品为豆科植物扁豆Dolichos lablab L.的花。"
+  },
+  {
+   "name": "甘草",
+   "identity": "甘草",
+   "line": 158408,
+   "source": "本品为豆科植物甘草Glycyrrhiza uralensis Fisch.、胀果甘草Glycyrrhiza inflate Bat.或光果甘草Glycyrrhiza glabra L.的干燥根和根茎。"
+  },
+  {
+   "name": "大枣",
+   "identity": "大枣",
+   "line": 158425,
+   "source": "本品为鼠李科植物枣 Ziziphus jujuba Mall.的干燥成熟果实。"
+  },
+  {
+   "name": "刺五加",
+   "identity": "刺五加",
+   "line": 158439,
+   "source": "本品为五加科植物刺五加Acanthopanax senticosus （Rupr.et Maxim.）Harms的干燥根和根茎或茎。"
+  },
+  {
+   "name": "绞股蓝",
+   "identity": "绞股蓝",
+   "line": 158453,
+   "source": "本品为葫芦科植物绞股蓝Gynoacemma pentaphllum （Thunb）Mak的干燥地上部分。"
+  },
+  {
+   "name": "红景天",
+   "identity": "红景天",
+   "line": 158466,
+   "source": "本品为景天科植物大花红景天Rhodiola crenulata （Hook.f.et Thoms.）H.Ohba的干燥根和根茎。"
+  },
+  {
+   "name": "沙棘",
+   "identity": "沙棘",
+   "line": 158478,
+   "source": "本品为胡颓子科植物沙棘Hippophae rhamnoides L.的干燥成熟果实。"
+  },
+  {
+   "name": "蜂蜜",
+   "identity": "蜂蜜",
+   "line": 158503,
+   "source": "本品为蜜蜂科昆虫中华蜜蜂 Apis cerana Fabricius 或意大利蜜蜂 Apis mellifera Linnaeus 所酿的蜜。"
+  },
+  {
+   "name": "蜂胶",
+   "identity": "蜂胶",
+   "line": 158518,
+   "parentName": "蜂蜜",
+   "source": "本品为蜜蜂科昆虫意大利蜜蜂 Apis mellifera Linnaeus的干燥分泌物。"
+  },
+  {
+   "name": "鹿茸",
+   "identity": "鹿茸",
+   "line": 158525,
+   "source": "本品为鹿科动物梅花鹿Cervus nippon Temminck或马鹿Cervus. elaphus Linnaeus的雄鹿头上未骨化密生茸毛的幼角。夏、秋二季锯取鹿茸，经加工后，阴干或烘干。"
+  },
+  {
+   "name": "鹿角",
+   "identity": "鹿角",
+   "line": 158539,
+   "parentName": "鹿茸",
+   "source": "本品为鹿科动物马鹿Cervus elaphus Linnaeus或梅花鹿Cervus nippon Temminck已骨化的角或锯茸后翌年春季脱落的角基，分别习称“马鹿角”“梅花鹿角”“鹿角脱盘”。"
+  },
+  {
+   "name": "鹿角胶",
+   "identity": "鹿角胶",
+   "line": 158540,
+   "parentName": "鹿茸",
+   "source": "本品为鹿角经水煎煮、浓缩制成的固体胶。"
+  },
+  {
+   "name": "鹿角霜",
+   "identity": "鹿角霜",
+   "line": 158541,
+   "parentName": "鹿茸",
+   "source": "本品为鹿角去胶质的角块。"
+  },
+  {
+   "name": "紫河车",
+   "identity": "紫河车",
+   "line": 158544,
+   "source": "本品为健康人的干燥胎盘。"
+  },
+  {
+   "name": "脐带",
+   "identity": "脐带",
+   "line": 158558,
+   "parentName": "紫河车",
+   "source": "本品为胎儿的脐带。"
+  },
+  {
+   "name": "淫羊藿",
+   "identity": "淫羊藿",
+   "line": 158561,
+   "source": "本品为小蘖科植物淫羊藿Epimedium brevicornu Maxim.、箭叶淫羊藿Epimedium sagittatum （Sieb. et Zucc.）Maxim.、柔毛淫羊藿Epimedium pubescens Maxim.或朝鲜淫羊藿Epimedium koreanum Maxim.的干燥叶。"
+  },
+  {
+   "name": "巴戟天",
+   "identity": "巴戟天",
+   "line": 158574,
+   "source": "本品为茜草科植物巴戟天Morinda off icinalis How的干燥根。生用，或除去木心，分别加工炮制成巴戟肉、盐巴戟天、制巴戟天用。"
+  },
+  {
+   "name": "仙茅",
+   "identity": "仙茅",
+   "line": 158587,
+   "source": "本品为石蒜科植物仙茅Curculigo orchioides Gaertn.的干燥根茎。"
+  },
+  {
+   "name": "胡芦巴",
+   "identity": "胡芦巴",
+   "line": 158602,
+   "source": "本品为豆科植物胡芦巴Trigonella foenum-graecum L.的干燥成熟种子。"
+  },
+  {
+   "name": "杜仲",
+   "identity": "杜仲",
+   "line": 158616,
+   "source": "本品为杜仲科植物杜仲Eucommia ulmoides Oliv.的干燥树皮。"
+  },
+  {
+   "name": "杜仲叶",
+   "identity": "杜仲叶",
+   "line": 158628,
+   "parentName": "杜仲",
+   "source": "本品为杜仲科植物杜仲Eucommia ulmoides Oliv.的干燥叶。"
+  },
+  {
+   "name": "续断",
+   "identity": "续断",
+   "line": 158631,
+   "source": "本品为川续断科植物川续断Dipsacus asper Wall. ex Henry的干燥根。"
+  },
+  {
+   "name": "肉苁蓉",
+   "identity": "肉苁蓉",
+   "line": 158645,
+   "source": "本品为列当科植物肉苁蓉Cistanche deserticola Y. C. Ma或管花肉苁蓉Cistanche tubulosa （Schrenk）Wight的干燥带鳞叶的肉质茎。"
+  },
+  {
+   "name": "锁阳",
+   "identity": "锁阳",
+   "line": 158658,
+   "source": "本品为锁阳科植物锁阳Cynomorium songaricum Rupr.的干燥肉质茎。"
+  },
+  {
+   "name": "补骨脂",
+   "identity": "补骨脂",
+   "line": 158671,
+   "source": "本品为豆科植物补骨脂Psoralea corylifolia L.的干燥成熟果实。"
+  },
+  {
+   "name": "益智仁",
+   "identity": "益智",
+   "line": 158687,
+   "source": "本品为姜科植物益智Alpinia oxyphylla Miq.的干燥成熟果实。"
+  },
+  {
+   "name": "菟丝子",
+   "identity": "菟丝子",
+   "line": 158700,
+   "source": "本品为旋花科植物南方菟丝子Cuscuta australis R.Br.或菟丝子Cuscuta chinensis Lam.的干燥成熟种子。"
+  },
+  {
+   "name": "沙苑子",
+   "identity": "沙苑子",
+   "line": 158717,
+   "source": "本品为豆科植物扁茎黄芪Astragalus complanatus R.Br.的干燥成熟种子。"
+  },
+  {
+   "name": "蛤蚧",
+   "identity": "蛤蚧",
+   "line": 158730,
+   "source": "本品为壁虎科动物蛤蚧Gekko gecko Linnaeus的干燥体。"
+  },
+  {
+   "name": "核桃仁",
+   "identity": "核桃仁",
+   "line": 158743,
+   "source": "本品为胡桃科植物胡桃Juglans regia L.的干燥成熟种子。"
+  },
+  {
+   "name": "冬虫夏草",
+   "identity": "冬虫夏草",
+   "line": 158757,
+   "source": "本品为麦角菌科真菌冬虫夏草菌Cordyceps sinensis （Berk.）Sacc.寄生在蝙蝠蛾科昆虫幼虫上的子座和幼虫尸体的干燥复合体。"
+  },
+  {
+   "name": "韭菜子",
+   "identity": "韭菜子",
+   "line": 158772,
+   "source": "本品为百合科植物韭菜Allium tuberosum Rottl.ex Spreng.的干燥成熟种子。"
+  },
+  {
+   "name": "阳起石",
+   "identity": "阳起石",
+   "line": 158785,
+   "source": "本品为硅酸盐类矿物焦闪石族透闪石，主含含水硅酸钙[Ca2 Mg5 （Si4 O11 ）2 （OH）2 ]。"
+  },
+  {
+   "name": "紫石英",
+   "identity": "紫石英",
+   "line": 158796,
+   "source": "本品为氟化物类矿物萤石族萤石，主含氟化钙（CaF2 ）。"
+  },
+  {
+   "name": "海马",
+   "identity": "海马",
+   "line": 158825,
+   "source": "本品为海龙科动物线纹海马Hippocampus kelloggi Jordan et Snyder、刺海马Hippocampus histrix Kaup、大海马Hippocampus kuda Bleeker、三斑海马Hippocampus trimaculatus Leach或小海马（海沮）Hippocampus japomicus Kaup的干燥体。"
+  },
+  {
+   "name": "海龙",
+   "identity": "海龙",
+   "line": 158839,
+   "parentName": "海马",
+   "source": "本品为海龙科动物刁海龙Solenognathus hardwickii （Gray）、拟海龙Syngnathoides biaculeatus （Bloch）或尖海龙Syngnathus acus Linnaeus的干燥体。"
+  },
+  {
+   "name": "哈蟆油",
+   "identity": "哈蟆油",
+   "line": 158842,
+   "source": "本品为蛙科动物中国林蛙Rana temporaria chensinensis David雌蛙的输卵管，经采制干燥而得。"
+  },
+  {
+   "name": "当归",
+   "identity": "当归",
+   "line": 158857,
+   "source": "本品为伞形科植物当归Angelicasinensis （Oliv.） Diels 的干燥根。"
+  },
+  {
+   "name": "熟地黄",
+   "identity": "熟地黄",
+   "line": 158872,
+   "source": "本品为玄参科植物地黄Rehmannia glutinosa Libosch.的干燥块根，经炮制加工品制成。"
+  },
+  {
+   "name": "白芍",
+   "identity": "白芍",
+   "line": 158887,
+   "source": "本品为毛茛科植物芍药Paeonia lactiflora Pall.的干燥根。"
+  },
+  {
+   "name": "何首乌",
+   "identity": "何首乌",
+   "line": 158918,
+   "source": "本品为蓼科植物何首乌 Polygonum multiforum Thunb. 的干燥块根。"
+  },
+  {
+   "name": "龙眼肉",
+   "identity": "龙眼肉",
+   "line": 158935,
+   "source": "本品为无患子科植物龙眼Dimocarpus longan Lour. 的假种皮。"
+  },
+  {
+   "name": "北沙参",
+   "identity": "北沙参",
+   "line": 158950,
+   "source": "本品为伞形科植物珊瑚菜 Glehnia littoralis Fr. Schmidtex Miq. 的干燥根。"
+  },
+  {
+   "name": "南沙参",
+   "identity": "南沙参",
+   "line": 158963,
+   "source": "本品为桔梗科植物轮叶沙参Adenophora tetraphylla （Thunb.） Fisch.或沙参Adenophora stricta Miq.的干燥根。"
+  },
+  {
+   "name": "百合",
+   "identity": "百合",
+   "line": 158977,
+   "source": "本品为百合科植物卷丹Lilium lancifolium Thunb.、百合Lilium brownii F.E.Brown var. viridulum Baker 或细叶百合Lilium pumilum DC. 的干燥肉质鳞叶。"
+  },
+  {
+   "name": "麦冬",
+   "identity": "麦冬",
+   "line": 158989,
+   "source": "本品为百合科植物麦冬Ophiopogon japonicus （L.f） KerGawl. 的干燥块根。"
+  },
+  {
+   "name": "天冬",
+   "identity": "天冬",
+   "line": 159003,
+   "source": "本品为百合科植物天冬Asparagus cochinchinensis （Lour.）Merr. 的干燥块根。"
+  },
+  {
+   "name": "石斛",
+   "identity": "石斛",
+   "line": 159018,
+   "source": "本品为兰科植物金钗石斛Dendrobium nobile Lindl.、鼓槌石斛Dendrobium chrysotoxum Lindl.或流苏石斛Dendrobium fimbriatum Hook. 的栽培品及其同属植物近似种的新鲜或干燥茎。"
+  },
+  {
+   "name": "铁皮石斛",
+   "identity": "铁皮石斛",
+   "line": 159030,
+   "parentName": "石斛",
+   "source": "本品为兰科植物铁皮石斛Dendrobium officinale Kimura et Migo的干燥茎。"
+  },
+  {
+   "name": "玉竹",
+   "identity": "玉竹",
+   "line": 159033,
+   "source": "本品为百合科植物玉竹 Polygonatum odoratum （Mill.） Druce 的干燥根茎。"
+  },
+  {
+   "name": "黄精",
+   "identity": "黄精",
+   "line": 159046,
+   "source": "本品为百合科植物滇黄精Polygonatum kingianum Coll. et Hemsl.、黄精Polygonatum sibiricum Red. 或多花黄精Polygonatum cyrtonema Hua的干燥根茎。"
+  },
+  {
+   "name": "枸杞子",
+   "identity": "枸杞子",
+   "line": 159061,
+   "source": "本品为茄科植物宁夏枸杞Lycium barbarum L.的干燥成熟果实。"
+  },
+  {
+   "name": "墨旱莲",
+   "identity": "墨旱莲",
+   "line": 159071,
+   "source": "本品为菊科植物鳢肠Eclipta prostrate L.的干燥地上部分。"
+  },
+  {
+   "name": "女贞子",
+   "identity": "女贞子",
+   "line": 159083,
+   "source": "本品为木犀科植物女贞Ligustrum lucidum Ait.的干燥成熟果实。"
+  },
+  {
+   "name": "桑椹",
+   "identity": "桑椹",
+   "line": 159093,
+   "source": "本品为桑科植物桑Morus alba L.的干燥果穗。"
+  },
+  {
+   "name": "黑芝麻",
+   "identity": "黑芝麻",
+   "line": 159105,
+   "source": "本品为脂麻科植物脂麻Sesamum indicum L.的干燥成熟种子。"
+  },
+  {
+   "name": "龟甲",
+   "identity": "龟甲",
+   "line": 159118,
+   "source": "本品为龟科动物乌龟Chinemys reevesii （Gray）的背甲及腹甲。"
+  },
+  {
+   "name": "龟甲胶",
+   "identity": "龟甲胶",
+   "line": 159132,
+   "parentName": "龟甲",
+   "source": "本品为龟甲经水煎煮、浓缩制成的固体胶。"
+  },
+  {
+   "name": "鳖甲",
+   "identity": "鳖甲",
+   "line": 159135,
+   "source": "本品为鳖科动物鳖Trionyx sinensis Wiegmann的背甲。"
+  },
+  {
+   "name": "麻黄根",
+   "identity": "麻黄根",
+   "line": 159161,
+   "source": "本品为麻黄科植物草麻黄 Ephedra sinica Stapf 或中麻黄 Ephedra intermedia Schrenk et C.A.Mey.的干燥根和根茎。"
+  },
+  {
+   "name": "浮小麦",
+   "identity": "浮小麦",
+   "line": 159173,
+   "source": "本品为禾本科植物小麦Triticumaestivum L.的干燥轻浮瘪瘦的颖果。"
+  },
+  {
+   "name": "小麦",
+   "identity": "小麦",
+   "line": 159184,
+   "parentName": "浮小麦",
+   "source": "本品为禾本科植物小麦Triticumaestivum L.的干燥成熟果实。"
+  },
+  {
+   "name": "糯稻根",
+   "identity": "糯稻根",
+   "line": 159187,
+   "source": "本品为禾本科植物糯稻Oryza sativa L. var. glutinosa Matsum.的干燥根茎及根。"
+  },
+  {
+   "name": "五味子",
+   "identity": "五味子",
+   "line": 159202,
+   "source": "本品为木兰科植物五味子Schisandra chinensis （Turcz.） Baill.或华中五味子Schisandra sphenanthera Rehd. et Wils.的干燥成熟果实。"
+  },
+  {
+   "name": "乌梅",
+   "identity": "乌梅",
+   "line": 159219,
+   "source": "本品为蔷薇科植物梅Prunus mume （Sieb.）Sieb.et Zucc.的干燥近成熟果实。生用，去核用，或炒炭用。"
+  },
+  {
+   "name": "五倍子",
+   "identity": "五倍子",
+   "line": 159235,
+   "source": "本品为漆树科植物盐肤木Rhus chinensis Mill.、青麸杨Rhus potaninii Maxim.或红麸杨Rhus punjabensis Stew. Var. sinica （Diels） Rehd. et Wils.叶上的虫瘿，主要由五倍子蚜 Melaphis chinensis （Bell） Baker 寄生而形成。"
+  },
+  {
+   "name": "罂粟壳",
+   "identity": "罂粟壳",
+   "line": 159254,
+   "source": "本品为罂粟科植物罂粟Papaver somniferum L.的干燥成熟果壳。"
+  },
+  {
+   "name": "诃子",
+   "identity": "诃子",
+   "line": 159269,
+   "source": "本品为使君子科植物诃子Terminalia chebula Retz.或绒毛诃子Terminalia chebula Retz.var. tomentella Kurt.的干燥成熟果实。"
+  },
+  {
+   "name": "石榴皮",
+   "identity": "石榴皮",
+   "line": 159282,
+   "source": "本品为石榴科植物石榴Punica granatum L.的干燥果皮。切块，生用或炒炭用。"
+  },
+  {
+   "name": "肉豆蔻",
+   "identity": "肉豆蔻",
+   "line": 159296,
+   "source": "本品为肉豆蔻科植物肉豆蔻Myristica fragrans Houtt.的干燥种仁。"
+  },
+  {
+   "name": "赤石脂",
+   "identity": "赤石脂",
+   "line": 159310,
+   "source": "本品为硅酸盐类矿物多水高岭石族多水高岭石，主含四水硅酸铝[Al4 （Si4 O10 ）（OH）8 ·4H2 O]。"
+  },
+  {
+   "name": "禹余粮",
+   "identity": "禹余粮",
+   "line": 159325,
+   "source": "本品为氢氧化物类矿物褐铁矿，主含碱式氧化铁［FeO（OH）］。"
+  },
+  {
+   "name": "山茱萸",
+   "identity": "山茱萸",
+   "line": 159342,
+   "source": "本品为山茱萸科植物山茱萸Cornus officinalis Sieb.et Zucc.的干燥成熟果肉。"
+  },
+  {
+   "name": "覆盆子",
+   "identity": "覆盆子",
+   "line": 159358,
+   "source": "本品为蔷薇科植物华东覆盆子Rubus chingii Hu的干燥果实。"
+  },
+  {
+   "name": "桑螵蛸",
+   "identity": "桑螵蛸",
+   "line": 159371,
+   "source": "本品为螳螂科昆虫大刀螂Tenodera sinensis Saussure、小刀螂Statilia maculata （Thunberg）或巨斧螳螂Hierodula patellifera （Serville）的干燥卵鞘。"
+  },
+  {
+   "name": "海螵蛸",
+   "identity": "海螵蛸",
+   "line": 159384,
+   "source": "本品为乌贼科动物无针乌贼Sepiella maindroni de Rochebrune或金乌贼Sepia esculenta Hoyle的干燥内壳。"
+  },
+  {
+   "name": "金樱子",
+   "identity": "金樱子",
+   "line": 159399,
+   "source": "本品为蔷薇科植物金樱子Rosa laevigata Michx.的干燥成熟果实。"
+  },
+  {
+   "name": "莲子",
+   "identity": "莲子",
+   "line": 159412,
+   "source": "本品为睡莲科植物莲Nelumbo nucifera Gaertn.的干燥成熟种子。"
+  },
+  {
+   "name": "莲须",
+   "identity": "莲须",
+   "line": 159425,
+   "parentName": "莲子",
+   "source": "本品为睡莲科植物莲Nelumbo nucifera Gaertn.的干燥雄蕊。"
+  },
+  {
+   "name": "莲房",
+   "identity": "莲房",
+   "line": 159426,
+   "parentName": "莲子",
+   "source": "本品为睡莲科植物莲Nelumbo nucifera Gaertn.的干燥花托。炒炭用。"
+  },
+  {
+   "name": "莲子心",
+   "identity": "莲子心",
+   "line": 159427,
+   "parentName": "莲子",
+   "source": "本品为睡莲科植物莲Nelumbo nucifera Gaertn.的成熟种子中的干燥幼叶及胚根。"
+  },
+  {
+   "name": "荷叶",
+   "identity": "荷叶",
+   "line": 159428,
+   "parentName": "莲子",
+   "source": "本品为睡莲科植物莲Nelumbo nucifera Gaertn.的干燥叶。"
+  },
+  {
+   "name": "荷梗",
+   "identity": "荷梗",
+   "line": 159429,
+   "parentName": "莲子",
+   "source": "本品为睡莲科植物莲Nelumbo nucifera Gaertn.的干燥叶柄及花柄。"
+  },
+  {
+   "name": "石莲子",
+   "identity": "石莲子",
+   "line": 159430,
+   "parentName": "莲子",
+   "source": "本品为睡莲科植物莲Nelumbo nucifera Gaertn.老熟的果实。"
+  },
+  {
+   "name": "芡实",
+   "identity": "芡实",
+   "line": 159433,
+   "source": "本品为睡莲科植物芡Euryale ferox Salisb.的干燥成熟种仁。"
+  },
+  {
+   "name": "刺猬皮",
+   "identity": "刺猬皮",
+   "line": 159447,
+   "source": "本品为刺猬科动物刺猬Erinaceus europaeus Linnaeus的干燥外皮。"
+  },
+  {
+   "name": "椿皮",
+   "identity": "椿皮",
+   "line": 159460,
+   "source": "本品为苦木科植物臭椿Ailanthus altissima （Mill.） Swingle的干燥根皮或干皮。"
+  },
+  {
+   "name": "鸡冠花",
+   "identity": "鸡冠花",
+   "line": 159474,
+   "source": "本品为苋科植物鸡冠花Celosia cristata L.的干燥花序。切段，生用或炒炭用。"
+  },
+  {
+   "name": "常山",
+   "identity": "常山",
+   "line": 159494,
+   "source": "本品为虎耳草科植物常山Dichroa febrifuga Lour. 的干燥根。"
+  },
+  {
+   "name": "胆矾",
+   "identity": "胆矾",
+   "line": 159524,
+   "source": "本品为三斜晶系胆矾的矿石，主含含水硫酸铜（CuSO4 ·5H2 O）。"
+  },
+  {
+   "name": "藜芦",
+   "identity": "藜芦",
+   "line": 159539,
+   "source": "本品为百合科植物黑藜芦Veratrum nigrum L.的干燥根茎。"
+  },
+  {
+   "name": "雄黄",
+   "identity": "雄黄",
+   "line": 159560,
+   "source": "本品为硫化物类矿物雄黄族雄黄，主含二硫化二砷（As2 S2 ）。"
+  },
+  {
+   "name": "硫黄",
+   "identity": "硫黄",
+   "line": 159574,
+   "source": "本品为自然元素类矿物硫族自然硫。采挖后，加热熔化，除去杂质；或用含硫矿物经加工制得。"
+  },
+  {
+   "name": "白矾",
+   "identity": "白矾",
+   "line": 159589,
+   "source": "本品为硫酸盐类矿物明矾石经加工提炼制成。主含含水硫酸铝钾[KAl（SO4 ）2 ·12H2 O]。"
+  },
+  {
+   "name": "皂矾（绿矾）",
+   "identity": "皂矾（绿矾）",
+   "line": 159603,
+   "parentName": "白矾",
+   "source": "本品为硫酸盐类矿物水绿矾的矿石。主含含水硫酸亚铁（FeSO4 ·7H2 O）。"
+  },
+  {
+   "name": "蛇床子",
+   "identity": "蛇床子",
+   "line": 159606,
+   "source": "本品为伞形科植物蛇床Cnidium monnieri （L.）Cuss. 的干燥成熟果实。"
+  },
+  {
+   "name": "木槿皮",
+   "identity": "木槿皮",
+   "line": 159635,
+   "parentName": "土荆皮",
+   "source": "本品为锦葵科植物木槿Hibiscus syriacus L.的干燥茎皮或根皮。"
+  },
+  {
+   "name": "蜂房",
+   "identity": "蜂房",
+   "line": 159638,
+   "source": "本品为胡蜂科昆虫果马蜂Polistes olivaceous （DeGeer）、日本长脚胡蜂Polistes japonicus Saussure或异腹胡蜂Parapolybia varia Fabricius的巢。"
+  },
+  {
+   "name": "蜂蜡",
+   "identity": "蜂蜡",
+   "line": 159649,
+   "parentName": "蜂房",
+   "source": "本品为蜜蜂科昆虫中华蜜蜂 Apis cerana Fabricius 或意大利蜜蜂 Apis mellifera Linnaeus 分泌的蜡。"
+  },
+  {
+   "name": "樟脑",
+   "identity": "樟脑",
+   "line": 159652,
+   "source": "本品为樟科植物樟Cinnamomum camphora （L.） Presl.的干枝、叶及根部经加工提取制得的结晶。多在9～12月砍伐老树，锯劈成碎片，置蒸馏器中进行蒸馏，冷却后即得粗制樟脑，再经升华精制而得精制樟脑。"
+  },
+  {
+   "name": "蟾酥",
+   "identity": "蟾酥",
+   "line": 159667,
+   "source": "本品为蟾蜍科动物中华大蟾蜍Bufo bufo gargarizans Cantor或黑眶蟾蜍Bufo melanostictus Schneider的干燥分泌物。"
+  },
+  {
+   "name": "大蒜",
+   "identity": "大蒜",
+   "line": 159684,
+   "source": "本品为百合科植物大蒜Allium sativum L.的鳞茎。"
+  },
+  {
+   "name": "红粉",
+   "identity": "红粉",
+   "line": 159705,
+   "source": "本品为红氧化汞（HgO）。以水银、火硝、白矾为原料加工而成的红色升华物。"
+  },
+  {
+   "name": "轻粉",
+   "identity": "轻粉",
+   "line": 159718,
+   "source": "本品为水银、白矾、食盐等经升华法炼制而成的氯化亚汞（Hg2 Cl2 ）。"
+  },
+  {
+   "name": "水银",
+   "identity": "水银",
+   "line": 159731,
+   "parentName": "轻粉",
+   "source": "本品为自然元素类液态矿物自然汞，主要从辰砂矿经加工提炼制成。"
+  },
+  {
+   "name": "砒石",
+   "identity": "砒石",
+   "line": 159734,
+   "source": "本品为矿物砷华Arsenolite的矿石，或由毒砂（硫砷铁矿）、雄黄等含砷矿物的加工品，也称信石。"
+  },
+  {
+   "name": "密陀僧",
+   "identity": "密陀僧",
+   "line": 159763,
+   "parentName": "铅丹",
+   "source": "本品为铅矿石冶炼而成，主含氧化铅（PbO）。外用适量，研末撒或调涂，或制成膏药、软膏、油剂等外用；内服，入丸、散，0.2～0.5g。"
+  },
+  {
+   "name": "炉甘石",
+   "identity": "炉甘石",
+   "line": 159766,
+   "source": "本品为碳酸盐类矿物方解石族菱锌矿，主含碳酸锌（ZnCO3 ）。"
+  }
+ ],
+ "textbookStatements": [
+  {
+   "line": 153969,
+   "text": "大青叶、板蓝根、青黛三者大体同出一源，功效相近，皆有清热解毒、凉血消斑之作用。"
+  },
+  {
+   "line": 156754,
+   "text": "生姜、干姜与炮姜同出一物，均能温中散寒，适用于脾胃寒证。"
+  },
+  {
+   "line": 156832,
+   "text": "郁金、姜黄为同一植物的不同药用部位，均能活血散瘀、行气止痛，用于气滞血瘀之证。"
+  },
+  {
+   "line": 159167,
+   "text": "麻黄与麻黄根同出一源，均可治汗证。"
+  }
+ ],
+ "candidates": [
+  {
+   "herbs": [
+    "丁香",
+    "母丁香"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "丁香",
+     "line": 155893
+    },
+    {
+     "kind": "name",
+     "stem": "丁香"
+    },
+    {
+     "kind": "species",
+     "species": "eugenia caryophyllata",
+     "lines": [
+      155880,
+      155893
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "三白草",
+    "翻白草"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "白草"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "乌梅",
+    "梅花"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "prunus mume",
+     "lines": [
+      156157,
+      159219
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "乌梢蛇",
+    "蛇蜕"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "乌梢蛇",
+     "line": 154902
+    },
+    {
+     "kind": "species",
+     "species": "zaocys dhumnades",
+     "lines": [
+      154886,
+      154902
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "五加皮",
+    "刺五加"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "五加"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "五加皮",
+    "香加皮"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "加皮"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "五味子",
+    "南五味子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "五味子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "亚麻子",
+    "苘麻子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "麻子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "亚麻子",
+    "蓖麻子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "麻子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "京大戟",
+    "红大戟"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "京大戟",
+     "line": 154713
+    },
+    {
+     "kind": "name",
+     "stem": "大戟"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "人参",
+    "人参叶"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "人参",
+     "line": 158292
+    },
+    {
+     "kind": "name",
+     "stem": "人参"
+    },
+    {
+     "kind": "species",
+     "species": "panax ginseng",
+     "lines": [
+      158272,
+      158292
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "人参",
+    "红参"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "人参",
+     "line": 158291
+    },
+    {
+     "kind": "derived",
+     "herb": "红参",
+     "line": 158291
+    },
+    {
+     "kind": "species",
+     "species": "panax ginseng",
+     "lines": [
+      158272,
+      158291
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "人参叶",
+    "红参"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "panax ginseng",
+     "lines": [
+      158291,
+      158292
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "人工牛黄",
+    "牛黄"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "牛黄",
+     "line": 158078
+    },
+    {
+     "kind": "name",
+     "stem": "牛黄"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "仙鹤草",
+    "鹤草芽"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "鹤草"
+    },
+    {
+     "kind": "species",
+     "species": "agrimonia pilosa",
+     "lines": [
+      156399,
+      156663
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "伊贝母",
+    "土贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "伊贝母",
+    "川贝母"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "川贝母",
+     "line": 157388
+    },
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "伊贝母",
+    "平贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "伊贝母",
+    "浙贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "伊贝母",
+    "湖北贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "体外培育牛黄",
+    "牛黄"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "牛黄",
+     "line": 158077
+    },
+    {
+     "kind": "species",
+     "species": "bos taurus",
+     "lines": [
+      158064,
+      158077
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "何首乌",
+    "首乌藤"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "首乌"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "侧柏叶",
+    "柏子仁"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "platycladus orientalis",
+     "lines": [
+      156533,
+      157856
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "信石",
+    "砒石"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "砒石",
+     "line": 159734
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "僵蚕",
+    "蚕沙"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "bombyx mori",
+     "lines": [
+      154921,
+      158172
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "八角茴香",
+    "小茴香"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "小茴香",
+     "line": 155877
+    },
+    {
+     "kind": "name",
+     "stem": "茴香"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "六神曲",
+    "青蒿"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "六神曲",
+     "line": 156271
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "关黄柏",
+    "黄柏"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "黄柏"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "冬瓜子",
+    "冬瓜皮"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "冬瓜皮",
+     "line": 155466
+    },
+    {
+     "kind": "name",
+     "stem": "冬瓜"
+    },
+    {
+     "kind": "species",
+     "species": "benincasa hispida",
+     "lines": [
+      155455,
+      155466
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "冬瓜子",
+    "南瓜子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "瓜子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "冬瓜子",
+    "瓜子金"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "瓜子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "冬瓜子",
+    "甜瓜子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "瓜子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "冬葵子",
+    "冬葵果"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "冬葵"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "冬葵子",
+    "天葵子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "葵子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "冰片（合成龙脑）",
+    "天然冰片（右旋龙脑）"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "冰片"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "决明子",
+    "石决明"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "决明"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "刘寄奴",
+    "北刘寄奴"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "刘寄奴",
+     "line": 157149
+    },
+    {
+     "kind": "name",
+     "stem": "刘寄奴"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "制何首乌",
+    "首乌藤"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "首乌"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "制草乌",
+    "草乌叶"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "草乌"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "前胡",
+    "紫花前胡"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "前胡"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "化橘红",
+    "橘红"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "橘红"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "化橘红",
+    "陈皮"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "陈皮",
+     "line": 155988
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "北沙参",
+    "南沙参"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "沙参"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "北豆根",
+    "山豆根"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "山豆根",
+     "line": 154177
+    },
+    {
+     "kind": "name",
+     "stem": "豆根"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "千年健",
+    "天山雪莲"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "千年健",
+     "line": 155258
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "半枝莲",
+    "半边莲"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "半边莲",
+     "line": 154290
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "南板蓝根",
+    "板蓝根"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "板蓝根"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "南瓜子",
+    "瓜子金"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "瓜子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "南瓜子",
+    "甜瓜子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "瓜子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "南鹤虱",
+    "鹤虱"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "鹤虱"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "厚朴",
+    "厚朴花"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "厚朴",
+     "line": 155324
+    },
+    {
+     "kind": "name",
+     "stem": "厚朴"
+    },
+    {
+     "kind": "species",
+     "species": "magnolia officinalis",
+     "lines": [
+      155309,
+      155324
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "合欢皮",
+    "合欢花"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "合欢皮",
+     "line": 157910
+    },
+    {
+     "kind": "name",
+     "stem": "合欢"
+    },
+    {
+     "kind": "species",
+     "species": "albizia julibrissin",
+     "lines": [
+      157897,
+      157910
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "吴茱萸",
+    "山茱萸"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "茱萸"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土大黄",
+    "大黄"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "大黄"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土大黄",
+    "熟大黄"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "大黄"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土大黄",
+    "羊蹄"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "羊蹄",
+     "line": 156585
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土木香",
+    "川木香"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "木香"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土木香",
+    "木香"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "木香",
+     "line": 156037
+    },
+    {
+     "kind": "name",
+     "stem": "木香"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土牛膝",
+    "川牛膝"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "牛膝"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土牛膝",
+    "牛膝"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "牛膝",
+     "line": 156985
+    },
+    {
+     "kind": "name",
+     "stem": "牛膝"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土茯苓",
+    "茯苓"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "茯苓"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土茯苓",
+    "茯苓皮"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "茯苓"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土贝母",
+    "川贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土贝母",
+    "平贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土贝母",
+    "浙贝母"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "浙贝母",
+     "line": 157405
+    },
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "土贝母",
+    "湖北贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "地耳草",
+    "苍耳草"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "耳草"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "地骨皮",
+    "枸杞子"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "lycium barbarum",
+     "lines": [
+      154526,
+      159061
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "墓头回",
+    "败酱草"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "败酱草",
+     "line": 154147
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大叶紫珠",
+    "广东紫珠"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "紫珠"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大叶紫珠",
+    "紫珠叶"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "紫珠叶",
+     "line": 156690
+    },
+    {
+     "kind": "name",
+     "stem": "紫珠"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大叶紫珠",
+    "裸花紫珠"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "紫珠"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大枣",
+    "酸枣仁"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "ziziphus jujuba",
+     "lines": [
+      157843,
+      158425
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大皂角",
+    "皂角刺"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "皂角"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大腹皮",
+    "槟榔"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "areca catechu",
+     "lines": [
+      156191,
+      156373
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大血藤",
+    "滇鸡血藤"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "血藤"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大血藤",
+    "鸡血藤"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "血藤"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大豆",
+    "大豆黄卷"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "大豆黄卷",
+     "line": 153531
+    },
+    {
+     "kind": "name",
+     "stem": "大豆"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大豆",
+    "淡豆豉"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "淡豆豉",
+     "line": 153520
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大豆黄卷",
+    "淡豆豉"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "淡豆豉",
+     "line": 153531
+    },
+    {
+     "kind": "species",
+     "species": "glycine max",
+     "lines": [
+      153520,
+      153531
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大豆黄卷",
+    "黑豆"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "glycine max",
+     "lines": [
+      153531,
+      154397
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大青叶",
+    "大青盐"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "大青"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大青叶",
+    "板蓝根"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "isatis indigotica",
+     "lines": [
+      153931,
+      153945
+     ]
+    },
+    {
+     "kind": "statement",
+     "line": 153969
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大青叶",
+    "蓼大青叶"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "大青叶"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大青叶",
+    "青叶胆"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "青叶"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "大青叶",
+    "青黛"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "isatis indigotica",
+     "lines": [
+      153931,
+      153959
+     ]
+    },
+    {
+     "kind": "statement",
+     "line": 153969
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "天仙子",
+    "天仙藤"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "天仙"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "天仙藤",
+    "马兜铃"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "马兜铃",
+     "line": 157684
+    },
+    {
+     "kind": "species",
+     "species": "aristolochia contorta",
+     "lines": [
+      157670,
+      157684
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "aristolochia debilis",
+     "lines": [
+      157670,
+      157684
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "天然冰片（右旋龙脑）",
+    "樟脑"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "cinnamomum camphora",
+     "lines": [
+      158214,
+      159652
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "天然冰片（右旋龙脑）",
+    "艾片（左旋龙脑）"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "天然冰片（右旋龙脑）",
+     "line": 158214
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "天花粉",
+    "松花粉"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "花粉"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "天花粉",
+    "瓜蒌"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "trichosanthes kirilowii",
+     "lines": [
+      153647,
+      157408
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "trichosanthes rosthornii",
+     "lines": [
+      153647,
+      157408
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "天花粉",
+    "瓜蒌子"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "trichosanthes kirilowii",
+     "lines": [
+      153647,
+      157423
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "trichosanthes rosthornii",
+     "lines": [
+      153647,
+      157423
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "天花粉",
+    "瓜蒌皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "trichosanthes kirilowii",
+     "lines": [
+      153647,
+      157422
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "trichosanthes rosthornii",
+     "lines": [
+      153647,
+      157422
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "天麻",
+    "密环菌"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "天麻",
+     "line": 158123
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "太子参",
+    "珠子参"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "子参"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "姜黄",
+    "片姜黄"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "姜黄",
+     "line": 156837
+    },
+    {
+     "kind": "name",
+     "stem": "姜黄"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "姜黄",
+    "郁金"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "curcuma longa",
+     "lines": [
+      156808,
+      156824
+     ]
+    },
+    {
+     "kind": "statement",
+     "line": 156832
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "安息香",
+    "苏合香"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "苏合香",
+     "line": 158241
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "射干",
+    "川射干"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "射干"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "小通草",
+    "通草"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "通草"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "小麦",
+    "浮小麦"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "浮小麦",
+     "line": 159184
+    },
+    {
+     "kind": "name",
+     "stem": "小麦"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "山楂",
+    "山楂叶"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "山楂"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "山羊角",
+    "羚羊角"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "羚羊角",
+     "line": 158061
+    },
+    {
+     "kind": "name",
+     "stem": "羊角"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "山药",
+    "黄山药"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "山药"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "山银花",
+    "金银花"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "金银花",
+     "line": 153897
+    },
+    {
+     "kind": "name",
+     "stem": "银花"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "山麦冬",
+    "麦冬"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "麦冬"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "川乌",
+    "草乌"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "川乌",
+     "line": 154865
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "川木通",
+    "川木香"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "川木"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "川木通",
+    "木通"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "木通",
+     "line": 155572
+    },
+    {
+     "kind": "name",
+     "stem": "木通"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "川木香",
+    "木香"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "木香",
+     "line": 156036
+    },
+    {
+     "kind": "name",
+     "stem": "木香"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "川楝子",
+    "苦楝皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "melia toosendan",
+     "lines": [
+      156064,
+      156359
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "川牛膝",
+    "牛膝"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "牛膝",
+     "line": 156984
+    },
+    {
+     "kind": "name",
+     "stem": "牛膝"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "川贝母",
+    "平贝母"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "川贝母",
+     "line": 157387
+    },
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "川贝母",
+    "浙贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "川贝母",
+    "湖北贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "巫山淫羊藿",
+    "淫羊藿"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "淫羊藿"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "干姜",
+    "炮姜"
+   ],
+   "bases": [
+    {
+     "kind": "statement",
+     "line": 156754
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "干姜",
+    "生姜"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "zingiber officinale",
+     "lines": [
+      153183,
+      155817
+     ]
+    },
+    {
+     "kind": "statement",
+     "line": 156754
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "干姜",
+    "生姜皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "zingiber officinale",
+     "lines": [
+      153198,
+      155817
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "平贝母",
+    "浙贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "平贝母",
+    "湖北贝母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "广东紫珠",
+    "紫珠叶"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "紫珠"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "广东紫珠",
+    "裸花紫珠"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "紫珠"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "广金钱草",
+    "连钱草"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "钱草"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "广金钱草",
+    "金钱草"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "金钱草",
+     "line": 155721
+    },
+    {
+     "kind": "name",
+     "stem": "金钱草"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "忍冬藤",
+    "金银花"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "金银花",
+     "line": 153896
+    },
+    {
+     "kind": "species",
+     "species": "lonicera japonica",
+     "lines": [
+      153883,
+      153896
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "扁豆花",
+    "白扁豆"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "白扁豆",
+     "line": 158405
+    },
+    {
+     "kind": "name",
+     "stem": "扁豆"
+    },
+    {
+     "kind": "species",
+     "species": "dolichos lablab",
+     "lines": [
+      158393,
+      158405
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "旋覆花",
+    "金沸草"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "旋覆花",
+     "line": 157347
+    },
+    {
+     "kind": "species",
+     "species": "inula japonica",
+     "lines": [
+      157334,
+      157347
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "木瓜",
+    "野木瓜"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "木瓜"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "朱砂",
+    "朱砂根"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "朱砂"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "杜仲",
+    "杜仲叶"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "杜仲",
+     "line": 158628
+    },
+    {
+     "kind": "name",
+     "stem": "杜仲"
+    },
+    {
+     "kind": "species",
+     "species": "eucommia ulmoides",
+     "lines": [
+      158616,
+      158628
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "松花粉",
+    "油松节"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "油松节",
+     "line": 154961
+    },
+    {
+     "kind": "species",
+     "species": "pinus massoniana",
+     "lines": [
+      154949,
+      154961
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "板蓝根",
+    "青黛"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "isatis indigotica",
+     "lines": [
+      153945,
+      153959
+     ]
+    },
+    {
+     "kind": "statement",
+     "line": 153969
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "枳壳",
+    "枳实"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "枳实",
+     "line": 156019
+    },
+    {
+     "kind": "species",
+     "species": "citrus aurantium",
+     "lines": [
+      156006,
+      156019
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "柴胡",
+    "银柴胡"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "柴胡"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "核桃仁",
+    "桃仁"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "桃仁"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "桂枝",
+    "肉桂"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "cinnamomum cassia",
+     "lines": [
+      153153,
+      155831
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "桑叶",
+    "桑枝"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "morus alba",
+     "lines": [
+      153427,
+      155079
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "桑叶",
+    "桑椹"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "morus alba",
+     "lines": [
+      153427,
+      159093
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "桑叶",
+    "桑白皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "morus alba",
+     "lines": [
+      153427,
+      157699
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "桑寄生",
+    "槲寄生"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "寄生"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "桑枝",
+    "桑椹"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "morus alba",
+     "lines": [
+      155079,
+      159093
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "桑枝",
+    "桑白皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "morus alba",
+     "lines": [
+      155079,
+      157699
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "桑椹",
+    "桑白皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "morus alba",
+     "lines": [
+      157699,
+      159093
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "桑螵蛸",
+    "海螵蛸"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "螵蛸"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "椒目",
+    "花椒"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "花椒",
+     "line": 155923
+    },
+    {
+     "kind": "species",
+     "species": "zanthoxylum schinifolium",
+     "lines": [
+      155910,
+      155923
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "槐花",
+    "槐角"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "槐花",
+     "line": 156530
+    },
+    {
+     "kind": "species",
+     "species": "sophora japonica",
+     "lines": [
+      156517,
+      156530
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "橘叶",
+    "橘核"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155985,
+      155987
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "橘叶",
+    "橘红"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155984,
+      155987
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "橘叶",
+    "陈皮"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "陈皮",
+     "line": 155987
+    },
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155970,
+      155987
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "橘叶",
+    "青皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155987,
+      155991
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "橘核",
+    "橘红"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155984,
+      155985
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "橘核",
+    "陈皮"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "陈皮",
+     "line": 155985
+    },
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155970,
+      155985
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "橘核",
+    "青皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155985,
+      155991
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "橘红",
+    "陈皮"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "陈皮",
+     "line": 155984
+    },
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155970,
+      155984
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "橘红",
+    "青皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155984,
+      155991
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "毛诃子",
+    "诃子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "诃子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "水银",
+    "红粉"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "红粉",
+     "line": 159705
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "水银",
+    "轻粉"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "轻粉",
+     "line": 159731
+    },
+    {
+     "kind": "derived",
+     "herb": "轻粉",
+     "line": 159718
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "浙贝母",
+    "湖北贝母"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "浙贝母",
+     "line": 157404
+    },
+    {
+     "kind": "name",
+     "stem": "贝母"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "海金沙",
+    "海金沙藤"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "海金沙",
+     "line": 155637
+    },
+    {
+     "kind": "name",
+     "stem": "海金沙"
+    },
+    {
+     "kind": "species",
+     "species": "lygodium japonicum",
+     "lines": [
+      155628,
+      155637
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "海风藤",
+    "青风藤"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "风藤"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "海马",
+    "海龙"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "海马",
+     "line": 158839
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "淡竹叶",
+    "竹叶"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "竹叶"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "淡豆豉",
+    "黑豆"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "glycine max",
+     "lines": [
+      153520,
+      154397
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "滇鸡血藤",
+    "鸡血藤"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "鸡血藤"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "滑石",
+    "滑石粉"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "滑石"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "漏芦",
+    "禹州漏芦"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "漏芦"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "灯盏细辛（灯盏花）",
+    "细辛"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "细辛"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "炮姜",
+    "生姜"
+   ],
+   "bases": [
+    {
+     "kind": "statement",
+     "line": 156754
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "片姜黄",
+    "郁金"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "curcuma wenyujin",
+     "lines": [
+      156808,
+      156837
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "玄参",
+    "苦玄参"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "玄参"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "玄明粉",
+    "芒硝"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "芒硝",
+     "line": 154600
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "珍珠",
+    "珍珠母"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "珍珠"
+    },
+    {
+     "kind": "species",
+     "species": "cristaria plicata",
+     "lines": [
+      157953,
+      158081
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "hyriopsis cumingii",
+     "lines": [
+      157953,
+      158081
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "pteria martensii",
+     "lines": [
+      157953,
+      158081
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "瓜子金",
+    "甜瓜子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "瓜子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "瓜蒌",
+    "瓜蒌子"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "瓜蒌",
+     "line": 157423
+    },
+    {
+     "kind": "name",
+     "stem": "瓜蒌"
+    },
+    {
+     "kind": "species",
+     "species": "trichosanthes kirilowii",
+     "lines": [
+      157408,
+      157423
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "trichosanthes rosthornii",
+     "lines": [
+      157408,
+      157423
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "瓜蒌",
+    "瓜蒌皮"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "瓜蒌",
+     "line": 157422
+    },
+    {
+     "kind": "name",
+     "stem": "瓜蒌"
+    },
+    {
+     "kind": "species",
+     "species": "trichosanthes kirilowii",
+     "lines": [
+      157408,
+      157422
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "trichosanthes rosthornii",
+     "lines": [
+      157408,
+      157422
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "瓜蒌子",
+    "瓜蒌皮"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "瓜蒌"
+    },
+    {
+     "kind": "species",
+     "species": "trichosanthes kirilowii",
+     "lines": [
+      157422,
+      157423
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "trichosanthes rosthornii",
+     "lines": [
+      157422,
+      157423
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "甜杏仁",
+    "苦杏仁"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "苦杏仁",
+     "line": 157620
+    },
+    {
+     "kind": "name",
+     "stem": "杏仁"
+    },
+    {
+     "kind": "species",
+     "species": "prunus armeniaca",
+     "lines": [
+      157606,
+      157620
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "生姜",
+    "生姜汁"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "生姜",
+     "line": 153199
+    },
+    {
+     "kind": "derived",
+     "herb": "生姜汁",
+     "line": 153199
+    },
+    {
+     "kind": "name",
+     "stem": "生姜"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "生姜",
+    "生姜皮"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "生姜",
+     "line": 153198
+    },
+    {
+     "kind": "name",
+     "stem": "生姜"
+    },
+    {
+     "kind": "species",
+     "species": "zingiber officinale",
+     "lines": [
+      153183,
+      153198
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "生姜汁",
+    "生姜皮"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "生姜"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "白果",
+    "银杏叶"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "白果",
+     "line": 157738
+    },
+    {
+     "kind": "species",
+     "species": "ginkgo biloba",
+     "lines": [
+      157725,
+      157738
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "白矾",
+    "皂矾（绿矾）"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "白矾",
+     "line": 159603
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "白矾",
+    "红粉"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "红粉",
+     "line": 159705
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "白矾",
+    "轻粉"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "轻粉",
+     "line": 159718
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "白芍",
+    "赤芍"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "paeonia lactiflora",
+     "lines": [
+      154450,
+      158887
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "白花蛇舌草",
+    "金钱白花蛇"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "白花蛇"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "白附子",
+    "附子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "附子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "益母草",
+    "茺蔚子"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "益母草",
+     "line": 156952
+    },
+    {
+     "kind": "species",
+     "species": "leonurus japonicus",
+     "lines": [
+      156939,
+      156952
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "石斛",
+    "铁皮石斛"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "石斛",
+     "line": 159030
+    },
+    {
+     "kind": "name",
+     "stem": "石斛"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "石莲子",
+    "荷叶"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159428,
+      159430
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "石莲子",
+    "荷梗"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159429,
+      159430
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "石莲子",
+    "莲子"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "莲子",
+     "line": 159430
+    },
+    {
+     "kind": "name",
+     "stem": "莲子"
+    },
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159412,
+      159430
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "石莲子",
+    "莲子心"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "莲子"
+    },
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159427,
+      159430
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "石莲子",
+    "莲房"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159426,
+      159430
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "石莲子",
+    "莲须"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159425,
+      159430
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "石菖蒲",
+    "藏菖蒲"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "菖蒲"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "砒石",
+    "雄黄"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "砒石",
+     "line": 159734
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "稻芽",
+    "糯稻根"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "oryza sativa",
+     "lines": [
+      156298,
+      159187
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "稻芽",
+    "谷芽"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "稻芽",
+     "line": 156308
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "穿山甲",
+    "穿山龙"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "穿山"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "筋骨草",
+    "透骨草"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "骨草"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "筋骨草",
+    "鸡骨草"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "骨草"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "粉萆薢",
+    "绵萆薢"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "萆薢"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红娘虫",
+    "青娘虫"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "娘虫"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红芪",
+    "黄芪"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "黄芪",
+     "line": 158361
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红花",
+    "红花龙胆"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "红花"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红花",
+    "西红花"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "红花",
+     "line": 156921
+    },
+    {
+     "kind": "name",
+     "stem": "红花"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红花龙胆",
+    "西红花"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "红花"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红花龙胆",
+    "龙胆"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "龙胆"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红豆蔻",
+    "肉豆蔻"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "豆蔻"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红豆蔻",
+    "草豆蔻"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "豆蔻"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红豆蔻",
+    "豆蔻"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "豆蔻"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "红豆蔻",
+    "高良姜"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "高良姜",
+     "line": 155907
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "紫河车",
+    "脐带"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "紫河车",
+     "line": 158558
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "紫珠叶",
+    "裸花紫珠"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "紫珠"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "紫花前胡",
+    "紫花地丁"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "紫花"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "紫花地丁",
+    "苦地丁"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "地丁"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "紫苏叶",
+    "紫苏子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "紫苏"
+    },
+    {
+     "kind": "species",
+     "species": "perilla frutescens",
+     "lines": [
+      153168,
+      157623
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "紫苏叶",
+    "紫苏梗"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "紫苏叶",
+     "line": 153180
+    },
+    {
+     "kind": "name",
+     "stem": "紫苏"
+    },
+    {
+     "kind": "species",
+     "species": "perilla frutescens",
+     "lines": [
+      153168,
+      153180
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "紫苏子",
+    "紫苏梗"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "紫苏"
+    },
+    {
+     "kind": "species",
+     "species": "perilla frutescens",
+     "lines": [
+      153180,
+      157623
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "紫萁贯众",
+    "绵马贯众"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "贯众"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "绿豆",
+    "绿豆衣"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "绿豆",
+     "line": 154395
+    },
+    {
+     "kind": "name",
+     "stem": "绿豆"
+    },
+    {
+     "kind": "species",
+     "species": "phaseolus radiatus",
+     "lines": [
+      154381,
+      154395
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "绿豆",
+    "赤小豆"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "绿豆",
+     "line": 154396
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "绿豆",
+    "黑豆"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "绿豆",
+     "line": 154397
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "肉豆蔻",
+    "草豆蔻"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "豆蔻"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "肉豆蔻",
+    "豆蔻"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "豆蔻"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "胡黄连",
+    "黄连"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "黄连"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "苍耳子",
+    "苍耳草"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "苍耳子",
+     "line": 153323
+    },
+    {
+     "kind": "name",
+     "stem": "苍耳"
+    },
+    {
+     "kind": "species",
+     "species": "xanthium sibiricum",
+     "lines": [
+      153308,
+      153323
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "苘麻子",
+    "蓖麻子"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "麻子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "茯神",
+    "茯苓皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "poria cocos",
+     "lines": [
+      155410,
+      155411
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "茯苓",
+    "茯苓皮"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "茯苓",
+     "line": 155410
+    },
+    {
+     "kind": "name",
+     "stem": "茯苓"
+    },
+    {
+     "kind": "species",
+     "species": "poria cocos",
+     "lines": [
+      155397,
+      155410
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荆芥",
+    "荆芥穗"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "荆芥"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荆芥",
+    "荆芥穗炭"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "荆芥"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荆芥炭",
+    "荆芥穗"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "荆芥"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荆芥炭",
+    "荆芥穗炭"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "荆芥"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "草乌",
+    "草乌叶"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "草乌"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "草豆蔻",
+    "豆蔻"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "豆蔻"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荷叶",
+    "荷梗"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159428,
+      159429
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荷叶",
+    "莲子"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "莲子",
+     "line": 159428
+    },
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159412,
+      159428
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荷叶",
+    "莲子心"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159427,
+      159428
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荷叶",
+    "莲房"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159426,
+      159428
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荷叶",
+    "莲须"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159425,
+      159428
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荷梗",
+    "莲子"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "莲子",
+     "line": 159429
+    },
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159412,
+      159429
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荷梗",
+    "莲子心"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159427,
+      159429
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荷梗",
+    "莲房"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159426,
+      159429
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "荷梗",
+    "莲须"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159425,
+      159429
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "莲子",
+    "莲子心"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "莲子",
+     "line": 159427
+    },
+    {
+     "kind": "name",
+     "stem": "莲子"
+    },
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159412,
+      159427
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "莲子",
+    "莲房"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "莲子",
+     "line": 159426
+    },
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159412,
+      159426
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "莲子",
+    "莲须"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "莲子",
+     "line": 159425
+    },
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159412,
+      159425
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "莲子心",
+    "莲房"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159426,
+      159427
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "莲子心",
+    "莲须"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159425,
+      159427
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "莲房",
+    "莲须"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "nelumbo nucifera",
+     "lines": [
+      159425,
+      159426
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "菊花",
+    "野菊花"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "菊花"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "葛根",
+    "葛花"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "葛根",
+     "line": 153517
+    },
+    {
+     "kind": "species",
+     "species": "pueraria lobata",
+     "lines": [
+      153501,
+      153517
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "pueraria thomsonii",
+     "lines": [
+      153501,
+      153517
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "蓼大青叶",
+    "青叶胆"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "青叶"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "蕲蛇",
+    "金钱白花蛇"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "蕲蛇",
+     "line": 154883
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "蜂房",
+    "蜂蜡"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "蜂房",
+     "line": 159649
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "蜂胶",
+    "蜂蜜"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "蜂蜜",
+     "line": 158518
+    },
+    {
+     "kind": "species",
+     "species": "apis mellifera",
+     "lines": [
+      158503,
+      158518
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "蜂胶",
+    "蜂蜡"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "apis mellifera",
+     "lines": [
+      158518,
+      159649
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "蜂蜜",
+    "蜂蜡"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "apis cerana",
+     "lines": [
+      158503,
+      159649
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "apis mellifera",
+     "lines": [
+      158503,
+      159649
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "西青果",
+    "诃子"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "terminalia chebula",
+     "lines": [
+      154205,
+      159269
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "西青果",
+    "青果"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "青果",
+     "line": 154205
+    },
+    {
+     "kind": "name",
+     "stem": "青果"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "车前子",
+    "车前草"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "车前子",
+     "line": 155537
+    },
+    {
+     "kind": "name",
+     "stem": "车前"
+    },
+    {
+     "kind": "species",
+     "species": "plantago asiatica",
+     "lines": [
+      155523,
+      155537
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "plantago depressa",
+     "lines": [
+      155523,
+      155537
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "连钱草",
+    "金钱草"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "金钱草",
+     "line": 155720
+    },
+    {
+     "kind": "name",
+     "stem": "钱草"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "透骨草",
+    "鸡骨草"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "骨草"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "金礞石",
+    "青礞石"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "礞石"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "陈皮",
+    "青皮"
+   ],
+   "bases": [
+    {
+     "kind": "species",
+     "species": "citrus reticulata",
+     "lines": [
+      155970,
+      155991
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "马钱子",
+    "马钱子粉"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "马钱子"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "鹿茸",
+    "鹿角"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "鹿茸",
+     "line": 158539
+    },
+    {
+     "kind": "species",
+     "species": "cervus nippon",
+     "lines": [
+      158525,
+      158539
+     ]
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "鹿茸",
+    "鹿角胶"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "鹿茸",
+     "line": 158540
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "鹿茸",
+    "鹿角霜"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "鹿茸",
+     "line": 158541
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "鹿角",
+    "鹿角胶"
+   ],
+   "bases": [
+    {
+     "kind": "derived",
+     "herb": "鹿角胶",
+     "line": 158540
+    },
+    {
+     "kind": "name",
+     "stem": "鹿角"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "鹿角胶",
+    "鹿角霜"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "鹿角"
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "麻黄",
+    "麻黄根"
+   ],
+   "bases": [
+    {
+     "kind": "name",
+     "stem": "麻黄"
+    },
+    {
+     "kind": "species",
+     "species": "ephedra intermedia",
+     "lines": [
+      153138,
+      159161
+     ]
+    },
+    {
+     "kind": "species",
+     "species": "ephedra sinica",
+     "lines": [
+      153138,
+      159161
+     ]
+    },
+    {
+     "kind": "statement",
+     "line": 159167
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "龙骨",
+    "龙齿"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "龙骨",
+     "line": 157825
+    }
+   ]
+  },
+  {
+   "herbs": [
+    "龟甲",
+    "龟甲胶"
+   ],
+   "bases": [
+    {
+     "kind": "attached",
+     "parent": "龟甲",
+     "line": 159132
+    },
+    {
+     "kind": "derived",
+     "herb": "龟甲胶",
+     "line": 159132
+    },
+    {
+     "kind": "name",
+     "stem": "龟甲"
+    }
+   ]
+  }
+ ]
+}

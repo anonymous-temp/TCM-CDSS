@@ -11,7 +11,7 @@ import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
 import { clinicianDoseHerbClass, controlledDoseEquivalentTarget, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
 import { prescriptionRegimenContractIssue, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { executableFormulaCompilationReferences, isCompositionRestoredGovernedIdentity, isSignedTextbookFormulaIdentity } from "./tcm-formula-provenance";
+import { candidateNameMentionsFormula, executableFormulaCompilationReferences, sameGovernedFormula, isCompositionRestoredGovernedIdentity, isSignedTextbookFormulaIdentity } from "./tcm-formula-provenance";
 import { TCM_TREATMENT_PROJECT_CODES, tcmTreatmentProjectIsPointFree } from "./tcm-treatment-projects";
 import { isConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { getM03TherapyLock, isExecutableM03TherapyText } from "./m03-therapy-lock";
@@ -4415,15 +4415,20 @@ export function herbFunctionMatchesKnowledge(name: string, claimedFunction: stri
  * 判据本身不放宽：仍要求三者同时成立。改的是让剥离器**产出**这个形态，而不是让放行口迁就。
  */
 export function isDeclassifiedSelfDevisedCandidate(
-  candidate: { name?: unknown; formulaNames?: unknown; constructionType?: unknown } | null | undefined,
+  candidate: { name?: unknown; formulaNames?: unknown; constructionType?: unknown; identityDeclassified?: unknown } | null | undefined,
 ): boolean {
   if (!candidate) return false;
   // 必须是**空数组**而不是缺失：`formulaNames` 缺失时合同在更前面就判 formula_reference_missing，
   // 若这里把缺失也当成「已剥离」，剥离器就会放过它，结果还是 0 味。缺失属于要修的形态。
   const names = candidate.formulaNames;
+  const name = String(candidate.name || "").trim();
+  // 交付面把「本例辨证组方」改写成给医生看的「自拟方」或「X加减」（delivered-surface），同一张已剥离方名的候选交付前后必须同一个判定。
+  // 此前只认内部写法：交付投影之后再过一遍合同（交付闸门对签名后正文的第二次核对）就判 formula_direction_drift，整页退成
+  //「尚未形成候选方药」（第五十七轮：留出集 h10 通窍活血汤，第四十九轮起 6 次全是这一页）。交付写法只在服务端剥离过身份时算
+  //（identityDeclassified 是服务端字段，模型输出入口会剥掉，见 stripUntrustedM04IdentityMetadata）：模型自己写的方名照旧要过方名锁定。
   return Array.isArray(names) && names.length === 0 &&
     candidate.constructionType === "self_devised" &&
-    /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(String(candidate.name || "").trim());
+    (/^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(name) || candidate.identityDeclassified === true);
 }
 
 /**
@@ -4443,12 +4448,14 @@ export function formulaReferenceAlignsWithPrior(
   governedPriorNames: readonly string[],
   governedMode: string | undefined,
 ): boolean {
+  // 同一首方的两种写法算同一首（sameGovernedFormula：辨证阶段锁教材写法「麻杏甘石汤」、开方阶段记目录条目名「麻黄杏仁甘草石膏汤」，第五十七轮 f27）。
+  const same = (left: string, right: string) => left === right || sameGovernedFormula(left, right);
   if (governedMode === "alternatives") {
-    return candidateFormulaNames.length === 1 && governedPriorNames.includes(candidateFormulaNames[0]);
+    return candidateFormulaNames.length === 1 && governedPriorNames.some((name) => same(name, candidateFormulaNames[0]));
   }
   if (governedMode === "single" || governedMode === "combined") {
     return candidateFormulaNames.length === governedPriorNames.length &&
-      governedPriorNames.every((name) => candidateFormulaNames.includes(name));
+      governedPriorNames.every((name) => candidateFormulaNames.some((candidate) => same(name, candidate)));
   }
   if (governedMode === "self_devised" || governedMode === "none") {
     return candidateFormulaNames.length === 0;
@@ -4644,7 +4651,8 @@ function crossStageReasoningIssue(
     if (candidateFormulaNames == null) return "formula_reference_missing";
     const candidateName = lockedClinicalText(candidate?.name);
     if (isDeclassifiedSelfDevisedCandidate(candidate)) return undefined;
-    if (candidateFormulaNames.some((name) => !candidateName.includes(lockedClinicalText(name)))) {
+    // 同一首方的另一种写法也算写了（目录条目名「麻黄杏仁甘草石膏汤」、方名写教材的「麻杏甘石汤」，第五十七轮 f27）。
+    if (candidateFormulaNames.some((name) => !candidateNameMentionsFormula(candidateName, lockedClinicalText(name)))) {
       return "formula_reference_display_mismatch";
     }
     if (!formulaReferenceAlignsWithPrior(candidateFormulaNames, governedPriorNames, String(governedMode))) {

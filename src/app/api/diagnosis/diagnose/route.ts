@@ -35,7 +35,8 @@ import { cdssReasonCodeMarker } from "@/lib/cdss-reason-codes";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server";
 import { pickJingfangPatternsForCase } from "@/lib/jingfang-pattern-pick.server";
-import { checkDiseaseExplainsVisitReason, tcmHalfDiseaseName, visitReasonRedrawInstruction } from "@/lib/m03-visit-reason-check.server";
+import { checkDiseaseExplainsVisitReason, tcmHalfDiseaseName, visitReasonRedrawInstruction, westernNameInTcmFieldRedrawInstruction } from "@/lib/m03-visit-reason-check.server";
+import { tcmDiseaseFieldHoldsWesternName } from "@/lib/tcm-disease-differential-normalization";
 import { historyStatedDiseaseRedrawInstruction, historyStatedDiseasesForCase, uniqueHistoryStatedDisease, writtenDiseaseIsTextbookNeighbour } from "@/lib/history-stated-textbook-disease";
 import { diseaseRecordContext } from "@/lib/tcm-disease-defining-findings";
 import { checkDiseaseAgainstDiagnosisPoints, diseaseRedrawHasSupportedDefinition, parseDiseaseRedrawDraft, redrawDiseasePointsTcmHalf } from "@/lib/m03-disease-points-check.server";
@@ -405,6 +406,14 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
               finishTcmHalf(tcmContent),
               checkDiseaseAgainstDiagnosisPoints(pointsInput, transformSignal),
             ]);
+            // 中医病名栏写的是西医病名（第五十七轮）：确定性触发，按主症在教材病名候选里重写一次；新稿病名仍是西医写法时不采用。
+            if (redraw && tcmDiseaseFieldHoldsWesternName(disease)) {
+              const redrawn = await redraw(westernNameInTcmFieldRedrawInstruction(disease, pointsInput.candidates));
+              const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
+              const adopted = Boolean(redrawn && redrawnDisease && !tcmDiseaseFieldHoldsWesternName(redrawnDisease));
+              console.info("[tcm-cdss:telemetry] m03_western_name_in_tcm_field", { disease, redrawnDisease: redrawnDisease || null, adopted });
+              if (adopted && redrawn) return finishTcmHalf(redrawn);
+            }
             if (visit.status !== "not_covered" && historyRedraw && historyStatedUnique && !(points.status === "mismatch" && (points.kind === "defining_missing" || points.kind === "refinement"))) {
               const redrawn = await redraw!(historyStatedDiseaseRedrawInstruction(disease, historyStatedUnique));
               const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";

@@ -166,12 +166,32 @@ test("first T2 cannot mask a later T1: automatic repair retains its bounded oppo
   assert.doesNotMatch(result.content, /501g/);
 });
 
-test("a T1 contract rejection that repair cannot fix still delivers the candidate as non-dose with findings (production 10/8–10/9: 3 blank pages)", async () => {
+test("a T1 dose defect that repair cannot fix is salvaged: that herb is removed, a 臣 becomes 君, the prescription keeps its dose (round 57)", async () => {
+  // 第五十七轮开方保底（m04-salvage.ts）：修复轮修不好的单味不合格，不再整页退成不给剂量——去掉这一味（唯一君药时臣药接任）、写明，
+  // 其余药味照常给剂量。只删不加；处理不了的（删后不足 3 味、没有臣药可接任）才照旧退成非剂量页（下一个测试）。
+  const unsafe = structuredClone(proposal);
+  unsafe.candidate.herbs[0].dose = "501g";
+  for (const repairReply of [unsafe, notAProposal]) {
+    const result = await runWire({ first: unsafe, remainingMs: 50000, repairReply });
+    assert.match(result.content, /contractSignature/, "保底后照常签名交付剂量页");
+    assert.doesNotMatch(result.content, /501g/, "被驳回的剂量绝不显示");
+    const reasoning = JSON.parse(result.content.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+    const herbs = reasoning.formula.candidates[0].herbs;
+    assert.ok(!herbs.some((herb) => herb.name === "党参"));
+    assert.equal(herbs.find((herb) => /白术$/u.test(herb.name)).role, "君", "白术接任君药（便溏时按炮制规则写作土炒白术）");
+    assert.match(reasoning.formula.candidates[0].notApplicable, /按本例情况已去除：党参（[^）]+）[，,]白术改作君药/u);
+  }
+});
+
+test("a T1 contract rejection that repair and salvage cannot fix still delivers the candidate as non-dose with findings (production 10/8–10/9: 3 blank pages)", async () => {
   // 线上 10/8 14:54、10/9 10:03、10:32：首轮候选触发 T1（温阳药无依据 / 麻黄配自汗禁忌），
   // 修复一轮仍未消除，交付连续性没有任何检查点可给，医生拿到「尚未形成个体化候选」空页。
   // 主循环的合同语义驳回此前不保留候选（只有终审投影抛错的那一路保留，owner 2026-09-13）。
+  // 第五十七轮起单味不合格先保底（上一个测试）；这里只剩三味药，去掉一味就不足 3 味，保底不处理，照旧非剂量页。
   const unsafe = structuredClone(proposal);
   unsafe.candidate.herbs[0].dose = "501g";
+  unsafe.candidate.herbs = unsafe.candidate.herbs.slice(0, 3);
+  unsafe.candidate.formulaAnalysis = "党参补脾益气以改善食少倦怠，白术燥湿、茯苓渗湿兼顾便溏。";
   for (const repairReply of [unsafe, notAProposal]) {
     const result = await runWire({ first: unsafe, remainingMs: 50000, repairReply });
     assert.match(result.content, /党参/, "候选药味照常交付");

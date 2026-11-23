@@ -91,6 +91,37 @@ function keepsTcmAliasOverWesternCanonical(name: string, canonical: string): boo
   return isIcd10DiseaseName(canonical) && !isIcd10DiseaseName(name) && !WESTERN_DISEASE_FORM.test(name);
 }
 
+/**
+ * 中医病名栏写的其实是西医病名（第五十七轮：模型把「2型糖尿病」「慢性胃炎」「高血压」写进中医病名；教材节名是西医名的已由
+ * tcmNameBySectionName 换成教材写明的中医病名，见 build-tcm-textbook-disease-names.mjs）。判据：不是教材病名、交付时也换不成中医病名，
+ * 而写法是 ICD-10 病名（含索引别名）或带西医构词（炎、综合征、症…）。国标 GB/T 15657 收为中医病名的（颈椎病、艾滋病）不算。
+ * 诊断半据此按主症重写一次病名（diagnose 路由，与既往确诊病、诊断要点同一条重写通道）。
+ */
+let icd10NonSymptomNames: Set<string> | undefined;
+/** ICD-10 病名里症状、体征一章（R00–R99：口臭、咳嗽、头晕…）以外的；症状名中医也作病名用，不算西医病名。 */
+function isIcd10NonSymptomDiseaseName(value: string): boolean {
+  if (!icd10NonSymptomNames) {
+    const symptomOnly = new Set<string>();
+    const other = new Set<string>();
+    for (const entry of (icd10IndexJson as { entries: Array<{ code?: unknown; name?: unknown; aliases?: unknown }> }).entries) {
+      const target = typeof entry.code === "string" && /^R/u.test(entry.code) ? symptomOnly : other;
+      if (typeof entry.name === "string") target.add(entry.name);
+      if (Array.isArray(entry.aliases)) for (const alias of entry.aliases) if (typeof alias === "string") target.add(alias);
+    }
+    icd10NonSymptomNames = new Set([...other].filter((name) => !symptomOnly.has(name)));
+  }
+  const name = value.trim();
+  return icd10NonSymptomNames.has(name) || icd10NonSymptomNames.has(name.replace(/病$/u, "")) || icd10NonSymptomNames.has(`${name}病`);
+}
+
+export function tcmDiseaseFieldHoldsWesternName(value: string): boolean {
+  const name = String(value || "").trim().replace(/类病$/u, "");
+  if (name.length < 2 || TEXTBOOK_DISEASE_NAMES.has(name)) return false;
+  if (textbookSectionDeliveryName(name) !== name) return false;
+  if (governedCanonical(name)) return false;
+  return isIcd10NonSymptomDiseaseName(name) || Boolean(westernDiagnosisAbbreviationFullName(name)) || WESTERN_DISEASE_FORM.test(name);
+}
+
 export type TcmDiseaseDifferentialNameResolution =
   | { action: "keep"; name: string }
   | { action: "rename"; name: string; from: string }
