@@ -4179,6 +4179,19 @@ The user forwarded an audit finding, 「强制重生成时方名和药味仍有�
 - Repeated runs of one record inside a `force` arm that shares a memo directory (customer 10 × 3) are anchored on the first run for the same reason.
 - A paired "production arm with `force` on an empty memo directory" is unchanged: nothing is stored yet, so nothing is anchored.
 
+**In production (31eca7e0, tag `20261123-31eca7e-prebuilt`, deployed 2026-11-23 09:44 UTC; same release directory and `20260927-dsrepair` override, final review still on).**
+- **Gate and verification.** Lint, 355 suites, fresh-artifact suites and typecheck were green on 31eca7e0. `verify:deployed-image` passed (commit, digest, strictReady, qwen and deepseek live). `regress:prod-smoke` had 0 failures (M03 P95 12.3 s, M04 P95 17.9 s).
+- **Regeneration probe on hospital-b** (`regen-probe-http.mjs`; record 13 and seven others; per record: normal diagnose + prescribe, prescribe forced ×3 on the same M03, then the whole chain forced ×2):
+  - same M03, prescribe forced: 24 of 24 identical to the first result in name, herbs, doses, roles, modifications, medicines and 方义 text;
+  - whole chain forced: 16 of 16 identical in every compared M03 field (disease, syndrome, 兼证, 治法, lock, Western name, rationale text) and every M04 field;
+  - record 13: 「菟丝子散合桑螵蛸散加减」, the same 10 herbs with the same doses and roles, and the same 3 modifications, in the first result and all five forced ones;
+  - forced stage medians: diagnose 6.3 s, prescribe 9.2 s (first generation 12.3 s and 18.2 s).
+- **Container log for that window:** 129 main-generation calls took a previous output as baseline, 116 came back byte-identical and 13 differed in length by 1–38 characters (the probe's delivered results were identical all the same); the record-keyed fallback was used twice; 10 calls had no stored baseline. No compile rejection, salvage or error line.
+- **Customer 10 on hospital-a (forced):** every stage 200, all dosed, no red flag, disease and syndrome as the standard answers (病历10 阳盛血热证, as before).
+- **The first result still depends on the draw.** Record 13's first prescription here had 10 herbs; round 54's production run on hospital-a had 14. The M04 prompt carries the clinic's inventory and the build's knowledge text, so another tenant or a build that changes the prompt draws again. What this round fixes is that a regeneration of the same record reproduces what was delivered.
+- **Rollback.** Image `tcm-cdss:20261123-d2f3380-prebuilt` with the compose backup in the release directory; the new behaviour alone: `CDSS_REGENERATION_ANCHOR=false` in the override, no rebuild. Container log before the replacement: `~/telemetry-archive/container-pre-31eca7e-20261123T093133Z.log.gz` on the host. Host 13 GB free.
+- **Local build:** about two minutes with a temporary 3 GB zram swap (removed afterwards); lowest /home free 2.9 GB.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
