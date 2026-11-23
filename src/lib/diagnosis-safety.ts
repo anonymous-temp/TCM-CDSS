@@ -4112,12 +4112,32 @@ export function withoutSpeculativeCancerClauses(text: string): string {
   return String(text || "").split(/(?<=[，,。；;\n])/u).map((clause) => SPECULATIVE_CANCER_CLAUSE.test(clause) ? "，" : clause).join("");
 }
 
+/** 吞咽/进食梗阻的每一处肯定提及都在咽喉感染的那一句里（颈深感染已成条时，同一事件不再叠上消化道梗阻）。 */
+function upperGiObstructionOnlyThroatLinked(text: string): boolean {
+  let seen = false;
+  for (const match of text.matchAll(new RegExp(governedTermAlternation(GOVERNED_GI_ALARM.symptoms), "gu"))) {
+    const at = match.index ?? 0;
+    if (isExcludedClinicalAssertionAt(text, at)) continue;
+    if ((isNegatedAt(text, at) && !hasCommaSeparatedPositiveEvidence(text, at, match[0])) || isHistoricalOrResolvedAt(text, at, match[0].length)) continue;
+    if (!throatLinkedSwallowingAt(text, at)) return false;
+    seen = true;
+  }
+  return seen && !/进食困难/u.test(text);
+}
+
 function upperGiAlarmFeatureKind(rawText: string): UpperGiAlarmKind | undefined {
   const text = rawText;
   // 伴随表现与体重下降只读当前、消化道部位的写法（见 withoutNonDigestiveMassOrDatedHistory）；肿瘤史本身照旧读全文。
   const findingsText = withoutNonDigestiveMassOrDatedHistory(rawText);
-  // A
-  if (hasPatternWithoutNegation(text, new RegExp(governedTermAlternation(GOVERNED_GI_ALARM.symptoms)))) return "obstruction";
+  // A：急性咽喉感染里的吞咽困难是吞咽痛，不算食管梗阻（acuteThroatOdynophagiaAt，第五十六轮新病历 f39）。
+  for (const match of text.matchAll(new RegExp(governedTermAlternation(GOVERNED_GI_ALARM.symptoms), "gu"))) {
+    const at = match.index ?? 0;
+    // 与 hasPatternWithoutNegation 同一组逐处判据。
+    if (isExcludedClinicalAssertionAt(text, at)) continue;
+    if ((isNegatedAt(text, at) && !hasCommaSeparatedPositiveEvidence(text, at, match[0])) || isHistoricalOrResolvedAt(text, at, match[0].length)) continue;
+    if (acuteThroatOdynophagiaAt(text, at)) continue;
+    return "obstruction";
+  }
   // B
   const progression = `${governedTermAlternation(GI_ALARM_DETECTION.progressionCues)}|\\d+\\s*(?:个)?(?:月|年|周)`;
   if (hasPatternWithoutNegation(text, new RegExp(
@@ -4787,6 +4807,37 @@ function focalDeficitOwnChronicCourseAt(text: string, index: number, matchText: 
     const previous = clinicalSubClauseBoundsAt(text, Math.max(0, start - 2), 0);
     return chronicOnsetAnchorBefore(text.slice(previous.start, start));
   }
+  return accompanyingListInheritsChronicOnset(text, index, start);
+}
+
+/**
+ * 缺损是「伴」引出的一串并列症状里的一项（「伴腰膝酸软，下肢无力，头晕耳鸣」）：沿用「伴」所接的那一段的起病锚点。「伴」若在整句句首，
+ * 所接的是上一整句（「患者2年来腰背酸痛，…近3月加重。伴腰膝酸软，下肢无力…」，第五十六轮新病历 f35 被报神经急症）。
+ * 守卫（构词式，冻结令允许的例外）：「伴」到缺损之间的各小句都是不带时间的并列短项；缺损不写左右/一侧/单侧/偏侧/半身（单侧缺损照旧按当前判）；
+ * 锚点所在那一段不能同时写近期起病、急性线索或一个月内的时长（「3年前诊断高血压，今晨突然头晕。伴肢体无力」不沿用）。类夹具 chronic-focal-deficit-duration。
+ */
+function accompanyingListInheritsChronicOnset(text: string, index: number, subClauseStart: number): boolean {
+  if (/(?:左|右|一侧|单侧|偏侧|半身)/u.test(text.slice(Math.max(subClauseStart, index - 6), index + 6))) return false;
+  // 缺损自己那一小句写了时长或起病线索（「下肢无力2天」「今起下肢无力」）的不沿用别处的慢性锚点。
+  const own = text.slice(subClauseStart, clinicalSubClauseBoundsAt(text, index, 1).end);
+  if (new RegExp(COURSE_DURATION_SOURCE, "u").test(own) || new RegExp(SHORT_SPAN_SOURCE, "u").test(own) ||
+    new RegExp(CARDIAC_ACUTE_ONSET_CUE_SOURCE, "u").test(own) || /加重|再发|复发|起/u.test(own)) return false;
+  const sentence = hardSentenceBoundsAt(text, index);
+  let cursor = subClauseStart;
+  for (let hops = 0; hops < 8 && cursor > sentence.start; hops += 1) {
+    const previous = clinicalSubClauseBoundsAt(text, Math.max(sentence.start, cursor - 2), 0);
+    const item = text.slice(previous.start, Math.max(previous.start, cursor - 1)).trim();
+    if (!item || item.length > 14 || new RegExp(COURSE_DURATION_SOURCE, "u").test(item) ||
+      new RegExp(CARDIAC_ACUTE_ONSET_CUE_SOURCE, "u").test(item) || /加重|再发|复发/u.test(item)) return false;
+    if (/^(?:时伴|偶伴|并伴|伴有|伴)/u.test(item)) {
+      const anchor = previous.start > sentence.start
+        ? text.slice(sentence.start, previous.start)
+        : sentence.start > 0 ? text.slice(hardSentenceBoundsAt(text, sentence.start - 1).start, sentence.start - 1) : "";
+      if (!anchor || new RegExp(CARDIAC_ACUTE_ONSET_CUE_SOURCE, "u").test(anchor) || hasShortCourseSpan(anchor)) return false;
+      return chronicOnsetAnchorBefore(anchor);
+    }
+    cursor = previous.start;
+  }
   return false;
 }
 /** deficitIndex 处的局灶缺损词（最长匹配）；不是缺损词时返回空串。 */
@@ -5413,14 +5464,35 @@ function giBleedRecurrenceCountsAsActive(text: string, at: number, bleedText: st
   return false;
 }
 
+const COLLOQUIAL_CHEST_PRESSURE_SOURCE = "(?:胸口|胸前|胸部|胸骨后|心口|心前区).{0,10}(?:(?:像|跟|如同).{0,5})?(?:石头|重物|东西)?"
+  + `(?:压着|压住|压得|压迫|发紧|勒紧|箍紧|堵得慌|闷得慌|${governedTermAlternation(CARDIAC_DETECTION.colloquialPressureVerbs)})`;
+const COLLOQUIAL_CHEST_PRESSURE_ACUTE_CUE = /(?:突然|突发|刚才|刚刚|新发|开始|持续|不缓解|无缓解|冷汗|大汗|气促|呼吸困难|\d+(?:\.\d+)?\s*(?:分钟|分|小时))/gu;
+/**
+ * 口语胸部压迫感的急性线索只读它自己那一整句，且线索本身须是肯定的（第五十六轮新病历 f06：痰浊头痛「每次持续几个小时」「头痛不是突然出现的」
+ * 在前一句，被读成「伴胸口和胃脘部发闷」的急性线索，报短时程胸痛红旗）。与胸闷一路同一思路（线索须附着在本症上），这里取整句、比胸闷的小句宽，
+ * 「胸口像石头压着，持续半小时」照旧成立。构词式词法守卫，冻结令允许的例外；类夹具 colloquial-chest-pressure-cue-scope。
+ */
+function hasScopedAcuteColloquialChestPressure(rawText: string): boolean {
+  const text = normalizeClinicalText(rawText);
+  // 「无缓解」「无明显诱因」这类不是否定的固定写法先遮住，再判线索是否被否认（与胸闷一路同一手法）。
+  const masked = text.replace(NON_NEGATING_PHRASES, (phrase) => "某".repeat(phrase.length));
+  for (const match of text.matchAll(new RegExp(COLLOQUIAL_CHEST_PRESSURE_SOURCE, "gu"))) {
+    const at = match.index ?? 0;
+    if (isExcludedClinicalAssertionAt(text, at)) continue;
+    if ((isNegatedAt(text, at) && !hasCommaSeparatedPositiveEvidence(text, at, match[0])) || isHistoricalOrResolvedAt(text, at, match[0].length)) continue;
+    const { start, end } = hardSentenceBoundsAt(text, at);
+    const sentence = text.slice(start, end);
+    for (const cue of sentence.matchAll(COLLOQUIAL_CHEST_PRESSURE_ACUTE_CUE)) {
+      const cueAt = start + (cue.index ?? 0);
+      if (isNegatedAt(masked, cueAt)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 function hasColloquialChestPressureSignal(text: string): boolean {
-  return hasPatternWithoutNegation(
-    text,
-    new RegExp(
-      "(?:胸口|胸前|胸部|胸骨后|心口|心前区).{0,10}(?:(?:像|跟|如同).{0,5})?(?:石头|重物|东西)?"
-      + `(?:压着|压住|压得|压迫|发紧|勒紧|箍紧|堵得慌|闷得慌|${governedTermAlternation(CARDIAC_DETECTION.colloquialPressureVerbs)})`,
-    ),
-  );
+  return hasPatternWithoutNegation(text, new RegExp(COLLOQUIAL_CHEST_PRESSURE_SOURCE));
 }
 
 const FEBRILE_CHEST_TIGHTNESS = priorityEvaluationWindowTable.febrileChestTightnessDeferral;
@@ -5479,13 +5551,69 @@ function combinationFeverFinding(state: CaseState, text: string, rule: { feverPa
   return temperature != null && temperature >= rule.feverTemperatureAtLeast ? `体温${temperature}℃` : undefined;
 }
 
+/** text 中 at 所在整句（句号、分号、换行为界）的起止。 */
+function hardSentenceBoundsAt(text: string, at: number): { start: number; end: number } {
+  const start = Math.max(text.lastIndexOf("。", at - 1), text.lastIndexOf("；", at - 1), text.lastIndexOf(";", at - 1), text.lastIndexOf("\n", at - 1)) + 1;
+  const ends = ["。", "；", ";", "\n"].map((mark) => text.indexOf(mark, at)).filter((position) => position >= 0);
+  return { start, end: ends.length > 0 ? Math.min(...ends) : text.length };
+}
+
+/**
+ * 吞咽危险征象：「吞咽困难」所在整句随后写明口水仍咽得下（「吞咽困难，能咽口水和喝稀粥」）时是吞咽痛，不是吞不下口水（第五十六轮新病历 f39）。
+ * 保留写法是受治理闭集（swallowingPreservedPatterns，只认口水/唾液），依据见源表 swallowingPreservedNote。
+ */
+function swallowingDangerFinding(normalized: string): string | undefined {
+  const rule = DEEP_NECK_SPACE_INFECTION;
+  for (const pattern of rule.swallowingDangerPatterns) {
+    for (const match of normalized.matchAll(new RegExp(pattern, "gu"))) {
+      const at = match.index ?? 0;
+      // 与 currentCombinationFinding 同一组逐处守卫（子句极性、后置否定、时态）。
+      if (clauseLocalMentionPolarityAt(normalized, at) !== "affirmed" || isPostfixNegatedAt(normalized, at, match[0].length) ||
+        isHistoricalOrResolvedAt(normalized, at, match[0].length)) continue;
+      const { end } = hardSentenceBoundsAt(normalized, at);
+      const after = normalized.slice(at + match[0].length, end);
+      if (rule.swallowingPreservedPatterns.some((preserved) => new RegExp(preserved, "u").test(after))) continue;
+      return match[0];
+    }
+  }
+  return undefined;
+}
+
+/**
+ * 急性咽喉感染里的吞咽困难（吞咽痛）：所在整句同时有当前咽痛或口咽感染，且该句写的起病不超过 acuteThroatOdynophagiaMaxDays 天或写今天/昨天。
+ * 这类吞咽困难不按上消化道警示征象（食管梗阻）报；口咽部的危险吞咽障碍由颈深感染组合判（第五十六轮新病历 f39）。
+ */
+/** 吞咽困难所在整句同时写了当前咽痛或口咽感染、且不是进行性的（「进行性吞咽困难3月，近2天咽痛」照旧按食管梗阻读）。 */
+function throatLinkedSwallowingAt(text: string, at: number): boolean {
+  const rule = DEEP_NECK_SPACE_INFECTION;
+  const { start, end } = hardSentenceBoundsAt(text, at);
+  const sentence = text.slice(start, end);
+  if (/进行性|渐进|逐渐加重|日渐加重/u.test(sentence)) return false;
+  return [...rule.throatPainPatterns, ...rule.oralInfectionPatterns].some((pattern) => {
+    for (const match of sentence.matchAll(new RegExp(pattern, "gu"))) {
+      if (clauseLocalMentionPolarityAt(sentence, match.index ?? 0) === "affirmed") return true;
+    }
+    return false;
+  });
+}
+
+function acuteThroatOdynophagiaAt(text: string, at: number): boolean {
+  const rule = DEEP_NECK_SPACE_INFECTION;
+  if (!throatLinkedSwallowingAt(text, at)) return false;
+  const { start, end } = hardSentenceBoundsAt(text, at);
+  const sentence = text.slice(start, end);
+  const longest = courseDurationDays(sentence);
+  if (longest > rule.acuteThroatOdynophagiaMaxDays) return false;
+  return longest > 0 || /今天|今日|今晨|昨天|昨日|昨晚/u.test(sentence);
+}
+
 /** R1：感染背景伴转诊征象无需同时发热；弱咽痛的关系按受治理构词守卫读取。 */
 function deepNeckSpaceInfectionRedFlag(state: CaseState, text: string): string | undefined {
   const rule = DEEP_NECK_SPACE_INFECTION;
   const normalized = normalizeClinicalText(text);
   const trismus = currentCombinationFinding(normalized, rule.trismusPatterns);
   const swelling = currentCombinationFinding(normalized, rule.swellingPatterns);
-  const swallowing = currentCombinationFinding(normalized, rule.swallowingDangerPatterns);
+  const swallowing = swallowingDangerFinding(normalized);
   const drooling = currentCombinationFinding(normalized, rule.droolingPatterns);
   const voice = currentCombinationFinding(normalized, rule.voicePatterns);
   const local = currentCombinationFinding(normalized, rule.localCompanionPatterns) || swallowing || drooling || swelling;
@@ -5901,7 +6029,7 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     hasAcutePositiveTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) ||
     hasRecentPositiveTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) ||
     hasCurrentOrRecurrentPositiveTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) ||
-    (colloquialChestPressureSignal && /(?:突然|突发|刚才|刚刚|新发|开始|持续|不缓解|无缓解|冷汗|大汗|气促|呼吸困难|\d+(?:\.\d+)?\s*(?:分钟|分|小时))/.test(text)));
+    hasScopedAcuteColloquialChestPressure(text));
   const acuteChestTightnessSignal =
     !chronicStableExertionalCardiacOnly && hasScopedAcuteChestTightnessSignal(text);
   const cardiacCompanion = hasAnyTerm(text, [...GOVERNED_CARDIAC_COMPANIONS, "一身汗", "压榨", "濒死"]);
@@ -6041,13 +6169,31 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     ...GOVERNED_SEVERE_TERMS,
     "量多", "大出血", "持续", "反复", "不止", "鲜红", "血块", "浸湿",
   ].join("|");
+  // 程度词本身也须是肯定的：「阴道流血…颜色淡红，质稀，无臭味，无大血块」里的血块被否认，不是量多的证据
+  //（第五十六轮新病历 f26：产后恶露不绝、每天 3～4 片卫生巾、Hb 105、血压脉搏平稳，被报活动性大出血）。
+  // 窗口与旧判据相同（出血词后 40 字、程度词后 20 字，不跨句），窗口内每个程度词逐个判，任一肯定即成立。构词式守卫，冻结令允许的例外。
+  const assertedAt = (at: number, length: number): boolean => !isExcludedClinicalAssertionAt(text, at) &&
+    (!isNegatedAt(text, at) || hasCommaSeparatedPositiveEvidence(text, at, text.slice(at, at + length))) && !isHistoricalOrResolvedAt(text, at, length);
+  // 程度词按它自己那一小句判（「阴道流血10天，无血块，量多」里的量多是肯定的；逗号续接的否定不吞它）。
+  const severityAffirmedAt = (at: number, length: number): boolean => !isExcludedClinicalAssertionAt(text, at) &&
+    clauseLocalMentionPolarityAt(text, at) === "affirmed" && !isPostfixNegatedAt(text, at, length) && !isHistoricalOrResolvedAt(text, at, length);
+  const severityRegex = new RegExp(`(?:${majorBleedingSeverity})`, "gu");
+  const vaginalBleedingRegex = new RegExp(`(?:${vaginalBleedingPattern})`, "gu");
   const severityNearVaginalBleeding =
-    hasPatternWithoutNegation(text, new RegExp(
-      `(?:${vaginalBleedingPattern})[^。；;\\n]{0,40}(?:${majorBleedingSeverity})`,
-    )) ||
-    hasPatternWithoutNegation(text, new RegExp(
-      `(?:${majorBleedingSeverity})[^。；;\\n]{0,20}(?:${vaginalBleedingPattern})`,
-    ));
+    [...text.matchAll(vaginalBleedingRegex)].some((bleed) => {
+      const at = bleed.index ?? 0;
+      if (!assertedAt(at, bleed[0].length)) return false;
+      const windowStart = at + bleed[0].length;
+      const window = text.slice(windowStart, hardSentenceBoundsAt(text, at).end);
+      return [...window.matchAll(severityRegex)].some((severity) => (severity.index ?? 0) <= 40 &&
+        severityAffirmedAt(windowStart + (severity.index ?? 0), severity[0].length));
+    }) ||
+    [...text.matchAll(severityRegex)].some((severity) => {
+      const at = severity.index ?? 0;
+      if (!severityAffirmedAt(at, severity[0].length)) return false;
+      const windowStart = at + severity[0].length;
+      return new RegExp(`^[^。；;\\n]{0,20}(?:${vaginalBleedingPattern})`, "u").test(text.slice(windowStart));
+    });
   const criticalHemoglobin = [...text.matchAll(
     /(?:血红蛋白|血色素|HGB|Hb(?!A1c))\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(?:g\s*\/\s*L|g\/L)?/gi,
   )].some((match) => Number(match[1]) > 0 && Number(match[1]) <= 70);
@@ -6152,7 +6298,11 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   // 63 岁吸烟者咯血 1 周、体重下降 5kg、食欲差，红旗写成上消化道警示征象，评审判标签错）。
   const respiratoryBleeding = upperGiAlarmKind === "weight_loss" &&
     hasPatternWithoutNegation(text, /咯血|咳血|痰血|痰中[^，,。；;\n]{0,4}带[^，,。；;\n]{0,4}血/u);
-  if (upperGiAlarmKind && !anaphylacticAirwaySignal && respiratoryBleeding) {
+  // 口咽部的吞咽障碍已由颈深感染那一条承接时，不再叠一条「吞咽或进食梗阻」（同一事件两条告警，第五十六轮）。
+  const obstructionCoveredByDeepNeck = upperGiAlarmKind === "obstruction" && Boolean(deepNeckInfection) && upperGiObstructionOnlyThroatLinked(text);
+  if (obstructionCoveredByDeepNeck) {
+    // 不报
+  } else if (upperGiAlarmKind && !anaphylacticAirwaySignal && respiratoryBleeding) {
     redFlags.push("咯血伴体重下降，需优先完成胸部CT与痰检以排除肺癌或肺结核，再评估处方");
   } else if (upperGiAlarmKind && !anaphylacticAirwaySignal) {
     const item = upperGiAlarmKind === "obstruction" ? "吞咽或进食梗阻" : upperGiAlarmKind === "malignancy" ? "恶性肿瘤病史伴消化道症状" : "不明原因体重下降";

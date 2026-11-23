@@ -1,0 +1,53 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "accompanying-list-inherits-chronic-onset",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-11-23",
+ "trigger": "第五十六轮新病历 f35：「患者2年来腰背酸痛，…近3月加重。伴腰膝酸软，下肢无力，头晕耳鸣…」，下肢无力是「伴」引出的并列症状之一，没有沿用 2 年的起病锚点，报神经急症。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "慢性病程守卫只在缺损小句本身以「伴」开头时沿用上一小句的起病锚点；「伴」后并列的第二项、或「伴」在整句句首（所接的是上一整句）时不沿用。",
+  "exception": "构词式守卫（accompanyingListInheritsChronicOnset）：并列项不带时间、缺损不写侧别、锚点段无近期起病或急性线索、缺损小句自身无时长。",
+  "sources": "src/lib/diagnosis-safety.ts accompanyingListInheritsChronicOnset"
+ },
+ "contexts": [
+  "outpatient_record",
+  "sparse"
+ ],
+ "parity": {
+  "note": "慢性病程下「伴」引出的并列无力与不写无力同档；单侧、近期起病、自带时长的照旧报警。",
+  "pairs": [
+   {
+    "subject": "患者2年来腰背酸痛，久坐后加重，近3月加重。伴腰膝酸软，下肢无力，头晕耳鸣，夜尿2次。",
+    "sibling": "患者2年来腰背酸痛，久坐后加重，近3月加重。伴腰膝酸软，头晕耳鸣，夜尿2次。",
+    "siblingExpect": "ready"
+   },
+   {
+    "subject": "患者3年来腰痛，伴腰膝酸软，下肢无力，畏寒肢冷。",
+    "sibling": "患者3年来腰痛，伴腰膝酸软，畏寒肢冷。",
+    "siblingExpect": "ready"
+   }
+  ]
+ },
+ "controls": {
+  "mustStillFlag": [
+   {
+    "text": "患者3年前诊断高血压，今晨突然头晕。伴恶心，右侧肢体无力。",
+    "flag": "神经系统急症"
+   },
+   {
+    "text": "今晨突然头晕。伴恶心，肢体无力。",
+    "flag": "神经系统急症"
+   },
+   {
+    "text": "患者2年来腰痛。伴腰酸，下肢无力2天。",
+    "flag": "神经系统急症"
+   }
+  ],
+  "mustStayReady": []
+ },
+ "measurements": {
+  "method": "本轮确定性回放（HEAD 与工作树，outpatient_record / sparse 两种上下文），语料回放见 ~/runlogs/r1018/work/r1074/replay/NOTES.md。"
+ }
+}

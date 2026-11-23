@@ -1,0 +1,66 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "colloquial-chest-pressure-cue-scope",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-11-23",
+ "trigger": "第五十六轮新病历 f06：3 个月痰浊头痛，「每次持续几个小时」「头痛不是突然出现的」在前一句，被读成「伴胸口和胃脘部发闷」的急性线索，报短时程胸痛红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "口语胸部压迫感（胸口发闷/压着/发紧）的急性线索判据读全文：别的症状的时长、被否认的「突然」都算成胸部症状的急性线索。改为只读压迫感所在整句、线索须肯定（hasScopedAcuteColloquialChestPressure）。",
+  "exception": "构词式词法守卫：线索的作用范围限定在同一整句，否定判据复用 isNegatedAt；不新增词表。",
+  "sources": "src/lib/diagnosis-safety.ts hasScopedAcuteColloquialChestPressure"
+ },
+ "contexts": [
+  "outpatient_record",
+  "sparse"
+ ],
+ "parity": {
+  "note": "别处症状的时长或被否认的突然，不改变胸口发闷一句的判定。",
+  "pairs": [
+   {
+    "subject": "头痛反复3月，每次持续几个小时，能忍受。伴胸口和胃脘部发闷，恶心想吐，痰多色白。",
+    "sibling": "头痛反复3月，能忍受。伴胸口和胃脘部发闷，恶心想吐，痰多色白。",
+    "siblingExpect": "ready"
+   },
+   {
+    "subject": "头痛不是突然出现的。伴胸口发闷，嘴里黏腻。",
+    "sibling": "头痛反复发作。伴胸口发闷，嘴里黏腻。",
+    "siblingExpect": "ready"
+   },
+   {
+    "subject": "失眠半年，每晚持续多梦。伴心口发堵，善太息。",
+    "sibling": "失眠半年，每晚多梦。伴心口发堵，善太息。",
+    "siblingExpect": "ready"
+   },
+   {
+    "subject": "今天突然胸口像石头压着，持续半小时。",
+    "sibling": "今天突然胸口像石头压着。",
+    "siblingExpect": "flagged"
+   }
+  ]
+ },
+ "controls": {
+  "mustStillFlag": [
+   {
+    "text": "胸口压得慌，持续20分钟不缓解。",
+    "flag": "急性心血管事件"
+   },
+   {
+    "text": "刚才突然胸口发紧，出冷汗。",
+    "flag": "急性心血管事件"
+   },
+   {
+    "text": "胸口发闷1小时，休息不缓解。",
+    "flag": "急性心血管事件"
+   }
+  ],
+  "mustStayReady": [
+   "头痛3月，每次持续数小时。胸口发闷，痰多。",
+   "失眠半年，持续多梦。伴心口发堵，善太息。"
+  ]
+ },
+ "measurements": {
+  "method": "本轮确定性回放（HEAD 与工作树，outpatient_record / sparse 两种上下文），语料回放见 ~/runlogs/r1018/work/r1074/replay/NOTES.md。"
+ }
+}

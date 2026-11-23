@@ -1,7 +1,7 @@
 import { isEvidenceDiseaseSubtype } from "./m03-evidence-disease-subtypes";
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import { recordCourseDays, courseSpans } from "./western-record-course";
-import { withResolvedAxisEvidenceConfidence, isGenericClinicalDescription } from "./diagnosis-visible-summary";
+import { withAxisBookkeepingFromFinalContent, withResolvedAxisEvidenceConfidence, isGenericClinicalDescription } from "./diagnosis-visible-summary";
 import { governedSyndromeName, governedSyndromeReplacement, governedSyndromeFromMechanismPhrases, renamedSyndromeMentions } from "./clinical-terminology";
 import { modificationDecoctionPhrase } from "./herb-decoction-rules";
 import { reconcileAnalysisUncertainties, reconcilePathogenesisColumns } from "./pathogenesis-columns";
@@ -4303,6 +4303,7 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   if (therapy && typeof therapy.overallPrinciple === "string") therapy.overallPrinciple = principleWhenRedFlag(therapy.overallPrinciple, redFlagActiveFor(options));
   if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope))), methodCap, textbookMethodItems);
   if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope))), methodCap, textbookMethodItems);
+  if (projected.stage === "diagnose" && options?.recordText && !isLimitedDiagnose(projected)) withAxisBookkeepingFromFinalContent(projected, options.recordText);
   if (projected.stage === "diagnose" && options?.recordText) withSyndromeResolutionFromAxes(projected, options.recordText, options.m03ElementAllows);
   // 证素核对的待核实项里列着辨证要点原文：本例不可能有的那几项（男性、儿童、老人的滑胎、带下、月经）不列（2026-11-14 第四十五轮：
   // 63 岁男性、91 岁男性的待核实写「滑精、滑胎、带下量多清稀」）。人群按开方同一口径（herbBoundaryAudience.reproductive）。

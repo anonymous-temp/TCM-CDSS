@@ -849,6 +849,93 @@ function locationHasBasis(item: string, detailedLocations: readonly string[]): b
     (BURNER_ORGANS[item] || []).some((organ) => detailedLocations.some((detail) => sameLocation(organ, detail)));
 }
 
+/** 交付面只读已交付的逐字引文：依据按标点切段，留病历里逐字出现、不是正常所见的那几段。 */
+function deliveredVerbatimBasis(value: unknown, clinicalContext: string): string {
+  if (typeof value !== "string") return "";
+  const verbatim = value.split(/[；;，,。]/u).map((piece) => piece.trim())
+    .filter((piece) => piece.length >= 2 && clinicalContext.includes(piece));
+  return withoutNormalFindingSegments(exactClinicalSourceQuotes(verbatim.join("；"), clinicalContext).join("；"));
+}
+
+/** 服务端写的、断言病历里没有依据的说明句（服务端只知道模型那条引文没对上原文，不知道病历里有没有）。 */
+const AXIS_SERVER_BOILERPLATE_REASON = /尚缺直接的病历依据|没有可稳定归属的病位|没有可稳定归纳的病性/u;
+/** 「本虚标实」「虚实夹杂」是病性的格局说法，不是病性要素（甲方 7/15：「本虚」不是病性说法）。 */
+const NATURE_PATTERN_LABEL = /^(?:本虚标实|标实本虚|虚实夹杂|虚实错杂|本虚|标实|虚实)$/u;
+
+/**
+ * 病位、病性两轴的「已确定/有界、说明句、可信度」在交付前按交付的内容重算一次（第五十六轮，新病历 40 份的病机复核）。
+ * 这三样是由条目与依据推出来的记账字段，此前在流式定稿时算一次，之后的证素收口、合称改名、定稿通读等改了条目或依据却没有重算：
+ *  · f05 病位只剩「肝、心」且各有原文，说明句还写「病位“胃”尚缺直接的病历依据」、可信度低；
+ *  · f26 依据写在合并的「胞宫、冲任」一条里，逐个病位对不上，判有界、可信度低；
+ *  · f31 病性写了本虚「脾胃气虚」、标实「湿滞」，状态却是 unresolved、「本例记录中没有可稳定归纳的病性及其依据」。
+ * 甲方 11.05 对 17 份全判「病机分析：机械句式、病位病性低可信」。规则：
+ *  · 病位：每个病位都有逐字原文依据（合并写的「胞宫、冲任」一条两个都算）⇒ 已确定、不写说明；否则有界。
+ *  · 病性：去掉格局说法；条目为空而本虚/标实有内容时条目取两者之并；状态是 unresolved 而有要素时按有界重判，
+ *    依据逐字成立且每条要素都有表现时（与流式定稿同一判据 natureAxisElementSupport）为已确定。模型点名的待核实项照旧（不覆盖）。
+ *  · 服务端说明句只删「尚缺直接的病历依据」「没有可稳定归纳」这类断言病历没有依据的句子——服务端只知道引文没对上原文。
+ *  · 有界、已确定都不再停在服务端压的「低」：引文对不上是出处问题，不是临床把握度；置为「中」（已确定而「低」本身自相矛盾）。
+ *    已确定的「高」仍由 withResolvedAxisEvidenceConfidence 定（红旗不升）。
+ * 不加字段、不加枚举值；幂等。
+ */
+export function withAxisBookkeepingFromFinalContent(reasoning: Record<string, unknown>, clinicalContext: string): void {
+  if (!clinicalContext) return;
+  const pathogenesis = recordValue(reasoning.pathogenesis);
+  const location = recordValue(pathogenesis?.locationDifferentiation);
+  const nature = recordValue(pathogenesis?.natureDifferentiation);
+  const softenLowConfidence = (axis: Record<string, unknown>) => {
+    const evidence = recordValue(axis.evidence);
+    if ((axis.resolution === "bounded" || axis.resolution === "resolved") && evidence?.confidence === "低") evidence.confidence = "中";
+  };
+  const dropServerBoilerplate = (axis: Record<string, unknown>) => {
+    if (typeof axis.resolutionReason === "string" && AXIS_SERVER_BOILERPLATE_REASON.test(axis.resolutionReason)) delete axis.resolutionReason;
+  };
+  if (location) {
+    const items = semanticItems(location.items);
+    const groundedLocations = (Array.isArray(location.details) ? location.details : []).flatMap((detail) => {
+      const row = recordValue(detail);
+      if (!row || !deliveredVerbatimBasis(row.basis, clinicalContext)) return [];
+      // 合并写的「胞宫、冲任」由 locationHasBasis 的包含判据认（与流式定稿同一判据）。
+      const label = String(row.location || "").trim();
+      return label ? [label] : [];
+    });
+    if (items.length > 0) {
+      if (items.every((item) => locationHasBasis(item, groundedLocations))) {
+        location.resolution = "resolved";
+        delete location.resolutionReason;
+      } else if (location.resolution === "unresolved") {
+        location.resolution = "bounded";
+      }
+      if (location.resolution === "bounded") dropServerBoilerplate(location);
+      softenLowConfidence(location);
+    }
+  }
+  if (nature) {
+    for (const key of ["items", "rootDeficiency", "branchExcess"] as const) {
+      if (Array.isArray(nature[key])) nature[key] = semanticItems(nature[key]).filter((item) => !NATURE_PATTERN_LABEL.test(item));
+    }
+    const root = semanticItems(nature.rootDeficiency), branch = semanticItems(nature.branchExcess);
+    if (semanticItems(nature.items).length === 0 && root.length + branch.length > 0) nature.items = [...new Set([...root, ...branch])];
+    const labels = [...new Set([...semanticItems(nature.items), ...root, ...branch])];
+    if (labels.length > 0) {
+      const stale = nature.resolution === "unresolved" ||
+        (nature.resolution === "bounded" && (typeof nature.resolutionReason !== "string" || AXIS_SERVER_BOILERPLATE_REASON.test(nature.resolutionReason)));
+      if (stale) {
+        const basis = deliveredVerbatimBasis(nature.basis, clinicalContext);
+        const support = natureAxisElementSupport(labels, basis, "");
+        const segments = basis.split(/[；;]/u).filter((part) => part.trim().length >= 2);
+        if (basis && support.unsupported.length === 0 && (support.unknown.length === 0 || segments.length >= labels.length)) {
+          nature.resolution = "resolved";
+          delete nature.resolutionReason;
+        } else {
+          nature.resolution = "bounded";
+          dropServerBoilerplate(nature);
+        }
+      }
+      softenLowConfidence(nature);
+    }
+  }
+}
+
 /** 最后交付时统一决定两轴的「高」；不改轴内容、不改变安全门，红旗不升。 */
 export function withResolvedAxisEvidenceConfidence(reasoning: Record<string, unknown>, clinicalContext: string, redFlag: boolean): void {
   if (!clinicalContext || redFlag) return;

@@ -1,0 +1,56 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "negated-bleeding-severity-term",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-11-23",
+ "trigger": "第五十六轮新病历 f26：产后恶露不绝 5 周、每天 3～4 片卫生巾、Hb 105、血压脉搏平稳，「无大血块」里的血块被当成量多的证据，报活动性大量阴道出血。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "阴道出血的程度判据只在出血词处判否定，窗口内被否认的程度词（无大血块、无鲜红）照样算。改为窗口内程度词逐个判、须肯定。",
+  "exception": "构词式守卫：程度词本身用子句极性与后置否定判据；窗口宽度、程度词表不变。",
+  "sources": "src/lib/diagnosis-safety.ts severityNearVaginalBleeding"
+ },
+ "contexts": [
+  "outpatient_record",
+  "sparse"
+ ],
+ "parity": {
+  "note": "被否认的血块不改变判定。",
+  "pairs": [
+   {
+    "subject": "产后阴道流血5周未净，量较多，颜色淡红，质稀，无臭味，无大血块。",
+    "sibling": "产后阴道流血5周未净，量较多，颜色淡红，质稀，无臭味。",
+    "siblingExpect": "ready"
+   },
+   {
+    "subject": "阴道出血10天，色暗，未见血块，无头晕。",
+    "sibling": "阴道出血10天，色暗，无头晕。",
+    "siblingExpect": "ready"
+   },
+   {
+    "subject": "阴道流血不止，夹有血块，面色苍白。",
+    "sibling": "阴道流血不止，面色苍白。",
+    "siblingExpect": "flagged"
+   }
+  ]
+ },
+ "controls": {
+  "mustStillFlag": [
+   {
+    "text": "阴道流血3天，量多，有大血块。",
+    "flag": "活动性大量阴道出血"
+   },
+   {
+    "text": "阴道出血持续半月，浸湿多片卫生巾。",
+    "flag": "活动性大量阴道出血"
+   }
+  ],
+  "mustStayReady": [
+   "月经期阴道流血，量中，无血块，无腹痛。"
+  ]
+ },
+ "measurements": {
+  "method": "本轮确定性回放（HEAD 与工作树，outpatient_record / sparse 两种上下文），语料回放见 ~/runlogs/r1018/work/r1074/replay/NOTES.md。"
+ }
+}

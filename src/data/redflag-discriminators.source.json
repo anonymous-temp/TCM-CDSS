@@ -4448,6 +4448,14 @@
     "咽不下口水",
     "吞咽(?:和|及|与)呼吸困难"
    ],
+   "swallowingPreservedNote": "第五十六轮（2026-11-23，新病历 f39：化脓性扁桃体炎「吞咽困难，能咽口水和喝稀粥」，查体悬雍垂居中、张口正常、无流涎，被报颈深部感染）：吞咽困难所在整句随后写明口水仍咽得下，是吞咽痛而不是吞不下口水；颈深感染与扁桃体周围脓肿的转诊征象是不能咽口水、流涎（NICE CKS Sore throat - acute：drooling/inability to swallow saliva）。只认口水/唾液，能喝水、能进流质不算（食管梗阻也常仍能进流质）。前面带不/无法/难以/没法的是危险征象本身，不是保留。",
+   "swallowingPreservedPatterns": [
+    "(?<![不没难法])能(?:咽|吞|吞咽|咽下|吞下|咽得下|吞得下)(?:口水|唾液)",
+    "(?<![不没难法])可(?:以)?(?:咽|吞|吞咽|咽下|吞下)(?:口水|唾液)",
+    "(?:口水|唾液)(?:能|可以|可|还能|尚能)(?:咽|吞|咽下|吞下)"
+   ],
+   "acuteThroatOdynophagiaNote": "急性咽喉感染里的吞咽困难是吞咽痛，不是上消化道警示征象的「吞咽或进食梗阻」（NICE NG12 的吞咽困难转诊指的是食管梗阻）。判据：吞咽困难所在整句同时写了当前咽痛或口咽感染（throatPainPatterns、oralInfectionPatterns），且该句写明的起病不超过 acuteThroatOdynophagiaMaxDays 天（或今天/昨天）。危险的口咽部吞咽障碍由本组合（颈深感染）判，不再叠加第二条上消化道告警。",
+   "acuteThroatOdynophagiaMaxDays": 14,
    "droolingPatterns": [
     "流涎",
     "流口水"

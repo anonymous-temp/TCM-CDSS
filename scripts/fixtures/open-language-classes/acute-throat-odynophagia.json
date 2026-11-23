@@ -1,0 +1,57 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "acute-throat-odynophagia",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-11-23",
+ "trigger": "第五十六轮新病历 f39：化脓性扁桃体炎「吞咽困难，能咽口水和喝稀粥」，无张口困难、流涎、声音改变，查体悬雍垂居中，被报颈深部感染与上消化道警示征象（吞咽梗阻）两条红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "颈深感染组合把仍能咽口水的吞咽困难当成危险征象；上消化道警示征象把急性咽喉感染里的吞咽痛当成食管梗阻。",
+  "exception": "受治理闭集（swallowingPreservedPatterns，只认口水/唾液）与数值阈值（同句起病 ≤14 天、无进行性/更长病程）；deepNeckSpaceInfection 源表记依据。",
+  "sources": "src/data/redflag-discriminators.source.json deterministicCombinations.deepNeckSpaceInfection；src/lib/diagnosis-safety.ts swallowingDangerFinding、acuteThroatOdynophagiaAt"
+ },
+ "contexts": [
+  "outpatient_record",
+  "sparse"
+ ],
+ "parity": {
+  "note": "仍能咽口水的吞咽困难与吞咽痛同档；急性咽喉感染里的吞咽困难不按食管梗阻报。",
+  "pairs": [
+   {
+    "subject": "2天前咽痛，今天明显加重，吞咽困难，能咽口水和喝稀粥，发热。无张口困难，无流口水。",
+    "sibling": "2天前咽痛，今天明显加重，吞咽疼痛，发热。无张口困难，无流口水。",
+    "siblingExpect": "ready"
+   },
+   {
+    "subject": "咽痛3天，吞咽困难，口水还能咽下。无流涎。",
+    "sibling": "咽痛3天，吞咽时疼痛。无流涎。",
+    "siblingExpect": "ready"
+   }
+  ]
+ },
+ "controls": {
+  "mustStillFlag": [
+   {
+    "text": "咽痛3天，吞咽困难，不能咽口水，流涎，发热。",
+    "flag": "颈深部感染"
+   },
+   {
+    "text": "咽痛伴吞咽困难，发热。",
+    "flag": "颈深部感染"
+   },
+   {
+    "text": "进行性吞咽困难3月，近2天咽痛。",
+    "flag": "上消化道警示征象"
+   },
+   {
+    "text": "吞咽困难2月，进食梗阻感，消瘦。",
+    "flag": "上消化道警示征象"
+   }
+  ],
+  "mustStayReady": []
+ },
+ "measurements": {
+  "method": "本轮确定性回放（HEAD 与工作树，outpatient_record / sparse 两种上下文），语料回放见 ~/runlogs/r1018/work/r1074/replay/NOTES.md。"
+ }
+}
