@@ -328,7 +328,8 @@ export async function fetchWithConnectTimeout(
     attemptController.abort();
   }, Math.min(connectTimeoutMs, remaining));
   try {
-    return await memoizedModelFetch(url, { ...init, signal: attemptController.signal });
+    // 本文件发出的都是阶段主生成（首轮、兜底重生成、修复轮、并行两半）：强制重新生成只重抽这些（model-call-memo.server.ts）。
+    return await memoizedModelFetch(url, { ...init, signal: attemptController.signal }, undefined, { primaryGeneration: true });
   } catch (error) {
     if (timedOut && error instanceof DOMException && error.name === "AbortError") {
       throw new Error("模型连接超时，推理模型尚未开始返回流式内容，请稍后重试");

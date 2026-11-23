@@ -120,15 +120,17 @@ await check("1.5 阶段结果降级：这次用过的答案作废，下一次重
   assert.equal(calls.length, 2);
 });
 
-await check("1.6 fresh（显式重抽）不读旧答案、算完覆盖", async () => {
+// 第五十八轮起：显式重抽只重抽阶段主生成（流层发出的调用），小任务照常回放；主生成带上一次输出作基准（test:r1076-main）。
+await check("1.6 fresh（显式重抽）：阶段主生成不读旧答案、算完覆盖", async () => {
   memo.resetModelCallMemoForTests();
   stub((n) => jsonResponse(okJson(`答${n}`)));
-  await inScope(() => call("病历丁"));
+  const primary = async (content) => (await memo.memoizedModelFetch(URL_, { method: "POST", body: body(content) }, undefined, { primaryGeneration: true })).text();
+  await inScope(() => primary("病历丁"));
   await settle();
-  const redrawn = await inScope(() => call("病历丁"), { fresh: true });
+  const redrawn = await inScope(() => primary("病历丁"), { fresh: true });
   assert.equal(JSON.parse(redrawn).choices[0].message.content, "答2");
   await settle();
-  assert.equal(JSON.parse(await inScope(() => call("病历丁"))).choices[0].message.content, "答2");
+  assert.equal(JSON.parse(await inScope(() => primary("病历丁"))).choices[0].message.content, "答2");
 });
 
 await check("1.7 落盘加密：文件里没有明文；进程重启（清内存）后命中；换密钥读不出按未命中", async () => {

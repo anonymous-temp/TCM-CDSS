@@ -25,7 +25,21 @@ import { gunzipSync, gzipSync } from "node:zlib";
  * 密钥由 CASE_SNAPSHOT_ENCRYPTION_KEY 派生，轮换后读不出按未命中处理。
  */
 
-type Scope = { fresh: boolean; used: Set<string>; forgotten: boolean };
+type Scope = { fresh: boolean; used: Set<string>; forgotten: boolean; regenerationFallbackSection?: string };
+
+/**
+ * 强制重新生成时重抽哪些调用（2026-11-23 第五十八轮，「强制重生成方名药味仍变」）。
+ *
+ * 一条链路约 30 次模型调用。此前 `force` 把它们全部重抽：事实抽取、选病、用药规划、外部检索段、各项窄核对每一个都可能抽到另一答案，
+ * 主生成的提示词跟着变，后面的核对又各自再变一次——重新生成的差异大半不是主生成自己的。
+ * 现在只有**阶段主生成**（流式首轮及其重试、兜底重生成、修复轮，都走 diagnosis-api.ts 的 fetchWithConnectTimeout）重抽；
+ * 其余小任务与外部检索段照常「同内容同答案」：输入没变就回放，输入变了自然未命中。
+ * `CDSS_REGENERATE_FRESH_SCOPE=all` 恢复「全部重抽」（量整条链路的独立抽样波动时用）。
+ */
+function freshAppliesTo(scope: Scope, primary: boolean): boolean {
+  if (!scope.fresh) return false;
+  return primary || process.env.CDSS_REGENERATE_FRESH_SCOPE === "all";
+}
 type Stored = { contentType: string; text: string };
 
 const scopes = new AsyncLocalStorage<Scope>();
@@ -44,7 +58,7 @@ export function modelCallMemoEnabled(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
-/** 临床路由的入口。`fresh`：本次不读旧答案、算完覆盖写入（显式要求重抽）。 */
+/** 临床路由的入口。`fresh`：阶段主生成不读旧答案、算完覆盖写入（显式要求重抽）；其余调用照常回放，见 freshAppliesTo。 */
 export function runWithModelCallMemo<T>(options: { fresh?: boolean }, run: () => T): T {
   if (!modelCallMemoEnabled()) return run();
   return scopes.run({ fresh: Boolean(options.fresh), used: new Set(), forgotten: false }, run);
@@ -52,6 +66,94 @@ export function runWithModelCallMemo<T>(options: { fresh?: boolean }, run: () =>
 
 export function currentModelCallMemoScope(): Scope | undefined {
   return scopes.getStore();
+}
+
+// ─── 重新生成的基准：同一次调用上一次的输出（2026-11-23 第五十八轮）────────────────────────────
+//
+// 强制重新生成是一次真实抽样，温度 0 也不保证与上次相同（同一份已签名辨证三次开方：药味 14/14/13，加减 2/4/4 条）。
+// 用户定：把之前的结果作为背景回传给模型，让差异尽量小。最贴近的做法就在这一层——主生成要重抽时，同一份请求内容
+// 上一次留下的完整输出还在（键相同），把它附在提示词末尾作为基准，要求结论照写、文字可沿用；新输出仍存回同一个键。
+//  · 只对阶段主生成、且只在强制重新生成时做；不强制时照旧回放，与此无关。
+//  · 降级结果用过的键已作废（forgetModelCallsInScope），坏结果不会成为基准。
+//  · 提示词变了（病历改了、提示词改了）键就不同，自然没有基准；开方阶段此时用路由给的「同一病历上一次处方」兜底
+//    （regeneration-anchor.server.ts，辨证文字重写后开方提示词会变）。
+//  · `CDSS_REGENERATION_ANCHOR=false` 关闭（两层一起关），强制重新生成回到独立抽样。
+const REGENERATION_PREVIOUS_OUTPUT_MAX_CHARS = 24_000;
+
+export function regenerationReferenceEnabled(): boolean {
+  return process.env.CDSS_REGENERATION_ANCHOR !== "false";
+}
+
+/** 路由给本次请求的兜底基准段（同一病历上一次的处方）；没有同内容的上一次输出时才用。 */
+export function setRegenerationFallbackSection(section: string | undefined): void {
+  const scope = scopes.getStore();
+  if (scope) scope.regenerationFallbackSection = section?.trim() || undefined;
+}
+
+type ToolCallPart = { function?: { arguments?: unknown } };
+
+/**
+ * 从留存的原始响应里取模型写出的内容（流式 SSE 或非流式 JSON）：正文；没有正文时取强制工具调用的参数
+ *（辨证两半首轮不合 schema 时的重试就是这种形式，它的输出才是当时被采用的那一份）。都没有、超长、残缺返回 undefined。
+ */
+export function assistantTextFromModelResponse(raw: string): string | undefined {
+  let content = "";
+  let toolArguments = "";
+  if (raw.includes("data:")) {
+    for (const line of raw.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const delta = (JSON.parse(payload) as { choices?: Array<{ delta?: { content?: unknown; tool_calls?: ToolCallPart[] } }> }).choices?.[0]?.delta;
+        if (typeof delta?.content === "string") content += delta.content;
+        const part = delta?.tool_calls?.[0]?.function?.arguments;
+        if (typeof part === "string") toolArguments += part;
+      } catch {
+        return undefined;
+      }
+    }
+  } else {
+    try {
+      const message = (JSON.parse(raw) as { choices?: Array<{ message?: { content?: unknown; tool_calls?: ToolCallPart[] } }> }).choices?.[0]?.message;
+      if (typeof message?.content === "string") content = message.content;
+      const part = message?.tool_calls?.[0]?.function?.arguments;
+      if (typeof part === "string") toolArguments = part;
+    } catch {
+      return undefined;
+    }
+  }
+  const trimmed = content.trim() || toolArguments.trim();
+  return trimmed && trimmed.length <= REGENERATION_PREVIOUS_OUTPUT_MAX_CHARS ? trimmed : undefined;
+}
+
+export function previousOutputRegenerationSection(previous: string): string {
+  return [
+    "【同一份输入上一次的输出（本次重新生成的基准）】",
+    "这是对同一份输入的重新生成：输入没有任何变化。上一次的输出如下：",
+    "<<<上一次输出开始",
+    previous,
+    "上一次输出结束>>>",
+    "要求：本次输出与上一次保持一致，按同样的结构把上一次的输出原样再写一遍——各项结论不增不减、不换说法（病名、证候与兼证、治法、方名与方药方向、每一味药的药名含炮制写法、剂量与君臣佐使、随证加减的条件与药味、推荐的中成药/西药与治疗项目、追问的问题与选项），说明性文字也沿用上一次的原句，不改写、不润色、不补充。",
+  ].join("\n");
+}
+
+/** 把基准段接在最后一条 user 消息末尾；请求体不是预期形状时返回 undefined（照原样发）。 */
+export function requestBodyWithRegenerationSection(body: string, section: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { messages?: Array<{ role?: unknown; content?: unknown }> };
+    if (!Array.isArray(parsed.messages)) return undefined;
+    for (let index = parsed.messages.length - 1; index >= 0; index -= 1) {
+      const message = parsed.messages[index];
+      if (message?.role !== "user") continue;
+      if (typeof message.content !== "string") return undefined;
+      parsed.messages[index] = { ...message, content: `${message.content}\n\n${section}` };
+      return JSON.stringify(parsed);
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function memoDir(): string | undefined {
@@ -206,7 +308,12 @@ function replay(stored: Stored): Response {
  * 模型调用的唯一入口（SDK 的 fetch 选项与 fetchWithConnectTimeout 都走这里）。不在作用域内时等于 globalThis.fetch。
  * 进行中的同内容调用并入：调用方先到的负责真实请求，后到的等它的完整响应；它失败或被中止，后到的自己再发一次。
  */
-export async function memoizedModelFetch(input: Parameters<typeof fetch>[0], init?: RequestInit, onNetworkAttempt?: () => void): Promise<Response> {
+export async function memoizedModelFetch(
+  input: Parameters<typeof fetch>[0],
+  init?: RequestInit,
+  onNetworkAttempt?: () => void,
+  options: { primaryGeneration?: boolean } = {},
+): Promise<Response> {
   const scope = scopes.getStore();
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
   const key = scope && !scope.forgotten ? modelCallMemoKey(url, init?.body) : undefined;
@@ -215,8 +322,9 @@ export async function memoizedModelFetch(input: Parameters<typeof fetch>[0], ini
     return globalThis.fetch(input, init);
   }
   scope.used.add(key);
+  const fresh = freshAppliesTo(scope, Boolean(options.primaryGeneration));
   // 登记进行中要在任何 await 之前：读盘期间同内容的另一路就得看到它，否则两路都会发真实请求。
-  const pending = scope.fresh ? undefined : inFlight.get(key);
+  const pending = fresh ? undefined : inFlight.get(key);
   if (pending) {
     const stored = await abortable(pending, init?.signal);
     if (stored) {
@@ -232,7 +340,7 @@ export async function memoizedModelFetch(input: Parameters<typeof fetch>[0], ini
     if (inFlight.get(key) === mine) inFlight.delete(key);
     settle(value);
   };
-  if (!scope.fresh && !pending) {
+  if (!fresh && !pending) {
     const stored = await readStored(key);
     if (stored) {
       release(stored);
@@ -245,10 +353,26 @@ export async function memoizedModelFetch(input: Parameters<typeof fetch>[0], ini
       init.signal.throwIfAborted();
     }
   }
+  // 主生成重抽：同内容上一次的输出作基准附在提示词末尾；没有时用路由给的兜底基准段。键不变，新输出覆盖旧输出。
+  let requestInit = init;
+  let regenerationPrevious: string | undefined;
+  if (fresh && options.primaryGeneration && regenerationReferenceEnabled() && typeof init?.body === "string") {
+    const stored = await readStored(key);
+    if (init.signal?.aborted) {
+      release(undefined);
+      init.signal.throwIfAborted();
+    }
+    const previous = stored ? assistantTextFromModelResponse(stored.text) : undefined;
+    const section = previous ? previousOutputRegenerationSection(previous) : scope.regenerationFallbackSection;
+    const body = section ? requestBodyWithRegenerationSection(init.body, section) : undefined;
+    if (body) requestInit = { ...init, body };
+    if (body && previous) regenerationPrevious = previous;
+    console.info("[tcm-cdss:telemetry] regeneration_reference", { source: !body ? "none" : previous ? "previous_output" : "record_anchor" });
+  }
   let response: Response;
   try {
     onNetworkAttempt?.();
-    response = await globalThis.fetch(input, init);
+    response = await globalThis.fetch(input, requestInit);
   } catch (error) {
     release(undefined);
     throw error;
@@ -261,6 +385,15 @@ export async function memoizedModelFetch(input: Parameters<typeof fetch>[0], ini
   void response.clone().text().then(
     async (text) => {
       if (!modelResponseComplete(text)) return release(undefined);
+      // 线上核对用：带着上一次输出重新生成，这次是否逐字照写（只记真假与长度，不含内容）。
+      if (regenerationPrevious !== undefined) {
+        const current = assistantTextFromModelResponse(text);
+        console.info("[tcm-cdss:telemetry] regeneration_reference", {
+          reproduced: current === regenerationPrevious,
+          previousChars: regenerationPrevious.length,
+          currentChars: current?.length ?? 0,
+        });
+      }
       const value = { contentType, text };
       release(value);
       if (!scope.forgotten) await writeStored(key, value);
@@ -272,14 +405,16 @@ export async function memoizedModelFetch(input: Parameters<typeof fetch>[0], ini
 
 /**
  * 同一份输入第二次起用第一次的文本（外部检索段：它按时钟截断，每次可能不同）。键是调用方给的内容；空串也留，「这次没带」本身就是要固定的结论。
- * 不在作用域内等于直接算；fresh 时重算并覆盖。
+ * 不在作用域内等于直接算；fresh 且 CDSS_REGENERATE_FRESH_SCOPE=all 时重算并覆盖。
  */
 export async function memoizedScopeText(namespace: string, keyParts: unknown, compute: () => Promise<string>): Promise<string> {
   const scope = scopes.getStore();
   if (!scope) return compute();
   const key = createHash("sha256").update(JSON.stringify([namespace, canonical(keyParts)])).digest("hex");
   scope.used.add(key);
-  const pending = scope.fresh ? undefined : inFlight.get(key);
+  // 外部检索段不是主生成：强制重新生成时照常回放（它按时钟截断，重抽只会让主生成的提示词无故不同）。
+  const fresh = freshAppliesTo(scope, false);
+  const pending = fresh ? undefined : inFlight.get(key);
   if (pending) {
     const stored = await pending;
     if (stored) return stored.text;
@@ -291,7 +426,7 @@ export async function memoizedScopeText(namespace: string, keyParts: unknown, co
     if (inFlight.get(key) === mine) inFlight.delete(key);
     settle(value);
   };
-  if (!scope.fresh && !pending) {
+  if (!fresh && !pending) {
     const stored = await readStored(key);
     if (stored) {
       release(stored);

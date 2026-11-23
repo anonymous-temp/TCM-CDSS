@@ -46,7 +46,11 @@ import { declassifyAndDropOpposingM04CandidateHerbs, withoutPrecautionsNamingAbs
 import { applyHerbCautionHits, checkHerbCautions } from "@/lib/herb-caution-check.server";
 import { textbookPregnancyRestrictedHerbNames } from "@/lib/herb-textbook-identity";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
-import { memoizedScopeText } from "@/lib/model-call-memo.server";
+import { memoizedScopeText, setRegenerationFallbackSection } from "@/lib/model-call-memo.server";
+import {
+  prescribeAnchorApplies, prescribeAnchorDifference, prescribeAnchorFromReasoning, prescribeAnchorPromptSection,
+  readPrescribeAnchor, rememberPrescribeAnchor, type PrescribeRegenerationAnchor,
+} from "@/lib/regeneration-anchor.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
@@ -80,12 +84,18 @@ async function handlePost(req: Request) {
   // 同一租户、同一病例内容（含已签名 M03）的请求只算一次：进行中并入、已完成复用；调用方断开
   // 不中止计算（stage-result-coalescing.server.ts）。显式重抽：x-cdss-regenerate: force 或 ?regenerate=force。
   const regenerate = regenerateFreshRequested(req);
+  // 强制重新生成：同一份病历上一次交付的处方作基准（regeneration-anchor.server.ts）。读不到就照常生成。
+  const regenerationAnchor = regenerate
+    ? await readPrescribeAnchor(parsed.customer, parsed.caseState).catch(() => undefined)
+    : undefined;
   return coalesceStageResponse({
     stage: "prescribe",
     key: stageRequestFingerprint("prescribe", parsed.customer, parsed.caseState),
     bypass: regenerate,
-    compute: (signal) => computePrescribe(parsed, signal, orchestrationStartedAt),
+    compute: (signal) => computePrescribe(parsed, signal, orchestrationStartedAt, regenerationAnchor),
     cacheable: prescribeResultReusable,
+    // 每次真实算出的可复用处方都留作下一次重新生成的基准。
+    onReusableResult: (content) => rememberPrescribeAnchor(parsed.customer, parsed.caseState, content, diagnoseReasoningFromState(parsed.caseState)),
     // 复用给另一病例编号时按本次请求重新签名（本次 M03 核验不过则照常重算）；非剂量页没有签名。
     bindingId: contractBindingIdentity(parsed.caseState),
     rebindFinalContent: (content) => content.includes("<!-- DIAGNOSIS_JSON_START -->")
@@ -94,11 +104,19 @@ async function handlePost(req: Request) {
   });
 }
 
-async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal, orchestrationStartedAt: number): Promise<Response> {
+async function computePrescribe(
+  parsed: ParsedStageRequest,
+  signal: AbortSignal,
+  orchestrationStartedAt: number,
+  regenerationAnchor?: PrescribeRegenerationAnchor,
+): Promise<Response> {
   const submittedPriorReasoning = diagnoseReasoningFromState(parsed.caseState);
   if (!submittedPriorReasoning) {
     return Response.json({ error: "缺少辨病辨证结果，请重新生成辨病辨证后再进入候选方药。" }, { status: 409 });
   }
+  // 上次的处方是在同一组辨证结论下开的才作基准；交给模型调用层，在没有「同内容上一次输出」时兜底（model-call-memo.server.ts）。
+  const applicableRegenerationAnchor = prescribeAnchorApplies(regenerationAnchor, submittedPriorReasoning) ? regenerationAnchor : undefined;
+  setRegenerationFallbackSection(applicableRegenerationAnchor ? prescribeAnchorPromptSection(applicableRegenerationAnchor) : undefined);
   // 签名只标注、不拦截（owner 2026-10-12；contract-provenance.ts）。回传的 M03 与本系统签发版本
   // 不一致时（HIS 改过、未原样回传、换了病例编号），按回传内容继续：在本次请求内把它换绑到当前
   // 病例，后续编排与 M04 签名照常进行；结果开头附来源提示。内容本身不合法（不是一份 M03）才拒绝。
@@ -722,6 +740,22 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   // M04 签名完成即预取本例 M05 的随访作文（stage-prefetch.server.ts）。只写作文缓存。
   return tapFinalStageContent(response, (finalContent) => {
     void prefetchAssessFollowupFromSignedPrescribe(parsed.caseState, finalContent);
+    // 重新生成后与上一次比「决定」变没变（方名、药味、剂量、角色、加减行）。只记数目，不含病例内容。
+    if (regenerationAnchor) {
+      const difference = prescribeAnchorDifference(regenerationAnchor, prescribeAnchorFromReasoning(parseReasoningV2(finalContent), submittedPriorReasoning));
+      console.info("[tcm-cdss:telemetry] regeneration_anchor", {
+        stage: "prescribe",
+        basisSame: Boolean(applicableRegenerationAnchor),
+        comparable: Boolean(difference),
+        nameChanged: difference?.nameChanged,
+        herbsAdded: difference?.herbsAdded.length,
+        herbsRemoved: difference?.herbsRemoved.length,
+        dosesChanged: difference?.dosesChanged,
+        rolesChanged: difference?.rolesChanged,
+        modificationsAdded: difference?.modificationsAdded,
+        modificationsRemoved: difference?.modificationsRemoved,
+      });
+    }
   });
 }
 

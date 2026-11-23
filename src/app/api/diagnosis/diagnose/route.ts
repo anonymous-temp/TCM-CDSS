@@ -42,6 +42,8 @@ import { diseaseRecordContext } from "@/lib/tcm-disease-defining-findings";
 import { checkDiseaseAgainstDiagnosisPoints, diseaseRedrawHasSupportedDefinition, parseDiseaseRedrawDraft, redrawDiseasePointsTcmHalf } from "@/lib/m03-disease-points-check.server";
 import { textbookDiseaseDifferentialNames, textbookDiseaseNamesForCase, withTextbookSubtypeSyndromeNames } from "@/lib/tcm-textbook-syndromes";
 import { memoizedScopeText } from "@/lib/model-call-memo.server";
+import { diagnoseAnchorDifference, diagnoseAnchorFromReasoning, readDiagnoseAnchor, rememberDiagnoseAnchor } from "@/lib/regeneration-anchor.server";
+import { parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 import { checkLineageLensInContent, withLensFrom } from "@/lib/m03-lens-consistency.server";
 import { finalizeWesternPrimaryName } from "@/lib/western-name-standard.server";
@@ -66,12 +68,22 @@ async function handlePost(req: Request) {
   const regenerate = regenerateFreshRequested(req);
   const requestRef = randomUUID();
   const caseRef = createHash("sha256").update(parsed.caseState.id).digest("hex").slice(0, 12);
+  // 强制重新生成：两半各以同内容上一次的输出为基准（model-call-memo.server.ts）。这里只读上一次交付的结论，供算完后比对变没变。
+  const regenerationAnchor = regenerate
+    ? await readDiagnoseAnchor(parsed.customer, parsed.caseState).catch(() => undefined)
+    : undefined;
   const response = await coalesceStageResponse({
     stage: "diagnose",
     key: stageRequestFingerprint("diagnose", parsed.customer, parsed.caseState),
     bypass: regenerate,
     compute: (signal) => computeDiagnose(parsed, signal, requestRef),
     cacheable: diagnoseResultReusable,
+    onReusableResult: (content) => {
+      rememberDiagnoseAnchor(parsed.customer, parsed.caseState, content);
+      if (!regenerationAnchor) return;
+      const difference = diagnoseAnchorDifference(regenerationAnchor, diagnoseAnchorFromReasoning(parseReasoningV2(content)));
+      console.info("[tcm-cdss:telemetry] regeneration_anchor", { stage: "diagnose", comparable: Boolean(difference), ...difference });
+    },
     // 复用给另一病例编号时按本次请求重新签名，否则下游验签必然失败（甲方 9/30、10/9 实测）。
     bindingId: contractBindingIdentity(parsed.caseState),
     rebindFinalContent: (content) => applyDiagnoseContractSignature(content, buildDiagnoseContractSignatureContext(parsed.caseState)),

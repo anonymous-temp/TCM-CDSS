@@ -95,6 +95,8 @@ services:
       CDSS_MODEL_CALL_MEMO_DAYS: ${CDSS_MODEL_CALL_MEMO_DAYS:-30}
       # x-cdss-regenerate: 1 恢复旧口径（每次重抽）时设 true；缺省只有 force 才重抽。
       CDSS_REGENERATE_REDRAW: ${CDSS_REGENERATE_REDRAW:-false}
+      # 强制重新生成（x-cdss-regenerate: force）以同一份病历上一次的输出为基准：方名、药味、剂量、加减照上一次写。false 回到独立抽样。
+      CDSS_REGENERATION_ANCHOR: ${CDSS_REGENERATION_ANCHOR:-true}
       # 追问：没有值得问的题时是否如实返回 decision=proceed（调用方确认能处理后再开）；出题时是否按「不回答」预先计算。
       CDSS_M02_PROCEED_WHEN_SETTLED: ${CDSS_M02_PROCEED_WHEN_SETTLED:-false}
       CDSS_M02_PRECOMPUTE_NO_ANSWER: ${CDSS_M02_PRECOMPUTE_NO_ANSWER:-true}

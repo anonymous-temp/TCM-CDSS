@@ -40,8 +40,12 @@ export type CoalescedStage = "question" | "diagnose" | "prescribe";
  * 「重新生成」的口径（2026-11-01 第三十四轮）。甲方 10/29 起每个 M02/M03/M04 请求都带 `regenerate=1`，同一份病历每次重抽一遍，
  * 这是他们看到「同病历结果不同」和 M03 约 13 秒的主因。现在 `1` 不再重抽：同一版本内同一份病历直接回放，
  * 换版本后提示词没变的模型调用也回放（model-call-memo.server.ts）。
- * 真要重抽一次（量波动、医生确实想换一版）用 `x-cdss-regenerate: force` 或 `?regenerate=force`。
+ * 真要让模型重新生成一遍用 `x-cdss-regenerate: force` 或 `?regenerate=force`。
  * `CDSS_REGENERATE_REDRAW=true` 恢复旧口径：`1` 等于 `force`。
+ *
+ * 第五十八轮（2026-11-23）起，`force` 不再是独立抽样：只重抽阶段主生成，并以同一份病历上一次的输出为基准
+ *（model-call-memo.server.ts 的「重新生成的基准」、regeneration-anchor.server.ts），方名、药味、剂量、加减照上一次写。
+ * 要量独立抽样的波动：本机关掉基准（`CDSS_REGENERATION_ANCHOR=false`，需要连小任务一起重抽再加 `CDSS_REGENERATE_FRESH_SCOPE=all`）。
  */
 export function regenerateFreshRequested(req: Request): boolean {
   const value = req.headers.get("x-cdss-regenerate") || new URL(req.url).searchParams.get("regenerate") || "";
@@ -185,6 +189,29 @@ export function stageRequestFingerprint(
     .digest("hex");
 }
 
+/**
+ * 只按病历内容算的指纹（2026-11-23 第五十八轮，重新生成的基准用）：各阶段产物全部不进，其余与阶段指纹同一套归一
+ * （流程字段、会话元数据、文本写法）。同一份病历在追问、辨证、开方三个阶段得到同一个值；含代码版本与模型名，
+ * 发版后不再对上——上一版的结论不能成为新版的基准，否则修好的缺陷会被旧结果带回来。
+ */
+export function stageRecordFingerprint(
+  namespace: string,
+  tenant: { clientId?: string; customerId?: string },
+  caseState: unknown,
+): string {
+  const state = caseState && typeof caseState === "object" && !Array.isArray(caseState)
+    ? { ...(caseState as Record<string, unknown>) }
+    : {};
+  for (const key of OUTPUT_KEYS.question) delete state[key];
+  for (const key of WORKFLOW_KEYS) delete state[key];
+  for (const key of SESSION_METADATA_CONTAINERS) {
+    if (state[key] !== undefined) state[key] = withoutSessionMetadata(state[key]);
+  }
+  return createHash("sha256")
+    .update(`record\n${namespace}\n${generationIdentity()}\n${tenant.clientId || ""}\n${tenant.customerId || ""}\n${canonicalJson(state)}`)
+    .digest("hex");
+}
+
 /** 从一组 NDJSON 行还原最终正文（与 tapFinalStageContent 同口径：取最后一个替换标记之后）。 */
 function finalContentFromLines(lines: readonly string[]): { content: string; ended: boolean; errored: boolean } {
   let accumulated = "";
@@ -322,6 +349,59 @@ async function readPersisted(stage: CoalescedStage, cacheKey: string): Promise<E
   }
 }
 
+// ─── 旁挂的小份留存（重新生成的基准等）：与阶段结果同一目录、同一密钥、同一保留期，按命名空间分子目录。 ───
+const sidecarMemory = new Map<string, { storedAt: number; value: unknown }>();
+const SIDECAR_MEMORY_MAX = 512;
+
+export async function writeStageSidecar(namespace: string, sidecarKey: string, value: unknown): Promise<void> {
+  const memoryKey = `${namespace}|${sidecarKey}`;
+  sidecarMemory.delete(memoryKey);
+  sidecarMemory.set(memoryKey, { storedAt: Date.now(), value });
+  while (sidecarMemory.size > SIDECAR_MEMORY_MAX) {
+    const oldest = sidecarMemory.keys().next().value;
+    if (oldest === undefined) break;
+    sidecarMemory.delete(oldest);
+  }
+  const dir = persistDir();
+  const key = persistKey();
+  if (!dir || !key) return;
+  try {
+    const shard = join(dir, namespace, sidecarKey.slice(0, 2));
+    await mkdir(shard, { recursive: true, mode: 0o700 });
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", key, iv);
+    cipher.setAAD(Buffer.from(`${namespace}|${sidecarKey}`, "utf8"));
+    const data = Buffer.concat([cipher.update(gzipSync(Buffer.from(JSON.stringify(value), "utf8"))), cipher.final()]);
+    const path = join(shard, `${sidecarKey}.bin`);
+    const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(temporary, Buffer.concat([iv, cipher.getAuthTag(), data]), { mode: 0o600 });
+    await rename(temporary, path);
+    void prunePersistedShard(shard);
+  } catch (error) {
+    console.warn("[tcm-cdss:telemetry] stage_sidecar_persist", { ok: false, namespace, reason: error instanceof Error ? error.name : "unknown" });
+  }
+}
+
+export async function readStageSidecar(namespace: string, sidecarKey: string): Promise<unknown> {
+  const held = sidecarMemory.get(`${namespace}|${sidecarKey}`);
+  if (held && Date.now() - held.storedAt < persistTtlMs()) return held.value;
+  const dir = persistDir();
+  const key = persistKey();
+  if (!dir || !key) return undefined;
+  try {
+    const path = join(dir, namespace, sidecarKey.slice(0, 2), `${sidecarKey}.bin`);
+    const info = await stat(path);
+    if (Date.now() - info.mtimeMs > persistTtlMs()) return undefined;
+    const raw = await readFile(path);
+    const decipher = createDecipheriv("aes-256-gcm", key, raw.subarray(0, 12));
+    decipher.setAAD(Buffer.from(`${namespace}|${sidecarKey}`, "utf8"));
+    decipher.setAuthTag(raw.subarray(12, 28));
+    return JSON.parse(gunzipSync(Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()])).toString("utf8")) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 function evictExpired(now: number): void {
   for (const [key, entry] of entries) {
     if (entry.done && (!entry.cacheable || now - (entry.finishedAt || entry.createdAt) > RESULT_TTL_MS)) entries.delete(key);
@@ -394,6 +474,8 @@ export async function coalesceStageResponse(input: {
   bindingId?: string;
   /** 把可复用的最终正文按本次请求重新签名；返回 undefined 表示换绑不了，本次照常重算。 */
   rebindFinalContent?: (finalContent: string) => string | undefined;
+  /** 本次真实计算得到可复用的最终正文时调用一次（降级页、中断页不调）。只做留存，异常不影响结果。 */
+  onReusableResult?: (finalContent: string) => void;
 }): Promise<Response> {
   const memoScope = currentModelCallMemoScope();
   if (!stageResultReuseEnabled()) return input.compute(new AbortController().signal);
@@ -496,7 +578,10 @@ export async function coalesceStageResponse(input: {
       entries.delete(input.key);
       // 降级结果不能被模型调用这一层固定下来：这次用过的答案作废，下次重试才可能不同。
       void forgetModelCallsInScope(memoScope);
-    } else void writePersisted(entry);
+    } else {
+      void writePersisted(entry);
+      try { input.onReusableResult?.(final.content); } catch { /* 留存失败不影响本次结果 */ }
+    }
     entry.rawChunks = [];
     for (const subscriber of entry.subscribers) {
       try { subscriber.close(); } catch { /* subscriber already gone */ }
@@ -537,4 +622,5 @@ export async function coalesceStageResponse(input: {
 /** 测试用：清空进程内缓存。 */
 export function resetStageResultCacheForTests(): void {
   entries.clear();
+  sidecarMemory.clear();
 }

@@ -966,6 +966,9 @@ const scripts = [
   "test:r1075-western-section-names",
   // 同轮：同一味药的不同写法或同源同用（芒硝/玄明粉…）按候选生成器全量列出并逐对定性，56 组同用、120 对同源异用、85 对无关。
   "test:r1075-same-source-herbs",
+  // 第五十八轮（2026-11-23）：强制重新生成（x-cdss-regenerate: force）时方名、药味、加减仍会变。强制时只重抽阶段主生成、其余同内容回放；
+  // 主生成以同内容上一次的输出为基准（键不变、覆盖写回）；开方另留一份按病历取的处方基准，辨证文字重写后兜底；CDSS_REGENERATION_ANCHOR=false 回到独立抽样。
+  "test:r1076-main",
   // 第五十轮：定稿依据复用证素闭合、病名病邪与教材证素许可。
   "test:r1067-rationale3",
 ];
