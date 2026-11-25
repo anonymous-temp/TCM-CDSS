@@ -169,6 +169,10 @@ export function basisSaysNameNotEstablished(basis: string, name: string): boolea
   // 「分型」不能遮住同句的「方能确立X」（ACS、DKA）。
   if (new RegExp(`(?:方可|才能|方能)(?:确诊|确立|诊断)${escaped}`, "u").test(source)) return true;
   if (new RegExp(`${escaped}(?:诊断)?尚缺[^，,。；;]{0,12}(?:评估|检查)[^，,。；;]{0,6}排除`, "u").test(source)) return true;
+  // 「诊断药物性皮炎尚缺停药后皮疹消退观察及药物激发试验」（第五十九轮 r1077 P023：病名写确诊、依据句却说诊断它还缺东西）。
+  // 只认「诊断＋病名＋尚缺」「病名＋的诊断＋尚缺」两种直说诊断本身缺依据的写法；缺的是病因、分型、部位这类下位信息的不算。
+  const diagnosisLacks = new RegExp(`(?:诊断${escaped}|${escaped}的诊断)(?:尚|仍|还)缺([^，,。；;]{0,30})`, "u").exec(source);
+  if (diagnosisLacks && !SUBLEVEL.test(diagnosisLacks[1])) return true;
   const gaps = source.split(/[。；;]/u).filter((clause) => CONFIRMATION_GAP.test(clause) && !SUBLEVEL.test(clause));
   if (gaps.length > 0) return true;
   if (CLINICAL_ESTABLISHMENT.test(source)) return false;
@@ -277,7 +281,9 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
       (!known && !treated && basisSaysNameNotEstablished(cleaned.split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part)).join("。"), core))
       : (!treated && (/待[查排]$/u.test(name) || (!known && (basisSaysNameNotEstablished(cleaned, core) || organicStillToExclude))));
   const escaped = escapePattern(core);
-  const established = new RegExp(`(?:${escaped})?诊断(?:${escaped})?(?:已|可)?(?:确立|成立|明确)|据此临床诊断${escaped}`, "u");
+  // 第五十九轮（r1077 R006、P024、P020）：「便秘诊断可临床成立」「诊断寻常痤疮可临床确立」「可临床诊断结节性痒疹」同样是说诊断成立，
+  // 病名带「待查」时这几种写法此前没被认出来，名与依据于是一个待查、一个成立。
+  const established = new RegExp(`(?:${escaped})?诊断(?:${escaped})?(?:已|可)?(?:临床)?(?:确立|成立|明确)|据此临床诊断${escaped}|可(?:以)?临床诊断(?:为)?${escaped}`, "u");
   const speculative = new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}`, "u");
   const oppositeCourse = /^(急性|慢性)/u.exec(core);
   const oppositeName = oppositeCourse ? `${oppositeCourse[1] === "急性" ? "慢性" : "急性"}${core.slice(2)}` : "";

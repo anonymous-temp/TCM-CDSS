@@ -1,3 +1,4 @@
+import { isLineageLensSentence } from "./tcm-lineages";
 import { isEvidenceDiseaseSubtype } from "./m03-evidence-disease-subtypes";
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import { recordCourseDays, courseSpans } from "./western-record-course";
@@ -943,8 +944,9 @@ export function medicineRowIsExternal(name: string, route: string): boolean {
 
 /** 说明书注意事项里的疗程句（「服药2周症状无缓解，应去医院就诊」）：作这一行的使用边界。没有时返回空串。 */
 export function labelCourseBoundary(riskNote: string): string {
+  // 说明书注意事项的条目编号有「5、」「5.」也有「5 」（R054「5 服药3天症状无缓解」带着编号交付）：编号一律不进这一句。
   const sentence = String(riskNote || "").split(/[。；;]|\d+[、.．]/u)
-    .map((item) => item.trim())
+    .map((item) => item.trim().replace(/^\d{1,2}\s+(?=[\u4e00-\u9fff])/u, ""))
     .find((item) => /(?:服药|用药)\s*(?:\d+|[一二两三四五六七八九十])\s*(?:天|日|周|个月)[^，,]*?(?:无|未)(?:明显)?(?:缓解|改善|好转)/u.test(item));
   return sentence ? `${sentence.replace(/[，,]\s*$/u, "")}。` : "";
 }
@@ -1269,6 +1271,43 @@ export function deliveredWesternBasis(western: unknown): string | undefined {
   return text.length > 300 ? `${text.slice(0, 299)}…` : text;
 }
 
+/**
+ * 西医诊断依据一句话里由服务端造成的、读着别扭的几类写法（第五十九轮，r1077 百例阅卷西医 47 处欠妥里的服务端部分）：
+ *  · 「乏力待查诊断尚未确立」「口干待查目前诊断未确立」「腹泻待查尚未确诊」：带着「待查」的病名被代进句子里，改写成「乏力的病因尚未明确」。
+ *  · 「胸闷待查考虑冠心病、心律失常可能」：去掉代进去的「X待查」。
+ *  · 「本次病历未记录心脏听诊结果，需现场补充」：查体断言净化器的替换句，放在诊断依据里是系统口吻，整个小句去掉。
+ *  · 舌象、脉象（「舌红苔腻、脉弦滑」）不是西医诊断依据，去掉这几项；「舌下含服」「脉搏」「脉压」这类不是舌脉描述的不动。
+ *  · 只剩「但现有资料尚不足以确定具体病因，因此暂不采用更具体的病因标签」半句（前半句里的病历否定词被净化掉，R095）：
+ *    换成临床说法，句首只剩这半句时前面补上主诉。
+ * 只删改这几类闭集写法，不新增病历里没有的事实。幂等。
+ */
+const TONGUE_PULSE_BASIS_ITEM = /^(?:舌(?:质|体|色|象|苔|淡|红|暗|紫|绛|胖|瘦|边|尖|嫩|干|有[齿瘀裂]|少[苔津]|无苔)[\u4e00-\u9fff]{0,12}|苔[\u4e00-\u9fff]{1,8}|脉(?:象)?[弦细滑数沉浮缓涩濡紧迟洪弱虚实结代促微芤革散伏长短大小略稍偏而有无力]{1,8})$/u;
+export function tidiedWesternBasis(basis: string, recordText?: string): string {
+  let text = basis
+    .replace(/[，,；;]?本次病历未记录[^，,。；;]{1,24}结果，需现场补充/gu, "")
+    .replace(/([\u4e00-\u9fff]{2,14}?)待查(?:目前|现)?(?:的)?诊断(?:尚)?未(?:能)?确立/gu, "$1的病因尚未明确")
+    .replace(/([\u4e00-\u9fff]{2,14}?)待查尚未确诊/gu, "$1的病因尚未明确")
+    .replace(/[\u4e00-\u9fff]{2,14}?待查(?=考虑[^，,。；;]{2,40}可能)/gu, "")
+    .replace(/但?现有资料尚不足以确定具体病因，因此暂不采用更具体的病因标签/gu, "具体病因尚待进一步检查明确");
+  const parts = text.split(/([，,；;。])/u);
+  const kept: string[] = [];
+  for (let at = 0; at < parts.length; at += 2) {
+    const clause = parts[at];
+    const separator = parts[at + 1] || "";
+    if (!clause.trim()) { if (separator === "。" && kept.length) kept.push(separator); continue; }
+    const items = clause.split("、");
+    const remaining = items.filter((item) => !TONGUE_PULSE_BASIS_ITEM.test(item.trim()));
+    if (remaining.length === 0) { if (separator === "。" && kept.length) kept.push(separator); continue; }
+    kept.push(remaining.join("、") + separator);
+  }
+  text = kept.join("").replace(/([，,；;])[，,；;]+/gu, "$1").replace(/[，,；;]+。/gu, "。").replace(/。{2,}/gu, "。").replace(/^[，,；;。\s]+/u, "").trim();
+  if (/^具体病因尚待进一步检查明确/u.test(text)) {
+    const complaint = chiefComplaintFromRecord(recordText).replace(/[。.\s]+$/u, "");
+    if (complaint) text = `以${complaint}就诊，${text}`;
+  }
+  return text;
+}
+
 /** 症状依据栏里只有交付面放的那一句诊断依据（开方阶段读回时据此判定「没有病历事实」）。 */
 export function isDeliveredWesternBasisOnly(supportingFacts: readonly unknown[], western: unknown): boolean {
   const basis = deliveredWesternBasis(western);
@@ -1311,7 +1350,8 @@ export function deliveredWesternDiagnosisName(name: unknown, coding?: unknown): 
   // 交付时不能只去掉「症状」两字留下裸症状（第三十五轮 A15、A09：主诊断只写「乏力」「咳嗽咳痰」；甲方口径是症状层面写「X待查」）。
   const namedSymptom = /症状$/.test(core);
   core = core.replace(/症状$/, "");
-  if (/待查$/.test(core)) return core;
+  // 「心悸症状待查」「咳嗽症状待查」（第五十九轮 r1077 百例 5 份）：模型把「症状」和「待查」都写上了，门诊写法是「心悸待查」。
+  if (/待查$/.test(core)) return core.replace(/(?<=[\u4e00-\u9fff]{2})症状(?=待查$)/u, "");
   return (causeUnknown && symptomLevel) || namedSymptom ? `${core}待查` : core;
 }
 
@@ -1653,7 +1693,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
         options.recordText,
       );
       if (!readOnlyConclusions) primary.name = settled.name;
-      primary.clinicalRationale = settled.basis;
+      primary.clinicalRationale = tidiedWesternBasis(settled.basis, options.recordText) || settled.basis;
     }
     const basis = deliveredWesternBasis(western);
     primary.supportingFacts = basis ? [basis] : [];
@@ -2606,6 +2646,14 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
           .replace(/禁用或须强复核/g, "禁用").replace(/[；;。\s]+$/g, "").trim();
       } else if (NOT_APPLICABLE_TEMPLATE_HEAD.test(text.trim())) {
         candidate.notApplicable = text.trim().replace(NOT_APPLICABLE_TEMPLATE_HEAD, "");
+      }
+      // 慎用栏里括号不成对的残句整句去掉（第五十九轮 r1077 P020、P022：「蒺藜（毒性：有小毒何首乌（老年人、肝功能不全慎用）。 川芎（…）；蒺藜（毒性：有小毒）」——
+      // 旧的逐味尾段去掉标记以后被别的改写削坏，新的尾段又接在后面）。成对的句子原样保留；不重写内容。
+      if (typeof candidate.notApplicable === "string") {
+        const balanced = (value: string) => (value.match(/（/gu) || []).length === (value.match(/）/gu) || []).length;
+        if (!balanced(candidate.notApplicable)) {
+          candidate.notApplicable = candidate.notApplicable.split(/(?<=。)/u).map((sentence) => sentence.trim()).filter((sentence) => sentence && balanced(sentence)).join(" ");
+        }
       }
     }
     const source = record(candidate.formulaSource);
@@ -4146,6 +4194,93 @@ function resolvedTriggerSource(reasoning: Json, source: Json): Json | undefined 
  * 剩下 P2、P3；开方模型看到编号从 2 开始就把首味药的靶点写成不存在的 P1，合同 target_ref_invalid，整页成了无剂量页。
  * 辨证结果里没有别的字段按编号引用节点；开方阶段的药味靶点引用交付后的编号，所以只在 diagnose 阶段重排（prescribe 不动）。
  */
+/**
+ * 辨证依据只剩一句待核实的话时，用本例自己的病机链把「表现→病机→证」补回来（第五十九轮，r1077 P006：
+ * 辨证依据只有「舌脉未记录，津伤与邪陷深浅待复核。」，前面的推理句在前序的删改里掉光了，而病机链三条都在）。
+ * 只在：依据不足 45 字、且没有引到任何一条病机链的病历表现时补；补的内容全部来自已交付的病机链与证名，不新增事实。幂等。
+ */
+export function rationaleWithFloorFromChain(rationale: string, chain: readonly Record<string, unknown>[], primary: string): string {
+  const current = String(rationale || "").trim();
+  const nodes = chain.map((node) => ({ fact: String(node.patientFact || "").trim().replace(/[。；;，,]+$/u, ""), mechanism: String(node.pathogenesis || "").trim().replace(/[。；;，,]+$/u, "") }))
+    .filter((node) => node.fact.length >= 2 && node.mechanism.length >= 2);
+  const name = String(primary || "").trim();
+  if (nodes.length === 0 || !name || current.length >= 45) return rationale;
+  if (nodes.some((node) => current.includes(node.fact.slice(0, 4)))) return rationale;
+  const rebuilt = `${nodes.map((node) => `${node.fact}，为${node.mechanism}`).join("；")}。故辨为${name}。`;
+  return current ? `${rebuilt}${current}` : rebuilt;
+}
+
+/**
+ * 辨证依据的结论句与交付的证名对齐（第五十九轮，r1077 百例阅卷诊断依据 5 错 34 欠妥里最多的一类）：
+ *  · 证候栏「肺气虚证」，依据末句「故辨证为肺脾气虚证」（证名在服务端按教材证型收窄以后，模型原来的结论句没跟着改）：
+ *    结论句里的证名换成交付的主证名。只换与主证名至少有两个字相同的（同一个证的宽窄写法），别的病证名不动。
+ *  · 证候栏没有兼证，依据末句却写「……证，兼湿浊内停」「属痰热扰心兼血瘀」：去掉这半句（甲方口径：兼证要有成组依据才立，
+ *    没立就不在结论里说「兼」）。交付了对应兼证的不动。
+ * 只动最后两句里带「辨为/辨证为/故属/证属」的那一句；流派视角句不动。不新增内容。幂等。
+ */
+const RATIONALE_CONCLUSION_VERB = /辨证为|辨为|故属|证属|辨属/u;
+export function rationaleConclusionAlignedWithSyndrome(rationale: string, primary: string, secondaries: readonly string[]): string {
+  const core = (name: string) => String(name || "").trim().replace(/证$/u, "");
+  const primaryCore = core(primary);
+  if (!rationale || primaryCore.length < 2) return rationale;
+  const delivered = [primaryCore, ...secondaries.map(core).filter(Boolean)];
+  const sharedCharacters = (a: string, b: string) => [...new Set(a)].filter((char) => b.includes(char)).length;
+  const parts = rationale.split(/(。)/u);
+  const sentenceIndexes = parts.map((_, index) => index).filter((index) => index % 2 === 0 && parts[index].trim());
+  const target = sentenceIndexes.slice(-2).reverse().find((index) => RATIONALE_CONCLUSION_VERB.test(parts[index]) && !isLineageLensSentence(parts[index]));
+  if (target === undefined) return rationale;
+  let sentence = parts[target].replace(/(辨证为|辨为|故属|证属|辨属)([\u4e00-\u9fff]{2,12}?)证/gu, (match, verb: string, name: string) => {
+    if (delivered.includes(name) || name === primaryCore) return match;
+    return sharedCharacters(name, primaryCore) >= 2 ? `${verb}${primaryCore}证` : match;
+  });
+  // 只认两种位置的「兼」：证名之后（「……证，兼湿浊内停」）与紧跟在主证名后面（「属痰热扰心兼血瘀」）。
+  // 「病性属阳亢兼郁热」这类讲病性的不动。
+  const escapedPrimary = primaryCore.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const withoutUndeliveredSecondary = (match: string, lead: string, element: string) => {
+    if (!/[湿痰瘀滞郁热寒虚火风燥饮毒浊]/u.test(element)) return match;
+    return delivered.slice(1).some((name) => sharedCharacters(element, name) >= 2) ? match : lead;
+  };
+  sentence = sentence.replace(/(证)[，,]\s*兼(?:夹|有|见)?([\u4e00-\u9fff]{2,10}?)(?:证)?(?=[，,；;]|$)/gu, withoutUndeliveredSecondary)
+    .replace(new RegExp(`(${escapedPrimary})兼(?:夹|有|见)?([\\u4e00-\\u9fff]{2,8}?)(?:证)?(?=[，,；;]|$)`, "gu"), withoutUndeliveredSecondary);
+  if (sentence === parts[target]) return rationale;
+  parts[target] = sentence.replace(/^[，,；;]+/u, "");
+  return parts.join("");
+}
+
+/**
+ * 病机链里只拿舌象、脉象当「病历表现」的节点并回第一条的证据（第五十九轮，r1077 百例阅卷病机分析「机械句式」7 份）：
+ * 「脉弦细 → 血虚脉道不充 → 养血和脉，通利脉道」这类节点推出的治法多半不在总治法里，舌脉本来就是前一条的证据。
+ * 只在辨证阶段做（开方阶段药味的 targetRef 指着已交付的节点编号）；该节点独自承担总治法里某一项时不动；
+ * 整条链都是舌脉节点时不动。同序的 subTherapies 一并去掉。幂等。
+ */
+function withoutTonguePulseOnlyChainNodes(reasoning: Json): void {
+  if (reasoning.stage !== "diagnose") return;
+  const pathogenesis = record(reasoning.pathogenesis);
+  const chain = pathogenesis?.chain;
+  if (!pathogenesis || !Array.isArray(chain) || chain.length < 2) return;
+  const therapy = record(reasoning.therapy);
+  const overall = typeof therapy?.overallMethod === "string" ? therapy.overallMethod : "";
+  const tonguePulseOnly = (fact: unknown) => typeof fact === "string" && fact.trim().length > 0 &&
+    fact.split(/[；;，,、。\s]+/u).filter(Boolean).every((piece) => TONGUE_PULSE_BASIS_ITEM.test(piece.trim()));
+  const rows = chain.map((node) => record(node));
+  const head = rows.find((row) => row && !tonguePulseOnly(row.patientFact));
+  if (!head) return;
+  const removed = rows.flatMap((row, index) => {
+    if (!row || !tonguePulseOnly(row.patientFact)) return [];
+    const items = String(row.therapyDirection || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+    const soleCarrier = items.some((item) => overall.includes(item) &&
+      !rows.some((other, at) => at !== index && other && !tonguePulseOnly(other.patientFact) && String(other.therapyDirection || "").includes(item)));
+    return soleCarrier ? [] : [index];
+  });
+  if (removed.length === 0) return;
+  const evidence = String(head.syndromeEvidence || "");
+  const extra = removed.flatMap((index) => String(rows[index]!.patientFact).split(/[；;]/u)).map((fact) => fact.trim()).filter((fact) => fact && !evidence.includes(fact));
+  if (extra.length > 0) head.syndromeEvidence = [evidence, ...new Set(extra)].filter(Boolean).join("；");
+  pathogenesis.chain = chain.filter((_, index) => !removed.includes(index));
+  const subTherapies = therapy?.subTherapies;
+  if (therapy && Array.isArray(subTherapies) && subTherapies.length === chain.length) therapy.subTherapies = subTherapies.filter((_, index) => !removed.includes(index));
+}
+
 export function withContiguousChainNodeIds<T>(reasoning: T): T {
   const object = record(reasoning);
   const chain = object?.stage === "diagnose" ? record(object.pathogenesis)?.chain : undefined;
@@ -4310,6 +4445,19 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   if (therapy && typeof therapy.overallPrinciple === "string") therapy.overallPrinciple = principleWhenRedFlag(therapy.overallPrinciple, redFlagActiveFor(options));
   if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope))), methodCap, textbookMethodItems);
   if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope))), methodCap, textbookMethodItems);
+  if (projected.stage === "diagnose" && !readOnlyConclusions && !isLimitedDiagnose(projected)) withoutTonguePulseOnlyChainNodes(projected);
+  if (projected.stage === "diagnose" && !readOnlyConclusions && !isLimitedDiagnose(projected)) {
+    const overviewForConclusion = record(projected.overview);
+    if (overviewForConclusion && typeof overviewForConclusion.tcmDiagnosticRationale === "string") {
+      const primaryForConclusion = typeof overviewForConclusion.primarySyndrome === "string" ? overviewForConclusion.primarySyndrome : "";
+      const floored = rationaleWithFloorFromChain(overviewForConclusion.tcmDiagnosticRationale, records(record(projected.pathogenesis)?.chain), primaryForConclusion);
+      overviewForConclusion.tcmDiagnosticRationale = rationaleConclusionAlignedWithSyndrome(
+        floored,
+        primaryForConclusion,
+        Array.isArray(overviewForConclusion.secondarySyndromes) ? overviewForConclusion.secondarySyndromes.filter((item): item is string => typeof item === "string") : [],
+      );
+    }
+  }
   if (projected.stage === "diagnose" && options?.recordText && !isLimitedDiagnose(projected)) withAxisBookkeepingFromFinalContent(projected, options.recordText);
   if (projected.stage === "diagnose" && options?.recordText) withSyndromeResolutionFromAxes(projected, options.recordText, options.m03ElementAllows);
   // 证素核对的待核实项里列着辨证要点原文：本例不可能有的那几项（男性、儿童、老人的滑胎、带下、月经）不列（2026-11-14 第四十五轮：

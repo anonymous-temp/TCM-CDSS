@@ -1,3 +1,4 @@
+import differentialSiteTerms from "../data/tcm-differential-site-terms.source.json";
 import { evidenceDiseaseSubtype, evidenceSubtypeParent, evidenceSubtypeRowGroup, isEvidenceDiseaseSubtype } from "./m03-evidence-disease-subtypes";
 import { diseaseEvidenceGroups, diseaseRecordChief, diseaseRefinementEnabled } from "./m03-disease-evidence";
 import { diseaseNeutralCategoryName, diseaseNeutralPrompt, supportedDiseaseNeutralName } from "./m03-disease-neutral-policy";
@@ -875,12 +876,34 @@ const DIFFERENTIAL_REASON_FILLER = /本例|患者|病人|需要|需与|鉴别|�
 export function tcmDifferentialSelfDeclaredUnrelated(diseaseName: string, rowText: string, recordText: string, currentDisease = "", reasonText?: string): boolean {
   const name = splitTextbookDiseaseSubtype(text(diseaseName)).disease;
   if (name.length < 2 || !rowText || !recordText) return false;
+  // 以局部命名的鉴别病（鼻渊、乳蛾…）而病历里没有该部位的任何表现、这一行自己也否认了它的主症：与本例无相似处，
+  // 教材把它列为本病的鉴别病也一样（教材的感冒一节列了鼻渊；甲方先例：患者无鼻部症状却与鼻渊鉴别判错。第五十九轮 r1077 R039）。
+  const site = (differentialSiteTerms as { sites: Array<{ nameChars: string[]; recordTerms: string[] }> }).sites.find((row) => row.nameChars.some((char) => name.startsWith(char)));
+  const affirmedInRecord = (term: string) => {
+    for (let index = recordText.indexOf(term); index >= 0; index = recordText.indexOf(term, index + 1)) {
+      if (recordMentionPolarityAt(recordText, index) === "affirmed") return true;
+    }
+    return false;
+  };
+  const mainManifestation = differentialDefinitionEntries(name).map((entry) => textbookDefinitionKeyManifestation(text(entry.definition))).filter(Boolean).join("，");
+  const deniesMainManifestation = Boolean(mainManifestation) && [...rowText.matchAll(/(?:未诉|未见|未有|不伴|并无|无明显|非|无)([\u4e00-\u9fff、或及]{2,16})/gu)].some((match) => {
+    const denied = match[1];
+    for (let at = 0; at + 2 <= denied.length; at += 1) {
+      const run = denied.slice(at, at + 2);
+      if (/^[\u4e00-\u9fff]{2}$/u.test(run) && mainManifestation.includes(run)) return true;
+    }
+    return false;
+  });
+  if (site && deniesMainManifestation && !site.recordTerms.some(affirmedInRecord)) return true;
   // 教材对本病列出的鉴别病不按这一条去掉。
   if (currentDisease && textbookDifferentialsForDisease(currentDisease, 50).some((item) => item.name === name || splitTextbookDiseaseSubtype(item.name).disease === name)) return false;
   const nameChars = [...new Set([...name])];
   const declared = [...rowText.matchAll(/(?:未诉|未见|未有|不伴|并无|无明显|无)([\u4e00-\u9fff]{2,10})/gu)].some((match) =>
     nameChars.filter((ch) => match[1].includes(ch)).length >= Math.min(2, nameChars.length));
-  if (!declared) return false;
+  // 第五十九轮（r1077 百例阅卷鉴别 5 错：便秘与「泄泻」鉴别——甲方点名过的先例）：病名不是症状名的鉴别病，上面按病名的字认不出
+  // 「本例没有它的主症」。改看教材给它的主要表现：这一行自己否认了其中一项（「非便次增多、粪质稀薄」）也算；
+  // 之后与按病名认出的走同一套判据（相似处写了同一部位或本例已见表现的保留；教材主症与本例已见表现有交集的保留）。
+  if (!declared && !deniesMainManifestation) return false;
   const reason = text(reasonText ?? rowText.split("；")[0]);
   if (/部位|病位|同在|同居|同处/u.test(reason)) return false;
   const residue = reason.replace(DIFFERENTIAL_REASON_FILLER, "，");

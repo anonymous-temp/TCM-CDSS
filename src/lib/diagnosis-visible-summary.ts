@@ -12,7 +12,7 @@ import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMo
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import coldHeatSignsJson from "../data/tcm-cold-heat-signs.source.json" with { type: "json" };
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
-import { classifyNatureColumns } from "./nature-column-classification";
+import { classifyNatureColumns, natureItemDeficiencyOrExcess, natureItemsWithoutMechanismPhrases, natureLabelsNamedBySyndromeMissingFrom, exteriorSyndromeNatureLabel, organsNamedBySyndromeMissingFrom } from "./nature-column-classification";
 export { natureItemDeficiencyOrExcess } from "./nature-column-classification";
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
@@ -889,7 +889,48 @@ export function withAxisBookkeepingFromFinalContent(reasoning: Record<string, un
   const dropServerBoilerplate = (axis: Record<string, unknown>) => {
     if (typeof axis.resolutionReason === "string" && AXIS_SERVER_BOILERPLATE_REASON.test(axis.resolutionReason)) delete axis.resolutionReason;
   };
+  // 第五十九轮（r1077 百例阅卷，病机分析 11 错 43 欠妥）：
+  //  · 病位没有逐字依据时先从本例自己的分析里找：病机链里点到这个病位的那一条的病历表现，或证名带这个病位时的主证依据。
+  //    此前这种情形写「病位“心”尚缺直接的病历依据」，而主诉就是心悸（R015、R083、P018）；交付面删掉这句后，后面的结构归一又补回来。
+  //  · 证名自带的脏腑、病性在两栏里缺席时补上（证名脾肾阳虚而病位无肾；证名寒湿而病性只列湿；兼证肺脾气虚而本虚为无）。
+  //  · 病性栏里写成机理句的条目（外邪袭表、湿郁化热）换成所含病性词；证名是外感表证而病性栏为空时写「外邪」，寒热另注待核实。
+  const overviewForAxes = recordValue(reasoning.overview);
+  const syndromeNameText = [overviewForAxes?.primarySyndrome, ...(Array.isArray(overviewForAxes?.secondarySyndromes) ? overviewForAxes!.secondarySyndromes as unknown[] : [])]
+    .map((name) => String(name || "").replace(/证$/u, "")).filter(Boolean).join("、");
+  const primarySyndromeNameText = String(overviewForAxes?.primarySyndrome || "").replace(/证$/u, "");
+  const chainNodes = (Array.isArray(pathogenesis?.chain) ? pathogenesis!.chain as unknown[] : []).flatMap((node) => { const row = recordValue(node); return row ? [row] : []; });
+  const syndromeBasis = deliveredVerbatimBasis(semanticItems(overviewForAxes?.primarySyndromeBasis).join("；"), clinicalContext);
+  const locationBasisFromOwnAnalysis = (item: string): string => {
+    const stem = item.replace(/[窍部腑脏]$/u, "") || item;
+    for (const node of chainNodes) {
+      const fact = deliveredVerbatimBasis(node.patientFact, clinicalContext);
+      if (!fact) continue;
+      const mechanism = `${String(node.pathogenesis || "")}${String(node.therapyDirection || "")}`;
+      if (mechanism.includes(item) || mechanism.includes(stem) || String(node.patientFact || "").includes(stem)) return fact;
+    }
+    // 主证依据只属于主证：兼证名带的脏腑不借主证依据（P021 兼证肺脾气虚，不拿咳嗽咳痰当脾的依据）。
+    return primarySyndromeNameText.includes(item) || primarySyndromeNameText.includes(stem) ? syndromeBasis : "";
+  };
   if (location) {
+    const details = Array.isArray(location.details) ? location.details as unknown[] : [];
+    const groundedNow = () => details.flatMap((detail) => {
+      const row = recordValue(detail);
+      const label = String(row?.location || "").trim();
+      return row && label && deliveredVerbatimBasis(row.basis, clinicalContext) ? [label] : [];
+    });
+    const fill = (item: string) => {
+      if (locationHasBasis(item, groundedNow())) return true;
+      const basis = locationBasisFromOwnAnalysis(item);
+      if (!basis) return false;
+      const existing = details.map((detail) => recordValue(detail)).find((row) => row && String(row.location || "").trim() === item);
+      if (existing) existing.basis = basis; else details.push({ location: item, basis });
+      return true;
+    };
+    for (const item of semanticItems(location.items)) fill(item);
+    for (const organ of organsNamedBySyndromeMissingFrom(primarySyndromeNameText, semanticItems(location.items))) {
+      if (fill(organ)) location.items = [...semanticItems(location.items), organ];
+    }
+    if (details.length > 0) location.details = details;
     const items = semanticItems(location.items);
     const groundedLocations = (Array.isArray(location.details) ? location.details : []).flatMap((detail) => {
       const row = recordValue(detail);
@@ -913,12 +954,67 @@ export function withAxisBookkeepingFromFinalContent(reasoning: Record<string, un
     for (const key of ["items", "rootDeficiency", "branchExcess"] as const) {
       if (Array.isArray(nature[key])) nature[key] = semanticItems(nature[key]).filter((item) => !NATURE_PATTERN_LABEL.test(item));
     }
+    const labelsBefore = JSON.stringify([nature.items, nature.rootDeficiency, nature.branchExcess]);
+    const withoutMechanismPhrases = () => {
+      for (const key of ["items", "rootDeficiency", "branchExcess"] as const) {
+        if (Array.isArray(nature[key])) nature[key] = natureItemsWithoutMechanismPhrases(semanticItems(nature[key]));
+      }
+      // 三栏合起来看：任一栏已有具体邪气时，各栏里笼统的「外邪」都去掉（只看单栏会在分栏重排后又回来，不幂等）。
+      const exterior = exteriorSyndromeNatureLabel("外邪");
+      const every = [...semanticItems(nature.items), ...semanticItems(nature.rootDeficiency), ...semanticItems(nature.branchExcess)];
+      if (exterior && every.some((item) => item !== exterior && natureItemDeficiencyOrExcess(item) === "branch")) {
+        for (const key of ["items", "rootDeficiency", "branchExcess"] as const) {
+          if (Array.isArray(nature[key])) nature[key] = semanticItems(nature[key]).filter((item) => item !== exterior);
+        }
+      }
+    };
+    withoutMechanismPhrases();
+    const allNatureLabels = () => [...new Set([...semanticItems(nature.items), ...semanticItems(nature.rootDeficiency), ...semanticItems(nature.branchExcess)])];
+    const namedBySyndrome = natureLabelsNamedBySyndromeMissingFrom(syndromeNameText, allNatureLabels());
+    if (namedBySyndrome.length > 0) {
+      nature.items = [...semanticItems(nature.items), ...namedBySyndrome];
+      // 证名点了具体邪气以后，笼统的「外邪」不再并列（幂等：第二遍投影不再改）。
+      withoutMechanismPhrases();
+    }
+    if (allNatureLabels().length === 0) {
+      const exterior = exteriorSyndromeNatureLabel(syndromeNameText);
+      if (exterior) nature.items = [exterior];
+    }
+    const labelsChanged = JSON.stringify([nature.items, nature.rootDeficiency, nature.branchExcess]) !== labelsBefore;
+    if (labelsChanged) {
+      classifyNatureColumns(nature);
+      // 证名带的病性补进来以后，「寒热属性未记录，暂不列热」这类说明与条目相反，去掉这一小句。
+      for (const key of ["basis", "resolutionReason"] as const) {
+        if (typeof nature[key] === "string") {
+          const coldHeatAdded = namedBySyndrome.some((label) => /寒|热/u.test(label));
+          const cleaned = (nature[key] as string).replace(/[，,；;]?[^，,；;。]*暂不(?:列|归纳|定)[^，,；;。]*/gu, "")
+            .replace(coldHeatAdded && key === "basis" ? /[，,；;]?[^，,；;。]*寒热(?:属性)?(?:未记录|未明|不明)[^，,；;。]*/gu : /$^/u, "").replace(/^[，,；;。\s]+/u, "").trim();
+          if (cleaned) nature[key] = cleaned; else delete nature[key];
+        }
+      }
+      // 新补进来的病性：病历里有它的表现而依据没摘时把那一句原文补进依据（只为新补的这几条补，原有条目与依据不动）。
+      if (namedBySyndrome.length > 0 && typeof nature.basis === "string" && nature.basis.trim()) {
+        const support = natureAxisElementSupport(namedBySyndrome, nature.basis, clinicalContext);
+        if (support.basis) nature.basis = support.basis;
+      }
+      if (nature.resolution === "unresolved") { nature.resolution = "bounded"; dropServerBoilerplate(nature); }
+    }
+    // 病性栏只有笼统的「外邪」（证候本身没定寒热）：按有界交付，说明还要结合哪几项定寒热。
+    const exteriorLabel = exteriorSyndromeNatureLabel("外邪");
+    if (exteriorLabel && allNatureLabels().length === 1 && allNatureLabels()[0] === exteriorLabel) {
+      nature.resolution = "bounded";
+      nature.resolutionReason = coldHeatPendingReason([], clinicalContext);
+      softenLowConfidence(nature);
+      const evidence = recordValue(nature.evidence);
+      if (evidence?.confidence === "高") evidence.confidence = "中";
+    }
     const root = semanticItems(nature.rootDeficiency), branch = semanticItems(nature.branchExcess);
     if (semanticItems(nature.items).length === 0 && root.length + branch.length > 0) nature.items = [...new Set([...root, ...branch])];
     const labels = [...new Set([...semanticItems(nature.items), ...root, ...branch])];
     if (labels.length > 0) {
-      const stale = nature.resolution === "unresolved" ||
-        (nature.resolution === "bounded" && (typeof nature.resolutionReason !== "string" || AXIS_SERVER_BOILERPLATE_REASON.test(nature.resolutionReason)));
+      const exteriorBounded = Boolean(exteriorLabel) && labels.length === 1 && labels[0] === exteriorLabel;
+      const stale = !exteriorBounded && nature.resolution === "unresolved" ||
+        (!exteriorBounded && nature.resolution === "bounded" && (typeof nature.resolutionReason !== "string" || AXIS_SERVER_BOILERPLATE_REASON.test(nature.resolutionReason)));
       if (stale) {
         const basis = deliveredVerbatimBasis(nature.basis, clinicalContext);
         const support = natureAxisElementSupport(labels, basis, "");

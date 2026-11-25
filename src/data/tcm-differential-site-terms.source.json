@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "tcm-differential-site-terms-v1",
+  "note": "以五官、乳房、肛门等局部命名的鉴别病（鼻渊、耳胀、乳蛾、肛裂…）：病历里没有任何该部位的表现、鉴别行自己又否认了它的主症时，这个鉴别病与本例没有相似处（甲方先例：患者无鼻部症状却与鼻渊鉴别）。nameChars 是病名开头的部位字；recordTerms 是病历里算作该部位表现的字词（有限闭集的构词守卫）。第五十九轮（r1077 百例阅卷 R039）。",
+  "sites": [
+    { "nameChars": ["鼻"], "recordTerms": ["鼻", "涕", "嚏", "嗅"] },
+    { "nameChars": ["耳"], "recordTerms": ["耳", "听力"] },
+    { "nameChars": ["目", "眼"], "recordTerms": ["目", "眼", "视物"] },
+    { "nameChars": ["喉", "咽"], "recordTerms": ["咽", "喉", "嗓", "声音"] },
+    { "nameChars": ["牙", "齿"], "recordTerms": ["牙", "齿", "龈"] },
+    { "nameChars": ["乳"], "recordTerms": ["乳"] },
+    { "nameChars": ["肛"], "recordTerms": ["肛", "痔", "便血"] }
+  ]
+}

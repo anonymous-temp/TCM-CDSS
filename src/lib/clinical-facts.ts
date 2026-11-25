@@ -1331,7 +1331,8 @@ export function semanticTriageAdvisoriesFromFacts(
     if (coveredCategories.has(finding.category)) continue;
     coveredCategories.add(finding.category);
     const action = finding.urgency === "emergency" && !demotedBaselineEmergency
-      ? "建议立即由接诊医生现场复核并按复核结果处置；本条语义发现不单独形成硬门"
+      // 第五十九轮：原句后半「本条语义发现不单独形成硬门」是系统内部说法，随 safetyGate.advisories 交付给了甲方（百例阅卷 5 份急症都有）。
+      ? "建议立即由接诊医生现场复核并按复核结果处置"
       : finding.urgency === "urgent" || demotedBaselineEmergency
         ? "建议优先评估"
         : "建议在本轮问诊中澄清";

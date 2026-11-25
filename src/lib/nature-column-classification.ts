@@ -28,3 +28,56 @@ export function classifyNatureColumns(nature: Record<string, unknown>): void {
   nature.rootDeficiency = [...new Set([...roots.filter((item) => natureItemDeficiencyOrExcess(item) === "root"), ...items.filter((item) => natureItemDeficiencyOrExcess(item) === "root")])].filter((item, _, all) => !all.some((other) => other !== item && other.includes(item)));
   nature.branchExcess = [...new Set([...branches.filter((item) => natureItemDeficiencyOrExcess(item) === "branch"), ...items.filter((item) => natureItemDeficiencyOrExcess(item) === "branch")])].filter((item, _, all) => !all.some((other) => other !== item && other.includes(item)));
 }
+
+const MECHANISM_ITEM = new RegExp(policy.classification.mechanismItemPattern, "u");
+const EXTERIOR_ITEM = new RegExp(policy.classification.exteriorPathogenPattern, "u");
+const EXTERIOR_SYNDROME_NAME = new RegExp(policy.classification.exteriorSyndromeNamePattern, "u");
+const EXTERIOR_LABEL: string = policy.classification.exteriorPathogenLabel;
+const ELEMENT_KINDS = new Set<string>([...policy.classification.branchKinds, "deficiency"]);
+
+/**
+ * 病性栏里写成机理句的条目换成它所含的病性词（第五十九轮，r1077 百例阅卷「病性栏写的不是病性、标实为无」）：
+ * 「外邪袭表」「外邪犯胃」「外感」→「外邪」；「湿郁化热」→「湿」「热」；规范病性词与本虚类短语不动。
+ * 认不出病性词的机理句（「心神不宁」）：栏里还有别的条目时去掉，否则原样留着，不让病性栏变空。
+ */
+export function natureItemsWithoutMechanismPhrases(items: readonly string[]): string[] {
+  const out: string[] = [];
+  const unrecognized: string[] = [];
+  const push = (value: string) => { if (value && !out.includes(value)) out.push(value); };
+  for (const raw of items) {
+    const item = String(raw || "").normalize("NFKC").trim();
+    if (!item) continue;
+    if (STANDALONE.has(item) || !MECHANISM_ITEM.test(item)) { push(item); continue; }
+    if (EXTERIOR_ITEM.test(item)) { push(EXTERIOR_LABEL); continue; }
+    const labels = entries.filter((entry) => ELEMENT_KINDS.has(entry.kind) && [entry.canonical, ...entry.aliases].some((name) => item.includes(name)))
+      .map((entry) => entry.canonical).filter((label, _, all) => !all.some((other) => other !== label && other.includes(label)));
+    if (labels.length > 0) labels.forEach(push); else unrecognized.push(item);
+  }
+  // 已有具体的邪气（风、寒、湿、热…）时不再并列笼统的「外邪」。
+  const specific = out.filter((item) => item !== EXTERIOR_LABEL && natureItemDeficiencyOrExcess(item) === "branch");
+  const settled = specific.length > 0 ? out.filter((item) => item !== EXTERIOR_LABEL) : out;
+  return settled.length > 0 ? settled : unrecognized;
+}
+
+/** 证名自带、病性栏却没有的病性词（证名寒湿而病性只列湿；兼证肺脾气虚而本虚为无）。existing 是病性栏现有的全部条目。 */
+export function natureLabelsNamedBySyndromeMissingFrom(syndromeNames: string, existing: readonly string[]): string[] {
+  const names = String(syndromeNames || "").normalize("NFKC");
+  const out: string[] = [];
+  for (const row of policy.classification.syndromeNameNatureElements as Array<{ chars: string[]; label: string; deficiencyContextPattern?: string; deficiencyLabel?: string }>) {
+    if (!row.chars.some((char) => names.includes(char))) continue;
+    if (existing.some((item) => row.chars.some((char) => item.includes(char)))) continue;
+    out.push(row.deficiencyContextPattern && row.deficiencyLabel && new RegExp(row.deficiencyContextPattern, "u").test(names) ? row.deficiencyLabel : row.label);
+  }
+  return out;
+}
+
+/** 证名是外感表证而没有点名风寒湿热的（外邪犯肺证、外感表证）：病性栏为空时按「外邪」写。 */
+export function exteriorSyndromeNatureLabel(syndromeNames: string): string | undefined {
+  return EXTERIOR_SYNDROME_NAME.test(String(syndromeNames || "")) ? EXTERIOR_LABEL : undefined;
+}
+
+/** 证名自带、病位栏却没有的脏腑（证名脾肾阳虚而病位只列脾、肠）。 */
+export function organsNamedBySyndromeMissingFrom(syndromeNames: string, existing: readonly string[]): string[] {
+  const names = String(syndromeNames || "").normalize("NFKC");
+  return (policy.classification.syndromeNameOrgans as string[]).filter((organ) => names.includes(organ) && !existing.some((item) => item.includes(organ)));
+}

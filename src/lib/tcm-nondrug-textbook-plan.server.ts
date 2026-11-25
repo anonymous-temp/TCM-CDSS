@@ -1561,8 +1561,9 @@ export function techniqueContraindications(code: string, patientAgeYears?: numbe
   const item = name ? WEB.techniqueSafety.find((entry) => entry.technique === name) : undefined;
   if (!item) return "";
   // 推拿禁忌原文分成人与「小儿推拿：…」两段：14 岁以上不印小儿那一段（第四十一轮 r1054 回顾：成人推拿卡出现「小儿推拿」26 份）。
-  // 年龄未知时照旧两段都印。
-  const adult = typeof patientAgeYears === "number" && patientAgeYears >= 14;
+  // 年龄未知时按成人处理（第五十九轮）：甲方真实病历多数不传年龄，剂量也按成人给，29 份里 4 份成人推拿卡仍印着「小儿推拿：…」；
+  // 只有明确未满 14 岁才印小儿那一段。
+  const adult = !(typeof patientAgeYears === "number" && patientAgeYears < 14);
   const text = adult
     ? item.contraindications.split(/(?<=。)/u).filter((segment) => !/^小儿推拿[：:]/u.test(segment.trim())).join("").replace(/。$/u, "")
     : item.contraindications;

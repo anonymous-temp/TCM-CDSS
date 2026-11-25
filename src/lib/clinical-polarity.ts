@@ -1029,6 +1029,9 @@ export function selfDiscontinuedMedication(text: string): { condition?: string; 
       const hitClause = sentence.slice(clauseStart, clauseEnd < 0 ? sentence.length : hit.index + clauseEnd);
       const before = sentence.slice(0, clauseStart).split(/[，,]/u).filter(Boolean);
       const window = [...before.slice(-3), hitClause].join("，");
+      // 病历别处写明是因怀疑过敏、不良反应才停的（现病史「怀疑羟氯喹药物过敏，自行停药」，用药史一栏只写「本次发病后自行停药」）：
+      // 同一件事，不能在用药史这一栏按「擅自停药」再算一次（第五十九轮 r1077 P023：对疑似致敏药写「不要再自行停药」）。
+      if (/(?:过敏|不良反应|副作用|不(?:能)?耐受)[^。；;\n]{0,16}(?:自行|擅自|自己)?停(?:用|服|药)/u.test(source)) continue;
       // 因不能耐受、不良反应、过敏或无效而停的不在此列：那是该由医生换药的情形，不能写「规律服用」（验收主集吉非替尼一例）。
       if (/否认|遵医嘱|医生(?:嘱|建议)|在医生指导下|耐受|副作用|不良反应|过敏|无效/u.test([before.at(-1) || "", hitClause].join("，"))) continue;
       // 停的药写在后面（「自停益赛普」）就取它；没写（「后自行停药」「未规律服药」）取前面三小句里写到的药。
@@ -1036,9 +1039,11 @@ export function selfDiscontinuedMedication(text: string): { condition?: string; 
       // 引号里的也可能是诊断（「“频发房性早搏”，收入住院治疗」）：按药名候选收一道。
       const quotedNames = [...window.matchAll(/[“"「]([^”"」]{2,20})[”"」]/gu)].map((match) => cleanedMedicationNameCandidate(match[1]))
         .filter((name) => name && !NOT_A_MEDICATION_NAME.test(name));
-      const names = object && !NOT_A_MEDICATION_NAME.test(object) ? [object]
+      // 栏目名不是药名（「用药史：羟氯喹口服，本次发病后自行停药」曾把「药史」当成停掉的药）。
+      const notRecordLabel = (name: string) => !/(?:药|病|过敏|用药|既往|个人|家族)史$/u.test(name);
+      const names = (object && !NOT_A_MEDICATION_NAME.test(object) && notRecordLabel(object) ? [object]
         : quotedNames.length > 0 ? quotedNames
-          : recordedMedicationMentions(before.slice(-3).join("，")).names.map((name) => cleanedMedicationNameCandidate(name)).filter((name) => name && !NOT_A_MEDICATION_NAME.test(name));
+          : recordedMedicationMentions(before.slice(-3).join("，")).names.map((name) => cleanedMedicationNameCandidate(name)).filter((name) => name && !NOT_A_MEDICATION_NAME.test(name))).filter(notRecordLabel);
       // 后来又用上了的（「自停益赛普…今年7月…再次予益赛普」）不是现在的情况。
       const later = source.slice(source.indexOf(sentence) + (clauseEnd < 0 ? sentence.length : hit.index + clauseEnd));
       if (names.length > 0 && names.every((name) => later.includes(name))) continue;

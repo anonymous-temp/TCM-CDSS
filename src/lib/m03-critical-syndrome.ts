@@ -81,7 +81,11 @@ export function promoteCriticalSecondarySyndrome(tcmContent: string, options: { 
   if (alreadyPrimary && (!disease || disease === "虚脱" || textbookRowForSyndrome(disease, critical))) return tcmContent;
   if (disease && disease !== "虚脱" && !textbookRowForSyndrome(disease, critical)) {
     overview.tcmDiseaseName = "虚脱";
-    const rationale = typeof overview.tcmDiseaseRationale === "string" ? overview.tcmDiseaseRationale.trim().replace(/[。；;，,]$/u, "") : "";
+    // 模型原来的辨病依据里「与虚脱之汗出淋漓……相区分」这类把虚脱排除掉的分句，与下面接上的「病名先按虚脱」正相反
+    //（第五十九轮 r1077 P003：辨病依据先说与虚脱相区分、结论却定虚脱）：改名时把提到虚脱的分句去掉。
+    const rationale = typeof overview.tcmDiseaseRationale === "string"
+      ? overview.tcmDiseaseRationale.split(/[；;。]/u).map((clause) => clause.trim()).filter((clause) => clause && !clause.includes("虚脱")).join("；").replace(/[，,]$/u, "")
+      : "";
     overview.tcmDiseaseRationale = `${rationale ? `${rationale}；` : ""}现已见${critical.replace(/证$/u, "")}之象，急则治其标，病名先按虚脱，${disease}为其起因，待脱证纠正后再论治。`;
   }
   return JSON.stringify(root);

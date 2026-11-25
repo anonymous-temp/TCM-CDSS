@@ -674,7 +674,8 @@ for (const [chiefComplaint, category, quote, expectedMessage, triageBasis] of co
     deterministicHits.some((item) => item.includes(expectedMessage)) ||
     semanticAdvisories.some((item) => item.includes(quote)));
   if (!deterministicHits.some((item) => item.includes(expectedMessage))) {
-    ok(`语义权限边界: ${chiefComplaint}`, semanticAdvisories.some((item) => item.includes("不单独形成硬门")));
+    // 第五十九轮：提示句不再带「本条语义发现不单独形成硬门」这句系统内部说法（它随 advisories 交付给调用方）；权限边界仍由“只进提示、不进确定性红旗”体现。
+    ok(`语义权限边界: ${chiefComplaint}`, semanticAdvisories.some((item) => item.includes("由接诊医生现场复核并按复核结果处置")) && !semanticAdvisories.some((item) => /硬门|语义发现/.test(item)));
   }
 }
 

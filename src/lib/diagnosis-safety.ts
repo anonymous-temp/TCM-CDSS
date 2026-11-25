@@ -6983,6 +6983,7 @@ export function reproductiveAdviceRelevant(state: CaseState): boolean {
  * 病历自己写到停经、月经推迟、性生活、妊娠、早孕或哺乳的除外。S 集 12 岁、14 岁女孩发热、头痛的处方都写着上面那句（第十二轮评审）。
  * 月经、带下类提示仍按 reproductiveAdviceRelevant；安全闸门的孕哺筛查（pregnancyScreenRequired，10–59 岁）不受影响。
  */
+const PREGNANCY_ADVICE_MAX_AGE_YEARS = 55;
 const YOUNG_ADOLESCENT_PREGNANCY_CONTEXT = /停经|月经(?:推迟|延后|逾期|未至|未来)|性生活|同房|怀孕|妊娠|早孕|哺乳|HCG/iu;
 export function pregnancyAdviceRelevant(state: CaseState): boolean {
   const maternal = maternalStateText(state, normalizeClinicalText(trustedInputText(state)));
@@ -6991,6 +6992,9 @@ export function pregnancyAdviceRelevant(state: CaseState): boolean {
     /女/.test(patientSexText(state)) && (authoritativePatientAgeYears(state) ?? 30) >= REPRODUCTIVE_STATE_MIN_AGE_YEARS) return true;
   if (!reproductiveAdviceRelevant(state)) return false;
   if (recordExcludesPregnancyPotential(maternal, authoritativePatientAgeYears(state))) return false;
+  // 55 岁及以上不再写孕哺提示（第五十九轮 r1077 P002、P028：58 岁女性的注意事项、药味慎用栏、治疗卡里反复出现怀孕哺乳内容）。
+  // 育龄口径 15–49 岁；绝经年龄中位约 50 岁，55 岁以后仍未绝经属晚绝经。病历自己写了妊娠、哺乳的在上面已经返回；安全门的孕哺筛查不变。
+  if ((authoritativePatientAgeYears(state) ?? 0) >= PREGNANCY_ADVICE_MAX_AGE_YEARS) return false;
   // 病历明确否认妊娠、也不在备孕：不再写孕期提示与逐味「孕期慎用」（2026-10-24 甲方 100 例 C018「明确否认妊娠，近两周月经正常」
   // 仍出现「孕期/妊娠慎用」「如已怀孕请先告知」，测试重点即「明确妊娠阴性不应触发孕期提示」）。
   const recorded = normalizeClinicalText(trustedInputText(state));
