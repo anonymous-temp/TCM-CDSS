@@ -86,7 +86,7 @@ await check("2.1 交付治法：两字项不留、同族后补项去掉、总数
   assert.equal(surface.clinicalMethodItems("辛温解表，宣肺散寒，通络止痛，化痰"), "辛温解表，宣肺散寒，通络止痛");
   assert.equal(surface.clinicalMethodItems("芳香化湿，解表散寒，止泻，温化寒湿"), "芳香化湿，解表散寒");
   assert.equal(surface.clinicalMethodItems("健脾益气助运，理气和胃"), "健脾益气，理气和胃"); // 第四十一轮：拼成的六字项拆回四字
-  assert.equal(surface.clinicalMethodItems("辛凉解表，疏风清热，利咽止咳，清热化痰生津"), "辛凉解表，疏风清热，利咽止咳");
+  assert.equal(surface.clinicalMethodItems("辛凉解表，疏风清热，利咽止咳，清热化痰生津"), "辛凉解表，利咽止咳，清热化痰"); // 第五十九轮：辛凉解表与疏风清热是同一治法，只留前一项
   assert.equal(surface.clinicalMethodItems("养血和络，补益肝肾，强壮筋骨，祛风宣痹", 4), "养血和络，补益肝肾，强壮筋骨，祛风宣痹");
   // 只有短项时原样（不删空）。
   assert.equal(surface.clinicalMethodItems("止咳"), "止咳");

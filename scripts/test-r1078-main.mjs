@@ -200,6 +200,47 @@ await check("B5", "交付面接线：结论句对齐后的辨证依据随辨证�
   assert.equal(once.overview.tcmDiagnosticRationale, "头痛、头晕，劳累后加重，面色少华，为血虚不能上荣清窍；舌质淡、脉弦细为血虚之象。诸症合参，故辨为血虚证。");
 });
 
+await check("B6", "定稿依据（投影之后才写的那一版）同样对齐：没立兼证的结论句不留「，兼湿滞」", async () => {
+  const { normalizeCaseStateInput } = types;
+  const { buildFinalRationaleContext } = await jiti.import("../src/lib/m03-final-rationale-context.server.ts");
+  const { validateRationalePair } = await jiti.import("../src/lib/m03-final-rationale-validation.server.ts");
+  const evidence = { evidenceLevel: "model_inference", source: "本例四诊资料", confidence: "中" };
+  const state = normalizeCaseStateInput({ id: "r1078-b6", patient: { age: 32, sex: "女" }, chiefComplaint: "入睡困难", symptoms: { presentHistory: "时有心悸。睡中易醒。" }, tongue: "舌淡白，苔薄白", pulse: "脉细弱" });
+  const root = (secondarySyndromes) => ({
+    schemaVersion: SCHEMA, stage: "diagnose",
+    overview: {
+      tcmDiseaseName: "不寐", primarySyndrome: "心血虚证", primarySyndromeResolution: "resolved", secondarySyndromes,
+      primarySyndromeBasis: ["时有心悸", "舌淡白", "脉细弱"], tcmDiseaseRationale: "入睡困难，睡中易醒，属不寐。",
+      tcmDiagnosticRationale: "心悸与舌淡脉细合参，心血不足而心神失养，属心血虚证。",
+      tcmDifferentials: [{ syndrome: "心肾不交证", reason: "同属不寐的鉴别", distinguishingPoints: "心血失养与心肾不交须区别", typicalManifestation: "", nextCheck: null }],
+      tcmDiseaseDifferentials: [{ diseaseName: "多寐病", reason: "同属睡眠病症，需区分主症", distinguishingPoints: "主诉为入睡困难", nextCheck: null }],
+      overallPathogenesis: "心血亏虚，心神失养", overallTherapy: "养血安神", recommendedFormulaDirection: "安神定志", recommendedFormulaNames: [], evidence,
+    },
+    westernDiagnosis: { primary: { name: "失眠症状", status: "考虑", confidence: "中", supportingFacts: ["入睡困难"], clinicalRationale: "入睡困难伴睡中易醒，考虑失眠症状。", limitations: [], suggestedChecks: [], evidence }, differentials: [] },
+    pathogenesis: {
+      summary: "心血亏虚，心神失养",
+      locationDifferentiation: { items: ["心"], details: [{ location: "心", basis: "时有心悸" }], resolution: "resolved", evidence },
+      natureDifferentiation: { items: ["血虚"], resolution: "resolved", evidence },
+      chain: [{ nodeId: "P1", patientFact: "时有心悸", syndromeEvidence: "舌淡白，脉细弱", pathogenesis: "心血亏虚则心神失养", therapyDirection: "养血安神", evidence }],
+      uncertainties: [{ item: "出血情况", reason: "尚待问诊", affects: "血虚程度" }],
+    },
+    therapy: { overallPrinciple: "虚则补之", overallMethod: "养血安神", subTherapies: [{ therapy: "养血安神", targetPathogenesis: "心血亏虚", priority: "主要" }] },
+    management: { followupSafetyNet: "如症状持续或加重及时复诊。" },
+  });
+  const reply = (context, tail) => ({
+    s: "ok", d: ["入睡困难"], g: [[["入睡困难", "时有心悸"], "心血亏虚则神失所养", context.input.conclusion.names[0]]],
+    t: ["s", "舌淡白、苔薄白", "舌质与血少相应"], p: ["s", "脉细弱", "脉道充盈欠足"], l: null,
+    x: "入睡困难，睡中又容易醒，入睡与续睡均受扰，归于不寐。",
+    y: "入睡困难，是心神失于濡养，到了夜间难以安定；睡中易醒，也与心神失养相应。时有心悸，为心血不足，心脉失于濡养。心血不足，既不能充养心脉，也不能使神志入夜得安。舌淡白、苔薄白，舌质与血少相应。脉细弱，提示脉道充盈不足。" + tail,
+  });
+  const plain = buildFinalRationaleContext(root([]), state, "r1078");
+  assert.ok(plain, "合成病例符合作者入口");
+  const settled = validateRationalePair(reply(plain, "合参本次睡眠和心悸所见，故属心血虚证，兼湿滞。"), plain);
+  assert.equal(settled.ok, true, JSON.stringify(settled));
+  assert.ok(settled.pair.tcmDiagnosticRationale.endsWith("故属心血虚证。"), settled.pair.tcmDiagnosticRationale);
+  assert.ok(!settled.pair.tcmDiagnosticRationale.includes("兼湿滞"));
+});
+
 // ─── C 病机链与病位/病性栏 ──────────────────────────────────────────────────────
 await check("C1", "只拿舌脉当病历表现的病机链节点并回第一条的证据，同序的分治法一并去掉；二次投影不变", () => {
   const once = project(diagnoseFixture());
@@ -219,6 +260,21 @@ await check("C2", "舌脉节点独自承担总治法里的一项时不并；整�
   assert.equal(project(allTonguePulse).pathogenesis.chain.length, 2);
   const prescribe = { ...diagnoseFixture(), stage: "prescribe" };
   assert.equal(project(prescribe).pathogenesis.chain.length, 2);
+});
+
+await check("C2b", "实链次序：舌脉节点当时照抄整句总治法、随后才按病机改成其中一项——按定稿后的节点治法再判，仍并回", () => {
+  const fixture = diagnoseFixture();
+  fixture.overview.primarySyndrome = "痰热扰心证";
+  fixture.overview.tcmDiagnosticRationale = "失眠，为痰热内扰、心神不宁；苔薄黄、脉弦滑为痰热之象。故辨为痰热扰心证。";
+  fixture.therapy.overallMethod = "清化痰热，和中安神";
+  fixture.therapy.subTherapies = [];
+  fixture.pathogenesis.chain = [
+    { nodeId: "P1", patientFact: "头痛、头晕，劳累后加重", syndromeEvidence: "脉弦细", pathogenesis: "痰热内扰，心神不宁", therapyDirection: "清化痰热" },
+    { nodeId: "P2", patientFact: "舌质淡", syndromeEvidence: "脉弦细", pathogenesis: "痰热内蕴，胃气失和", therapyDirection: "清化痰热，和中安神" },
+  ];
+  const once = project(fixture);
+  assert.deepEqual(once.pathogenesis.chain.map((node) => node.patientFact), ["头痛、头晕，劳累后加重"], JSON.stringify(once.pathogenesis.chain));
+  assert.equal(JSON.stringify(project(once)), JSON.stringify(once));
 });
 
 const HEART_RECORD = "心悸1月余\n现病史：心悸、气短，活动后加重\n舌质淡\n脉细弱";
@@ -281,6 +337,8 @@ await check("C5", "病性栏里的机理句换成所含病性词；已有具体�
   assert.deepEqual(normalize(["心神不宁"]), ["心神不宁"]);
   assert.deepEqual(normalize(["气虚", "心神不宁"]), ["气虚"]);
   assert.deepEqual(normalize(["痰热", "阴虚"]), ["痰热", "阴虚"]);
+  assert.deepEqual(normalize(["肺气上逆"]), ["气逆"]);
+  assert.deepEqual(normalize(["胃气上逆", "痰"]), ["气逆", "痰"]);
 });
 
 await check("C6", "证名自带、病性栏没有的病性词补上（寒湿只列湿、兼证气虚而本虚为无、虚寒、阴虚火旺的虚热）；已列的不重复", () => {
@@ -330,12 +388,67 @@ await check("C8", "病性栏为空而证名带病性（脾肾阳虚）：补上�
   assert.ok(!/暂不列/u.test(String(nature.basis || "")), String(nature.basis));
 });
 
+await check("C9", "证候层理由挪进待核实时只留前面没列过的那几项，不把前几条再说一遍；「有边界判断」这类内部说法不交付", () => {
+  const bounded = (reason) => {
+    const fixture = diagnoseFixture();
+    fixture.overview.primarySyndromeResolution = "bounded";
+    fixture.overview.primarySyndromeResolutionReason = reason;
+    fixture.overview.tcmDiagnosticRationale = "头痛、头晕，劳累后加重，面色少华，为血虚不能上荣清窍；舌质淡、脉弦细为血虚之象。诸症合参，故辨为血虚证。";
+    fixture.pathogenesis.chain = [fixture.pathogenesis.chain[0]];
+    fixture.therapy.subTherapies = [fixture.therapy.subTherapies[0]];
+    fixture.pathogenesis.uncertainties = [
+      { item: "寒热喜恶", reason: "未记录，难以判断虚热轻重", affects: "病性" },
+      { item: "饮食二便", reason: "未记录，湿滞程度不明", affects: "病性" },
+    ];
+    return project(fixture).pathogenesis.uncertainties.map((row) => `${row.item}｜${row.reason}`);
+  };
+  const partial = bounded("缺寒热喜恶、饮食二便与情志诱因，虚热与湿滞程度待定");
+  assert.equal(partial.length, 3, partial.join(" / "));
+  assert.equal(partial[2], "情志诱因｜虚热与湿滞程度待定");
+  const all = bounded("缺寒热喜恶、饮食二便，证候细节待定");
+  assert.equal(all.length, 2, all.join(" / "));
+  const internal = bounded("缺腹胀嗳气及寒热喜恶，血虚为有边界判断，尚待核实");
+  assert.equal(internal.length, 3, internal.join(" / "));
+  assert.ok(internal[2].startsWith("腹胀嗳气｜") && !/有边界|有界/u.test(internal[2]), internal[2]);
+});
+
+await check("C10", "治法：「辛凉解表，疏风清热」是同一治法说两遍，只留前一项；辛温解表、清热解毒旁边的疏风清热不动", async () => {
+  const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("辛凉解表，疏风清热，利咽止痛"), "辛凉解表，利咽止痛");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("疏风清热，辛凉解表，宣肺止咳"), "疏风清热，宣肺止咳");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("辛温解表，疏风清热"), "辛温解表，疏风清热");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("清热解毒，疏风清热"), "清热解毒，疏风清热");
+});
+
 // ─── D 方义「原方」口径 ─────────────────────────────────────────────────────────
 await check("D1", "银翘散原文作芥穗：处方用荆芥时注明「荆芥用荆芥穗」（方义不称原方）；处方用荆芥穗时不注", () => {
   const base = ["金银花", "连翘", "桔梗", "薄荷", "淡竹叶", "甘草", "淡豆豉", "牛蒡子", "芦根"];
   const herbs = (names) => names.map((name) => ({ name, dose: "10g", role: "臣" }));
   assert.deepEqual(surface.originalFormulaDeliveryNotes("银翘散", herbs([...base, "荆芥"])), ["荆芥用荆芥穗"]);
   assert.deepEqual(surface.originalFormulaDeliveryNotes("银翘散", herbs([...base, "荆芥穗"])), []);
+});
+
+await check("D2", "药味与原方相同、只是药用部位不同：方义开头把差别直接写出来（「本方以银翘散为基础（原方荆芥用荆芥穗）」），不称原方也不留空；再投影不变", () => {
+  const base = ["金银花", "连翘", "桔梗", "薄荷", "淡竹叶", "甘草", "淡豆豉", "牛蒡子", "芦根"];
+  const rx = (herbs, analysis) => ({ schemaVersion: SCHEMA, stage: "prescribe", overview: {},
+    formula: { candidates: [{ name: "银翘散", herbs: herbs.map((name) => ({ name, dose: "9g", role: "佐" })), formulaAnalysis: analysis, decoction: { method: "水煎服" } }] }, nonPharma: null });
+  const withStem = surface.projectDeliveredReasoning(rx([...base, "荆芥"], "本方用银翘散原方。金银花、连翘为君。"));
+  assert.ok(withStem.formula.candidates[0].formulaAnalysis.startsWith("本方以银翘散为基础（原方荆芥用荆芥穗）。金银花、连翘为君"), withStem.formula.candidates[0].formulaAnalysis);
+  assert.doesNotMatch(withStem.formula.candidates[0].formulaAnalysis, /药味同|未照用/u);
+  assert.deepEqual(surface.projectDeliveredReasoning(structuredClone(withStem)), withStem);
+  // 上一版已交付成「本方以银翘散为基础。」的（没有括注）补上差别说明。
+  const cached = surface.projectDeliveredReasoning(rx([...base, "荆芥"], "本方以银翘散为基础。金银花、连翘为君。"));
+  assert.ok(cached.formula.candidates[0].formulaAnalysis.startsWith("本方以银翘散为基础（原方荆芥用荆芥穗）。"), cached.formula.candidates[0].formulaAnalysis);
+  // 模型自己写「本方以X为基础，以…为君」（逗号接下去）的同样补上差别说明。
+  const modelWritten = surface.projectDeliveredReasoning(rx([...base, "荆芥"], "本方以银翘散为基础，以金银花、连翘为君，疏散风热。"));
+  assert.ok(modelWritten.formula.candidates[0].formulaAnalysis.startsWith("本方以银翘散为基础（原方荆芥用荆芥穗），以金银花、连翘为君"), modelWritten.formula.candidates[0].formulaAnalysis);
+  assert.deepEqual(surface.projectDeliveredReasoning(structuredClone(modelWritten)), modelWritten);
+  // 原书炮制本方未照用的那一类（八正散大黄煨）照第五十五轮口径：开头「本方以X为基础」，不加括注。
+  const prepared = surface.projectDeliveredReasoning({ schemaVersion: SCHEMA, stage: "prescribe", overview: {},
+    formula: { candidates: [{ name: "八正散", herbs: ["车前子", "瞿麦", "萹蓄", "滑石", "栀子", "炙甘草", "木通", "大黄"].map((name) => ({ name, dose: "9g", role: "佐" })), formulaAnalysis: "本方用八正散原方。滑石、木通为君。", decoction: { method: "水煎服，以灯心草为引" } }] }, nonPharma: null });
+  assert.ok(prepared.formula.candidates[0].formulaAnalysis.startsWith("本方以八正散为基础。滑石、木通为君"), prepared.formula.candidates[0].formulaAnalysis);
+  const withSpike = surface.projectDeliveredReasoning(rx([...base, "荆芥穗"], "本方用银翘散原方。金银花、连翘为君。"));
+  assert.ok(withSpike.formula.candidates[0].formulaAnalysis.startsWith("本方用银翘散原方。"), withSpike.formula.candidates[0].formulaAnalysis);
 });
 
 // ─── E 注意事项与治疗卡 ─────────────────────────────────────────────────────────
@@ -369,6 +482,32 @@ await check("E3", "年龄未知的推拿卡按成人印禁忌（不印「小儿�
   assert.ok(cards.techniqueContraindications("tuina").length > 20);
 });
 
+await check("E4", "咽喉肿痛的针刺卡：外感风热（教材归实证一套）只取实证主穴，不与虚证的太溪、照海并列；风寒表证、眩晕外感证照旧不按虚实套", () => {
+  const plan = (disease, syndrome, principle, facts) => cards.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: [disease], westernNames: [], signedSyndromeText: syndrome, signedPrinciple: principle, currentFacts: facts, chiefComplaint: facts });
+  const names = (result) => (result?.points || []).map((point) => point.name);
+  const heat = names(plan("喉痹", "风热外袭证", "热者寒之", "咽痛，咳嗽"));
+  assert.ok(heat.includes("少商") && heat.includes("内庭"), heat.join("、"));
+  assert.ok(!heat.includes("太溪") && !heat.includes("照海"), heat.join("、"));
+  const deficiency = names(plan("喉痹", "肺肾阴虚证", "虚则补之", "咽干微痛"));
+  assert.ok(deficiency.includes("太溪") && !deficiency.includes("少商"), deficiency.join("、"));
+  const cold = names(plan("喉痹", "风寒袭表证", "寒者热之", "咽痛，恶寒"));
+  assert.ok(cold.includes("少商") && cold.includes("太溪"), "教材本节没有风寒外感型：照旧两套都不取舍");
+  const vertigo = names(plan("眩晕", "外邪犯窍证", "实则泻之", "头晕，恶寒"));
+  assert.ok(vertigo.includes("太冲") && vertigo.includes("足三里"), "眩晕本节没有外感型：第四十五轮的口径不变");
+});
+
+await check("E5", "咳嗽的针刺卡：外感证只取外感一组主穴（肺俞、列缺、合谷），内伤证只取内伤一组（肺俞、中府、太渊、三阴交）；判不出的两组都留", () => {
+  const names = (syndrome, principle, facts) => (cards.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["咳嗽"], westernNames: [], signedSyndromeText: syndrome, signedPrinciple: principle, currentFacts: facts, chiefComplaint: facts })?.points || []).map((point) => point.name);
+  const exterior = names("风热犯肺证", "热者寒之", "咳嗽，咽痛");
+  assert.ok(["肺俞", "列缺", "合谷"].every((point) => exterior.includes(point)) && !exterior.includes("中府") && !exterior.includes("太渊"), exterior.join("、"));
+  const interior = names("痰湿蕴肺证", "实则泻之", "咳嗽痰多");
+  assert.ok(["肺俞", "中府", "太渊", "三阴交"].every((point) => interior.includes(point)) && !interior.includes("列缺") && !interior.includes("合谷"), interior.join("、"));
+  const deficiency = names("肺阴亏虚证", "虚则补之", "干咳，盗汗");
+  assert.ok(deficiency.includes("太渊") && !deficiency.includes("合谷"), deficiency.join("、"));
+  const neutral = names("肺气上逆证", "实则泻之", "咳嗽");
+  assert.ok(["列缺", "合谷", "中府", "太渊"].every((point) => neutral.includes(point)), neutral.join("、"));
+});
+
 // ─── F 中医鉴别 ─────────────────────────────────────────────────────────────────
 await check("F1", "便秘与「泄泻」鉴别：这一行自己否认了泄泻的主症、病历里也没有，算与本例无相似处", () => {
   const unrelated = textbook.tcmDifferentialSelfDeclaredUnrelated;
@@ -387,6 +526,12 @@ await check("F3", "对照：教材列出的鉴别病、与本例有共同主症�
   assert.equal(unrelated("肠结", "均以便闭为主症；本例仅诉便秘5天，病历未记腹痛呕吐", "便秘5天", "便秘", "均以便闭为主症"), false);
   assert.equal(unrelated("肺痨", "均以咳嗽为主症；本例病历未记录咯血、潮热、盗汗、消瘦", "咳嗽\n现病史：咳嗽咳痰", "咳嗽", "均以咳嗽为主症"), false);
   assert.equal(unrelated("郁病", "郁病常以失眠为伴随表现；本例以失眠为主诉，未诉情志抑郁、胸胁胀满", "失眠1月余\n舌质红；苔腻\n脉弦细", "不寐", "郁病常以失眠为伴随表现"), false);
+});
+
+await check("F4", "相似处只是重复本病病名（「心悸常伴眩晕」）不算共同表现：本例没有头晕时，心悸与眩晕的鉴别去掉；本例确有头晕的保留", () => {
+  const unrelated = textbook.tcmDifferentialSelfDeclaredUnrelated;
+  assert.equal(unrelated("眩晕", "心悸常伴眩晕；本例主诉心悸，未诉头晕目眩", "心悸1月\n现病史：心悸，劳累后加重", "心悸", "心悸常伴眩晕"), true);
+  assert.equal(unrelated("眩晕", "心悸常伴眩晕；本例主诉心悸，未诉视物旋转", "心悸1月\n现病史：心悸，时有头晕", "心悸", "心悸常伴眩晕"), false);
 });
 
 // ─── G 其余文字 ─────────────────────────────────────────────────────────────────
@@ -428,6 +573,25 @@ await check("G3", "慎用栏里括号不成对的残句整句去掉，成对的�
   const balanced = JSON.parse(JSON.stringify(prescribe));
   balanced.formula.candidates[0].notApplicable = "川芎（月经期慎用）；蒺藜（毒性：有小毒）。";
   assert.equal(project(balanced).formula.candidates[0].notApplicable, "川芎（月经期慎用）；蒺藜（毒性：有小毒）。");
+});
+
+await check("G3b", "孕哺提示不适用的患者（58 岁女性）：慎用栏里模型自己写的「姜半夏孕期、哺乳期慎用」小句去掉；同句还讲别的人群的保留；适用的患者不动", () => {
+  const strip = surface.withoutPregnancyOnlyClauses;
+  assert.equal(strip("证候、病机或舌脉变化时须重新辨证；三七在出血未控制、抗凝或抗血小板状态下须医生权衡；姜半夏孕期、哺乳期慎用。 三七（月经期/抗凝状态慎用）"),
+    "证候、病机或舌脉变化时须重新辨证；三七在出血未控制、抗凝或抗血小板状态下须医生权衡。 三七（月经期/抗凝状态慎用）");
+  const mixed = "孕妇及出血倾向者慎用；脾胃虚寒者慎用。";
+  assert.equal(strip(mixed), mixed);
+  const tail = "半夏（孕期/妊娠慎用）；川芎（月经期慎用）。";
+  assert.equal(strip(tail), tail, "逐味尾段由人群过滤另行处理，这里不动");
+  const prescribe = (age) => ({
+    schemaVersion: SCHEMA, stage: "prescribe", overview: { tcmDiseaseName: "头痛", primarySyndrome: "血虚证", secondarySyndromes: [] }, therapy: { overallMethod: "养血和络" },
+    formula: { candidates: [{ name: "自拟方", herbs: [{ name: "当归", dose: "10g", role: "君", function: "补血活血" }, { name: "川芎", dose: "6g", role: "臣", function: "活血行气" }, { name: "姜半夏", dose: "9g", role: "佐", function: "燥湿化痰" }],
+      formulaAnalysis: "本方为自拟方。当归为君，补血活血；川芎为臣；姜半夏为佐。", notApplicable: "证候变化时须重新辨证；姜半夏孕期、哺乳期慎用。", decoction: { method: "水煎服，每日1剂，分2次温服。" }, formulaSource: { source: "自拟方" } }], patentAndWestern: [], modifications: [] }, nonPharma: {},
+    __age: age });
+  const project58 = surface.projectDeliveredReasoning(prescribe(58), { recordText: RECORD, herbBoundaryAudience: { reproductive: true, pregnancy: false, ageYears: 58 } });
+  assert.ok(!/孕期|哺乳/u.test(project58.formula.candidates[0].notApplicable), project58.formula.candidates[0].notApplicable);
+  const project34 = surface.projectDeliveredReasoning(prescribe(34), { recordText: RECORD, herbBoundaryAudience: { reproductive: true, pregnancy: true, ageYears: 34 } });
+  assert.match(project34.formula.candidates[0].notApplicable, /姜半夏孕期、哺乳期慎用/u);
 });
 
 await check("G4", "说明书疗程句不带条目编号（「5 服药3天症状无缓解…」）", () => {

@@ -911,6 +911,9 @@ export function tcmDifferentialSelfDeclaredUnrelated(diseaseName: string, rowTex
     for (let width = Math.min(4, run.length); width >= 2; width -= 1) {
       for (let at = 0; at + width <= run.length; at += 1) {
         const term = run.slice(at, at + width);
+        // 相似处只是把本病自己的病名又说了一遍（「心悸常伴眩晕」里的「心悸」）不算写了共同表现：本病的主症病历里当然有，
+        // 不能证明鉴别病与本例相似（第五十九轮重测 R021、R029：心悸与「眩晕」鉴别，本例并无头晕）。
+        if (currentDisease && currentDisease.includes(term)) continue;
         for (let index = recordText.indexOf(term); index >= 0; index = recordText.indexOf(term, index + 1)) {
           if (recordMentionPolarityAt(recordText, index) === "affirmed") return false;
         }

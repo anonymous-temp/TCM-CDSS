@@ -56,6 +56,12 @@
       "阴火"
     ],
     "mechanismItemPattern": "[袭犯束扰蒙闭困遏]|化热|化火|不宁|失[和调养司宣降]|上逆|外感|外邪",
+    "mechanismItemLabels": [
+      {
+        "pattern": "气上逆|上逆|气逆",
+        "label": "气逆"
+      }
+    ],
     "exteriorPathogenPattern": "外邪|外感",
     "exteriorPathogenLabel": "外邪",
     "exteriorSyndromeNamePattern": "外邪|外感|风邪|[袭犯束]表|表证|犯肺|袭肺",

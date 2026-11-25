@@ -3,7 +3,7 @@ import "server-only";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { engineeringJargonInText, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 import { findInternalEngineeringTags } from "./internal-tag-hygiene";
-import { projectDeliveredReasoning, withoutOrphanMechanismFragments, withoutTrailingFragment } from "./delivered-surface";
+import { projectDeliveredReasoning, rationaleConclusionAlignedWithSyndrome, withoutOrphanMechanismFragments, withoutTrailingFragment } from "./delivered-surface";
 import { isLineageLensSentence, lineageLensSubject } from "./tcm-lineages";
 import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
 import { filterAnsweredFinalRationaleUncertainties } from "./pathogenesis-columns";
@@ -148,8 +148,11 @@ function verifySentence(value: string, field: string, reject: Reject) {
 }
 
 export function validateRationaleProse(prose: RationaleProse, context: FinalRationaleContext): RationaleVerdict {
-  const { x, y, l } = prose;
+  const { x, l } = prose;
   const { disease, names } = context.input.conclusion;
+  // 定稿依据是在交付面投影之后才写的，投影里那一步「结论句与交付证名对齐」管不到它（第五十九轮生产重测 R020：
+  // 证候栏没有兼证，新写的依据末句却是「故辨为肝血不足证，兼湿滞」）。这里对新写的辨证依据做同一步：没立的兼证不在结论句里说「兼」。
+  const y = rationaleConclusionAlignedWithSyndrome(prose.y, names[0] || "", names.slice(1));
   const reasons: RationaleRejection[] = [];
   const reject: Reject = (code, field, phrase) => reasons.push({ code, field, ...(phrase ? { phrase } : {}) });
   // 病名带括号分型时（泄泻（暴泻）、血证（鼻衄）），辨病段写出病名本体即可；分型在病名栏里。
@@ -170,8 +173,8 @@ export function validateRationaleProse(prose: RationaleProse, context: FinalRati
   }
   verifyInspection("tongue", y, context, reject);
   verifyInspection("pulse", y, context, reject);
-  verifyCertainty(prose, context, reject);
-  verifyLineage(prose, context, reject);
+  verifyCertainty({ ...prose, y }, context, reject);
+  verifyLineage({ ...prose, y }, context, reject);
   const xLength = rationaleLength(x);
   const yLength = rationaleLength(y);
   if (xLength < 20 || xLength > 120) reject("text_length", "x");

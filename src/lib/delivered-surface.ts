@@ -942,6 +942,23 @@ export function medicineRowIsExternal(name: string, route: string): boolean {
   return /外用|外涂|外搽|外敷|涂|搽|敷|含漱|漱口|滴眼|滴鼻|滴耳|点眼|喷|贴|塞|熏|洗/u.test(usage) || skinTopicalMedication(name, usage);
 }
 
+/** 慎用栏里整句只讲孕期、哺乳期的小句（「姜半夏孕期、哺乳期慎用」）。逐味尾段（「药名（人群慎用）」）不在这里处理。 */
+const PREGNANCY_CLAUSE = /孕期|妊娠|孕妇|哺乳/u;
+const OTHER_POPULATION_IN_CLAUSE = /出血|抗凝|抗血小板|肝|肾|儿童|小儿|老年|高龄|过敏|心|糖尿病|血压|月经|体虚/u;
+export function withoutPregnancyOnlyClauses(text: string): string {
+  const parts = String(text || "").split(/([；;。])/u);
+  const kept: string[] = [];
+  for (let at = 0; at < parts.length; at += 2) {
+    const clause = parts[at];
+    const separator = parts[at + 1] || "";
+    const dropped = PREGNANCY_CLAUSE.test(clause) && !/（[^）]*）/u.test(clause) && !OTHER_POPULATION_IN_CLAUSE.test(clause.replace(new RegExp(PREGNANCY_CLAUSE.source, "gu"), ""));
+    if (!dropped) { kept.push(clause + separator); continue; }
+    // 去掉的是句末小句时，把前一小句的分号换成句号。
+    if (separator === "。" && kept.length > 0) kept[kept.length - 1] = kept[kept.length - 1].replace(/[；;]$/u, "。");
+  }
+  return kept.join("").replace(/^[；;。\s]+/u, "").trim();
+}
+
 /** 说明书注意事项里的疗程句（「服药2周症状无缓解，应去医院就诊」）：作这一行的使用边界。没有时返回空串。 */
 export function labelCourseBoundary(riskNote: string): string {
   // 说明书注意事项的条目编号有「5、」「5.」也有「5 」（R054「5 服药3天症状无缓解」带着编号交付）：编号一律不进这一句。
@@ -2557,8 +2574,17 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       const opening = openings.find((text) => String(candidate.formulaAnalysis).startsWith(text));
       const tail = opening ? candidate.formulaAnalysis.slice(opening.length).replace(/^（原方[^）]*）/u, "") : "";
       if (notes.length > 0) {
+        // 第五十九轮（r1077 重测）：只写「本方以银翘散为基础」而不说差在哪，复核仍记「药味与原方相同却只称为基础，未交代与原方的差别」
+        //（18 份风热感冒里 5 份）；第一轮写「原方」时则记「原方为荆芥穗，处方用荆芥」。两头都不落空的写法是把差别直接写出来：
+        // 「本方以银翘散为基础（原方荆芥用荆芥穗）」。不说「药味同原方」「未照用」（第五十五轮判自相矛盾的是那两个说法）。
+        // 只写药用部位这一类差别（原方荆芥穗、归尾：tcm-formula-original-form-distinctions 的 parts）。原书炮制、药引两类照第五十五轮口径不加括注
+        //（炮制本方未照用的说法当时被读成自相矛盾；药引由煎服法那一句交代）。
+        const partNotes = notes.filter((note) => ORIGINAL_FORMS.parts.some((row) => row.phrase === note));
+        const difference = partNotes.length > 0 ? `（原方${partNotes.join("、")}）` : "";
+        const basedOn = `本方以${label}为基础`;
         // 旧括注里点到的药（「原方当归用归尾」）随括注一起去掉后可能就没人讲了：按药味表补讲，否则再投影一次才补上（不幂等）。
-        if (opening) candidate.formulaAnalysis = withEveryHerbExplained(`本方以${label}为基础${tail}`, records(candidate.herbs));
+        // 模型自己写「本方以X为基础…」而药味与原方相同的，前面的步骤已先改写成「本方用X原方…」，同样走这里。
+        if (opening) candidate.formulaAnalysis = withEveryHerbExplained(`${basedOn}${difference}${tail}`, records(candidate.herbs));
       } else if (opening) {
         candidate.formulaAnalysis = `本方用${label}原方${tail}`;
       }
@@ -2646,6 +2672,12 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
           .replace(/禁用或须强复核/g, "禁用").replace(/[；;。\s]+$/g, "").trim();
       } else if (NOT_APPLICABLE_TEMPLATE_HEAD.test(text.trim())) {
         candidate.notApplicable = text.trim().replace(NOT_APPLICABLE_TEMPLATE_HEAD, "");
+      }
+      // 孕哺提示对本例不适用时（herbBoundaryAudience.pregnancy 为 false：男性、未满 15 岁、55 岁及以上、已绝经…），模型在慎用栏里自己写的
+      // 「姜半夏孕期、哺乳期慎用」这类小句也去掉（第五十九轮生产重测 P002：58 岁女性，逐味尾段已按人群不列，模型写的这半句还在）。
+      // 只去掉整句只讲孕哺的小句；同一小句里还讲出血、肝肾、儿童、老人等别的人群的保留不动。
+      if (typeof candidate.notApplicable === "string" && options?.herbBoundaryAudience && options.herbBoundaryAudience.pregnancy === false) {
+        candidate.notApplicable = withoutPregnancyOnlyClauses(candidate.notApplicable);
       }
       // 慎用栏里括号不成对的残句整句去掉（第五十九轮 r1077 P020、P022：「蒺藜（毒性：有小毒何首乌（老年人、肝功能不全慎用）。 川芎（…）；蒺藜（毒性：有小毒）」——
       // 旧的逐味尾段去掉标记以后被别的改写削坏，新的尾段又接在后面）。成对的句子原样保留；不重写内容。
@@ -3813,13 +3845,27 @@ function withSyndromeResolutionFromAxes(reasoning: Json, recordText: string, all
     const listed = records(uncertainties).map((row) => `${String(row.item || "")}${String(row.reason || "")}`).join("；");
     const parts = item.replace(/^(?:缺|缺少|尚缺|未记录|未述|未诉)/u, "").replace(/(?:未记录|未明|未核实|不详|待定)$/u, "")
       .split(/[、及和与]/u).map((part) => part.trim()).filter((part) => part.length >= 2);
-    const alreadyListed = parts.length > 0 && parts.every((part) => listed.includes(part) || (part.length >= 4 && listed.includes(part.slice(0, 2)) && listed.includes(part.slice(-2))));
-    if (!alreadyListed && !records(uncertainties).some((row) => String(row.reason || "") === reason || String(row.item || "") === item)) {
+    // 第五十九轮（r1077 重测 16 份里 7 份仍被记「末条把前几条再说一遍」）：一条里说了三项、前面只列过两项的，此前整条照加
+    //（「缺寒热喜恶、饮食二便与情志诱因」紧跟在「寒热喜恶」「饮食二便」两条后面）。改成只留前面没列过的那几项；
+    // 判「列过」时去掉「等分证表现」「情况」这类尾巴，逐字出现或其中任一两字词（食少、自汗）在前面出现过即算。
+    const withoutFiller = (part: string) => part.replace(/等?(?:分证)?(?:表现|症状|情况)$/u, "").replace(/等$/u, "");
+    const listedPart = (raw: string) => {
+      const part = withoutFiller(raw);
+      if (part.length < 2) return true;
+      if (listed.includes(part) || (part.length >= 4 && listed.includes(part.slice(0, 2)) && listed.includes(part.slice(-2)))) return true;
+      for (let at = 0; at + 2 <= part.length; at += 1) if (listed.includes(part.slice(at, at + 2))) return true;
+      return false;
+    };
+    const unlistedParts = parts.filter((part) => !listedPart(part)).map(withoutFiller);
+    const alreadyListed = parts.length > 0 && unlistedParts.length === 0;
+    const pendingItem = parts.length > 0 && unlistedParts.length < parts.length ? unlistedParts.join("、").slice(0, 30) : item;
+    if (!alreadyListed && !records(uncertainties).some((row) => String(row.reason || "") === reason || String(row.item || "") === pendingItem)) {
       // 余下的话自己已经说了待定（「寒热虚实细节待复诊」）时不再补「尚待核实」（第四十五轮终审：读来同一意思说两遍）。
-      // 「证候边界待定/受限」是套话，换成说清楚影响什么。
-      const plainRemainder = remainder.replace(/^证候边界(?:待定|受限)(?:，?尚待核实)?$/u, "");
+      // 「证候边界待定/受限」「X为有边界判断」是套话或内部说法，换成说清楚影响什么。
+      const plainRemainder = remainder.replace(/^证候边界(?:待定|受限)(?:，?尚待核实)?$/u, "")
+        .split(/[，,；;]/u).map((clause) => clause.trim()).filter((clause) => clause && !/有边界|有界/u.test(clause)).join("，");
       const pending = /待|未|尚缺|核实|不明|不详/u.test(plainRemainder);
-      pathogenesis.uncertainties = [...uncertainties, { item, reason: plainRemainder ? (pending ? plainRemainder : `${plainRemainder}，尚待核实`) : "影响证候细节的判断，尚待核实", affects: "证候细节与随证加减" }].slice(0, 12);
+      pathogenesis.uncertainties = [...uncertainties, { item: pendingItem, reason: plainRemainder && plainRemainder !== "尚待核实" ? (pending ? plainRemainder : `${plainRemainder}，尚待核实`) : "影响证候细节的判断，尚待核实", affects: "证候细节与随证加减" }].slice(0, 12);
     }
   }
 }
@@ -4520,6 +4566,10 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   //（此前在替换前比，理由开头是「急危重风险未排除：以下辨证…」，冒号连着后半句，比不上，红旗病例的待核实照样重复；第四十五轮复核 20 余份）。
   reconcilePathogenesisColumns(projected, options?.recordText || "", projected.stage === "diagnose" && options?.m03ElementAllows
     ? (label) => options.m03ElementAllows!(projected, label, "nature") : undefined);
+  // 节点治法在上一步才定稿（照抄总治法的节点按病机改成其中一项）。舌脉节点「是否独自承担总治法某一项」要按定稿后的治法再判一次：
+  // 生产实链 R005 第二个节点（苔薄黄）当时写的是整句总治法，算作「和中安神」的唯一承担者而留下，上一步随后把它改成「清化痰热」，
+  // 与第一个节点相同（第五十九轮重测发现：单测与已交付结果回放都是定稿后的治法，看不出这一处先后次序）。
+  if (projected.stage === "diagnose" && !readOnlyConclusions && !isLimitedDiagnose(projected)) withoutTonguePulseOnlyChainNodes(projected);
   withoutReasonEchoingItem(record(projected.pathogenesis));
   if (projected.stage === "prescribe") {
     const careItems = (options?.requiredPrecautions || []).filter((item) => item.kind === "disease_care");

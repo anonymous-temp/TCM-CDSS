@@ -51,7 +51,11 @@ export function natureItemsWithoutMechanismPhrases(items: readonly string[]): st
     if (EXTERIOR_ITEM.test(item)) { push(EXTERIOR_LABEL); continue; }
     const labels = entries.filter((entry) => ELEMENT_KINDS.has(entry.kind) && [entry.canonical, ...entry.aliases].some((name) => item.includes(name)))
       .map((entry) => entry.canonical).filter((label, _, all) => !all.some((other) => other !== label && other.includes(label)));
-    if (labels.length > 0) labels.forEach(push); else unrecognized.push(item);
+    if (labels.length > 0) { labels.forEach(push); continue; }
+    // 病性词表认不出、但句子本身就是一种气机失常的（「肺气上逆」「胃气上逆」）：按闭集写成对应的病性词（气逆）。
+    // 第五十九轮生产重测 R025：病性栏只有「肺气上逆」，本虚、标实两栏都是空的。
+    const mapped = (policy.classification.mechanismItemLabels as Array<{ pattern: string; label: string }>).find((row) => new RegExp(row.pattern, "u").test(item));
+    if (mapped) push(mapped.label); else unrecognized.push(item);
   }
   // 已有具体的邪气（风、寒、湿、热…）时不再并列笼统的「外邪」。
   const specific = out.filter((item) => item !== EXTERIOR_LABEL && natureItemDeficiencyOrExcess(item) === "branch");

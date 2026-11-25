@@ -917,7 +917,15 @@ function pickBasicTreatmentVariant(entry: AcupunctureEntry, input: TextbookPlanI
   const natureVariants = variants.filter((item) => VARIANT_LABEL_NATURE[item.label]);
   // 外感证（外邪犯窍、风邪外袭、风寒束表…）不套内伤病按虚实分的两套（2026-11-14 第四十五轮 rt-923584：眩晕·外邪犯窍证，
   // 针刺卡按实证一套写「平肝潜阳，和胃化痰」取太冲、丰隆）：两套都是内伤的肝阳、痰湿与气血亏虚，与外感不符。
-  if (/外邪|外感|风邪|风寒|风热|犯表|袭表|束表|外袭|表证/u.test(String(input.signedSyndromeText || "").split(/[；;]/u)[0] || "") &&
+  // 例外（第五十九轮，r1077 R008、R080：喉痹·风热外袭证的针刺卡把实证的少商、商阳与虚证的太溪、照海并列，写着「虚证取足少阴经穴为主」）：
+  // 本节教材证型里就有同一外邪的外感型（咽喉肿痛·外感风热，教材归在实证一套）时，这两套并非都与外感无关，照常按虚实取。
+  const signedPrimary = String(input.signedSyndromeText || "").split(/[；;]/u)[0] || "";
+  const sectionListsSameExteriorPattern = entry.syndromes.some((item) => {
+    const label = compact(item.label);
+    const pathogen = label.replace(/^外感/u, "");
+    return label !== pathogen && pathogen.length >= 2 && signedPrimary.includes(pathogen);
+  });
+  if (!sectionListsSameExteriorPattern && /外邪|外感|风邪|风寒|风热|犯表|袭表|束表|外袭|表证/u.test(signedPrimary) &&
     natureVariants.length === 2 && natureVariants.every((item) => /^(?:实证|虚证)$/u.test(item.label)) &&
     !natureVariants.some((item) => /解表|疏风|祛风|宣肺|散寒|外感|表邪/u.test(item.therapy))) return undefined;
   if (natureVariants.length === 2 && new Set(natureVariants.map((item) => VARIANT_LABEL_NATURE[item.label])).size === 2) {
@@ -1777,6 +1785,29 @@ export function limbWeaknessRecorded(currentFacts: string): boolean {
   return LIMB_WEAKNESS.test(facts);
 }
 
+/**
+ * 教材把主穴按外感、内伤分两组写、而本书条目没有分套的病（《针灸治疗学》咳嗽：「主穴 外感：肺俞 列缺 合谷／内伤：肺俞 中府 太渊 三阴交」，
+ * 生成物里并成了一组六穴）：另一本教材同一病的分套恰好就是这两组（并集与本条主穴相同）时，按本例证候只取对应的一组主穴。
+ * 只收窄主穴；治法句、操作句照本条原文（操作句里外感、内伤的小句另有 withSyndromeMatchedClauses 取舍）。
+ * 外感：主证名带外感字样；内伤：主证是虚证，或与本节某个非外感证型相符；判不出（肺气上逆证这类中性证名、教材没有的证型）两组都留。
+ * 第五十九轮：r1077 百例里咳嗽针刺卡十之八九把两组并列（R002、R032、R058、R067…），评审记「外感、内伤主穴混列」。
+ */
+function exteriorOrInteriorMainPoints(primary: AcupunctureEntry, entries: readonly AcupunctureEntry[], input: TextbookPlanInput): string[] | undefined {
+  if ((primary.variants || []).length >= 2) return undefined;
+  const other = entries.find((entry) => entry !== primary && entry.disease === primary.disease && (entry.variants || []).length === 2);
+  const sets = other?.variants || [];
+  const exteriorSet = sets.find((item) => item.label.startsWith("外感"));
+  const interiorSet = sets.find((item) => item.label.startsWith("内伤"));
+  if (!exteriorSet || !interiorSet) return undefined;
+  const union = new Set([...exteriorSet.mainPoints, ...interiorSet.mainPoints]);
+  if (union.size !== new Set(primary.mainPoints).size || primary.mainPoints.some((point) => !union.has(point))) return undefined;
+  const signedPrimary = String(input.signedSyndromeText || "").split(/[；;]/u)[0] || "";
+  if (EXTERIOR_SYNDROME_WORDS.test(signedPrimary)) return exteriorSet.mainPoints;
+  const interior = signedSyndromeDeficiencyExcess(signedPrimary) === "deficiency" || primary.syndromes.some((item) =>
+    !EXTERIOR_SYNDROME_WORDS.test(item.label) && !/^(?:外感|内伤)/u.test(item.label) && syndromeLabelFitsSigned(item.label, signedPrimary));
+  return interior ? interiorSet.mainPoints : undefined;
+}
+
 function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | undefined {
   const entries = matchDiseaseEntries(data.acupuncture, input.diseaseNames, input.westernNames, input.currentFacts, input.patientAgeYears, 2);
   if (entries.length === 0) return undefined;
@@ -1797,7 +1828,7 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   const variant = code === "acupuncture" ? pickBasicTreatmentVariant(primary, input) : undefined;
   const recovery = code === "acupuncture" && strokeRecoveryCard(input.diseaseNames, input.westernNames, input.chiefComplaint || "");
   if (code === "acupuncture") {
-    base = { points: variant?.mainPoints || primary.mainPoints, content: textbookOcrFixed(variant?.therapy || primary.therapy), system: "body", line: primary.line, entry: primary };
+    base = { points: variant?.mainPoints || exteriorOrInteriorMainPoints(primary, entries, input) || primary.mainPoints, content: textbookOcrFixed(variant?.therapy || primary.therapy), system: "body", line: primary.line, entry: primary };
     if (recovery) base = { ...base, points: base.points.filter((point) => !strokeRecoveryPolicy.openingPoints.includes(point)), content: "" };
   } else {
     for (const entry of [primary, ...entries.filter((item) => item !== primary)]) {
