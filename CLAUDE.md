@@ -4192,6 +4192,102 @@ The user forwarded an audit finding, 「强制重生成时方名和药味仍有�
 - **Rollback.** Image `tcm-cdss:20261123-d2f3380-prebuilt` with the compose backup in the release directory; the new behaviour alone: `CDSS_REGENERATION_ANCHOR=false` in the override, no rebuild. Container log before the replacement: `~/telemetry-archive/container-pre-31eca7e-20261123T093133Z.log.gz` on the host. Host 13 GB free.
 - **Local build:** about two minutes with a temporary 3 GB zram swap (removed afterwards); lowest /home free 2.9 GB.
 
+### 11/25 round 59: the customer's real outpatient records — 100 cases run by us, read case by case, fixed by class, re-run (2026-11-25)
+
+**New test arrangement (user, 11/25).** The customer's medical team takes too long per test round. We now build the test set, run it, and send input + output to their reviewers: five reading-friendly samples first, the batch after they confirm. The user also asked that this review be done by Claude itself, not by a model judge.
+
+**Material.** `~/runlogs/r1018/work/r1077/` (patient data, 0700/0600) and `~/runlogs/r1018/work/r1078/` (fix round).
+- **Data.** 117 real outpatient records exported by the customer (blind ids; chief complaint, 现病史, sometimes tongue and pulse; **no age, sex, history or vitals**), with the original doctor's syndrome and prescription for reference. `sets/final100.json` = 65 of these (29 with a herbal prescription) + 35 published primary-care records (6 emergencies, children, pregnancy, elderly). Selected by record content before any output was seen.
+- **Scripts in r1077.** `run-set.py <set>` (paced production runner), `scripts/panel-real.py` (review panel, incl. the processing column), `scripts/panel-diff.py`, `scripts/tally.py` (`REVIEW=review|review2`), `review2/BRIEF.md` (19 items A–S, the customer's lines and precedents), `docgen/mkdoc.cjs` (Word sample for the customer's reviewers).
+- **Scripts in r1078.** `scan59.py <outDir>` (class scan), `replay/surface.mjs`, `cp/cp.py`, `gate.sh`, `deploy/`.
+- **Suite.** `test:r1078-main` (44 checks; 90 mutations, all caught).
+
+**First run (production 31eca7e) and what the reading found.** 100/100 chains, all dosed, P0 audit 0, emergencies 6/6. With 欠妥 counted as pass, 16 of 18 scored items reached the customer's lines; counting only clean passes, 中医诊断 and 诊断依据 were about 60%. The recurring server-caused classes were the input to this round.
+
+**Fixed, by class (commits 4553a20c and b9bd6b34).**
+- **Western diagnosis text** (`tidiedWesternBasis`, `deliveredWesternDiagnosisName`, `recorded-test-claims.ts`):
+  - 「X症状待查」 is delivered as 「X待查」;
+  - 「X待查诊断尚未确立」 becomes 「X的病因尚未明确」;
+  - tongue and pulse are not Western basis;
+  - the examination-claim placeholder sentence is removed;
+  - 「诊断X尚缺…」 makes the name 待查, and a 待查 name does not sit next to 「诊断可临床成立」.
+- **Syndrome rationale follows the delivered name** (`rationaleConclusionAlignedWithSyndrome`). The conclusion sentence names the delivered syndrome, and 「兼X」 is dropped when no secondary was delivered. The same alignment runs on the round-50 final rationale, which is written after the projection (`m03-final-rationale-validation.server.ts`). A rationale cut down to one pending sentence is rebuilt from the case's own chain (`rationaleWithFloorFromChain`).
+- **Pathogenesis columns** (`withAxisBookkeepingFromFinalContent`, `nature-column-classification.ts`, data `pathogenesis-columns.source.json`):
+  - a location without a verbatim basis takes it from the chain node that names it;
+  - mechanism phrases in the nature column become nature labels (外邪袭表 → 外邪; 肺气上逆 → 气逆);
+  - organs and nature elements named by the syndrome are added;
+  - a bare exterior pattern is delivered bounded, with the cold/heat items still to check.
+- **Chain nodes that cite only tongue or pulse** are folded into the first node (`withoutTonguePulseOnlyChainNodes`), unless the node is the sole carrier of a method item. The fold runs twice, because `reconcilePathogenesisColumns` rewrites node therapies after the first pass.
+- **Formula text.** A difference in the herb part is stated in the opening (「本方以银翘散为基础（原方荆芥用荆芥穗）」; data `tcm-formula-original-form-distinctions.source.json` `parts`). Preparation and guide-herb differences keep the round-55 wording.
+- **Precautions and cautions.**
+  - A drug stopped for a suspected reaction is not 「擅自停药」.
+  - No pregnancy or lactation advice from age 55 (`PREGNANCY_ADVICE_MAX_AGE_YEARS`), and model-written 「X孕期、哺乳期慎用」 clauses are dropped for patients the advice cannot apply to (`withoutPregnancyOnlyClauses`).
+  - Unbalanced caution fragments and label item numbers are dropped.
+- **Treatment cards** (`tcm-nondrug-textbook-plan.server.ts`).
+  - The pediatric tuina paragraph is printed only for patients known to be under 14.
+  - A sore throat with an exterior heat pattern takes the excess point set only.
+  - A cough takes the exterior or the interior main points by syndrome (`exteriorOrInteriorMainPoints`); the generated entry had merged the textbook's 「外感：… 内伤：…」 into one list.
+- **TCM differentials** (`tcmDifferentialSelfDeclaredUnrelated`, data `tcm-differential-site-terms.source.json`): 便秘 vs 泄泻 is dropped, and so are site-named diseases without any finding at that site (鼻渊 without nasal symptoms) and reasons that only repeat the current disease's own name.
+- **Method items.** 辛凉解表, 疏风清热 and 疏散风热 are one method (`tcm-therapy-phrase-policy.source.json`).
+- **Pending items.** Only the parts of the syndrome-level reason not already listed are moved in, and 「有边界判断」 wording is removed.
+- **Wording.** The internal sentence 「本条语义发现不单独形成硬门」 is gone from advisories. A disease rationale no longer excludes 虚脱 and then names it.
+- **Prompts.** No tonics for fatigue in a fresh exogenous illness (modification authoring); the follow-up focus mentions only recorded symptoms (M05).
+- **My own data error.** The first conversion of P021 lost 「指脉氧96%」, which caused the first run's only red-flag over-call. Fixed in `r1077/scripts/build-final.py`.
+
+**What only the live chain showed.** After the first deploy the same 100 records were re-run and read again, and four fixes had no effect. Unit tests and the replay of delivered outputs both start from final state, so they could not see it:
+- the fold ran before a later step rewrote node therapies;
+- the final rationale is written after the projection and skipped the alignment;
+- 「肺气上逆」 as the only nature item had no label mapping;
+- the pregnancy caution clause was model-written, not rule-written.
+All four are in the second commit. **Order problems need a live re-run before the fix is called done.**
+
+**Measured (final run on b9bd6b3, same 100 records, customer request shape, follow-up skipped).**
+- **Deterministic.** 100/100 chains, all dosed. P0 audit all 0 (dose over ChP, over 2×, 十八反十九畏 incl. 加减, pregnancy, child-toxic, organ, anticoagulant blood movers). Red flags 8: the 6 emergencies, plus P010 and P015, which are over-calls. Three calls failed client-side (status 0, nothing in nginx) and were retried.
+- **Class scan, first run → final.**
+
+  | Class | First run | Final |
+  |---|---|---|
+  | 「X症状待查」 | 4 | 0 |
+  | 「X待查诊断尚未确立」 | 6 | 0 |
+  | Western basis citing tongue or pulse | 6 | 0 |
+  | 待查 name next to "established" | 2 | 0 |
+  | 「尚缺直接的病历依据」 | 3 | 0 |
+  | Rationale conclusion ≠ delivered syndrome | 1 | 0 |
+  | 「证，兼X」 without a secondary | 2 | 0 |
+  | 便秘—泄泻 differential | 2 | 0 |
+  | 银翘散 with 荆芥 called 原方 | 9 | 0 |
+  | Pediatric tuina paragraph for adults | 11 | 0 |
+  | Internal advisory wording | 7 | 0 |
+  | Chain node citing only tongue or pulse | 24 | 4 (sole carriers of a method item) |
+  | Location unsettled | 6 | 1 |
+  | Mechanism phrase in the nature column | 5 | 1 |
+
+- **Claude review, all 100** (`review2/verdicts`; 欠妥 counted as pass). Every item reaches the customer's line except 中医诊断 92% (line 95): 红旗 98, 诊断依据 95, 鉴别 96, 西医 98, 治则治法 95, 病机 91, 选方 96, 配伍 99, 出处方义 98, 剂量 / 反畏 / 特殊人群 100, 随症加减 94, 外治 98.8, 中成药 100, 调护 98, 随访 100. Red lines 0. Counting only clean passes the rates are far lower (中医诊断 60, 诊断依据 49, 病机 32).
+- **The customer's own 65 records.** 「错」 15 → 11 and cases with no 「错」 54 → 58. Every item is at or above its line (中医诊断 64/65). The remaining 11:
+  - R018 accounts for 5: 虚秘 with 舌淡、脉沉细 judged 气滞;
+  - 诊断依据: R019 and R069 (fallback rationale that ignores the recorded tongue and pulse);
+  - 病机: R014;
+  - 选方: R064;
+  - 随症加减: R050 and R057.
+- **The 35 published records, same two reviewers judging both runs.** 「错」 42 → 40, 欠妥 188 → 177, cases with no 「错」 10 → 12. 诊断依据 6 → 2, 病机 9 → 7, 红旗 3 → 2; 随症加减 1 → 4, 出处方义 0 → 2, 选方 1 → 2. The new errors are all in redrawn text: this round changed prompts and advisory wording, so M03/M04 were drawn again. Under the customer's lines on this group: 中医诊断 80, 病机 80, 鉴别 89, 治则 89, 随症加减 89, 红旗 94.
+- **Reviewer strictness is the largest term.** The first run's reviewers gave these 35 records 18 「错」; two fresh reviewers gave the same outputs 42. Only compare runs judged by the same reviewer.
+
+**Left as is (stop rule).**
+- **Western name vs basis when the basis does not repeat the name.** P034: 「输尿管结石」 with 「B超未明确结石部位，诊断尚不能确立」, although the record's ultrasound shows the stone. `basisSaysNameNotEstablished` needs the disease name next to the wording.
+- **Mixed-polarity record** (P010 = round 19's A056): a modification conditioned on 「呕吐」 although the record says 「无呕吐」 later.
+- **Red-flag over-calls** on P010 (dehydrated infant, from the facts layer) and P015.
+- **Chain node therapy outside the overall method** (P005: node 「宣肺止咳」, method only 「补益肺气」, no cough herb in the formula).
+- **Model judgement.** R018; 知柏地黄丸 without heat signs (P018); pure-excess principle for mixed patterns (P019, P024); 腰痛 instead of 石淋 with a documented stone (P034); 生白术 with 便溏 (P016); 方义 「本方以自拟方为基础加减」 under 方名 双合汤 (P025).
+- **Wording.** 「补强治法第一项」 in a modification reason (P031); 「本例有老年人记录，使用前请医生确认」.
+- **Near-identical records** (脉弦细 vs 脉弦) can still get different syndromes and formulas.
+- **The customer's export has no age or sex.** Doses are adult by default; ask for both before a batch run on their records.
+
+**In production (b9bd6b34, tag `20261125-b9bd6b3-prebuilt`, deployed 2026-11-25 about 10:37 UTC; same release directory and `20260927-dsrepair` override, final review still on).** 4553a20c went out first at about 08:51 UTC.
+- **Gate and verification.** Lint, 356 suites, the fresh-artifact suites and typecheck were green on the committed tree. `verify:deployed-image` passed both times (commit, digest, strictReady, qwen and deepseek live). `regress:prod-smoke` had 0 failures both times (M03 P95 13.1 s then 12.0 s; M04 P95 15.5 s then 21.2 s).
+- **Rollback.** Image `tcm-cdss:20261125-4553a20-prebuilt` (or `…20261123-31eca7e…`) with the compose backups in the release directory. Container logs before each replacement: `~/telemetry-archive/container-pre-4553a20-*.log.gz` and `container-pre-b9bd6b3-*.log.gz` on the host.
+- **Not pushed.** Both commits are local; `origin/main` is behind.
+- **Sample for the customer.** `~/runlogs/r1018/work/r1077/deliver/`: five real records from the final run (R046, R062, R007, R008, R010) as Word and PDF, and the 100-case verdict table (CSV). The first run's sample is in `第一版-修复前/`.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
