@@ -73,7 +73,7 @@ import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-
 import { diseaseNeutralCategoryName } from "./m03-disease-neutral-policy";
 import { diseaseRecordContext, textbookDiseaseRefinementMatches, withDiseaseDefiningFindingCaveat } from "./tcm-disease-defining-findings";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
-import { migrateDeliveredHerbCautions, boundaryRuleShown, followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
+import { migrateDeliveredHerbCautions, withoutIrrelevantPopulationCautions, boundaryRuleShown, followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, herbFunctionKnowledgeForDisplay, isExternalUseEfficacyClause, isKnownTcmHerbName } from "./tcm-knowledge";
 import { herbFunctionClaimUnsupportedPhrases, herbFunctionPhraseRecognized, herbFunctionPhraseSupported } from "./diagnosis-stage-contract";
 import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment, treatmentCardUndeliverable } from "./tcm-treatment-capabilities.server";
@@ -2793,6 +2793,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     if (typeof candidate.notApplicable === "string" && options?.herbBoundaryAudience && /使用前请医生确认|）。/u.test(candidate.notApplicable)) {
       const profiles = records(candidate.herbs).map((herb) => getTcmHerbGenerationSafetyProfile(String(herb.name || "")));
       candidate.notApplicable = migrateDeliveredHerbCautions(candidate.notApplicable, profiles, options.herbBoundaryAudience);
+    }
+    if (typeof candidate.notApplicable === "string" && options?.herbBoundaryAudience) {
+      candidate.notApplicable = withoutIrrelevantPopulationCautions(candidate.notApplicable, options.herbBoundaryAudience);
     }
     const source = record(candidate.formulaSource);
     if (source && typeof source.source === "string" && /^自拟方/.test(source.source.trim()) && !(source.source.includes("组方参考") && /《[^》]+》/u.test(source.source))) source.source = "自拟方";

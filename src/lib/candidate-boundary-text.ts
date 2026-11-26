@@ -53,6 +53,21 @@ export function herbBoundaryPopulationLabel(population: string, audience?: HerbB
   return population.split("/").filter((part) => !part.includes("月经") && !part.includes("经期")).join("/") || population;
 }
 
+/**
+ * 不经本文件写出的逐味人群提示（模型照知识库写的「枳壳（孕期/妊娠慎用）」「川芎（孕期/妊娠、出血倾向慎用）」）：括注里只留本例可能属于的人群，
+ * 一个都不剩时整条连同分隔号去掉（第六十二轮回归 p100c C090：41 岁男性的处方写着「枳壳（孕期/妊娠慎用）」）。人群判据与本文件写出的尾段同一个。
+ */
+export function withoutIrrelevantPopulationCautions(text: string, audience?: HerbBoundaryAudience): string {
+  if (!audience || !text) return text;
+  const result = text.replace(/([\u4e00-\u9fff]{1,8})（([^（）]{2,40}?)(慎用|禁用|忌用)）([；;，,、]?)/gu, (whole, herb: string, populations: string, verb: string, separator: string) => {
+    const parts = populations.split(/[、，,]/u).map((part) => part.trim()).filter(Boolean);
+    const kept = parts.filter((part) => herbBoundaryPopulationRelevant(part, audience)).map((part) => herbBoundaryPopulationLabel(part, audience));
+    if (kept.length === parts.length) return whole;
+    return kept.length > 0 ? `${herb}（${kept.join("、")}${verb}）${separator}` : "";
+  });
+  return result === text ? text : result.replace(/[；;，,、]\s*$/u, "").trim();
+}
+
 /** 文本里有本文件写出的尾段（新写法）。 */
 export function hasHerbBoundaryTail(text: string): boolean {
   return String(text || "").includes(HERB_BOUNDARY_MARKER);

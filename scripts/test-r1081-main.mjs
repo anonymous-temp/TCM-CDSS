@@ -389,4 +389,14 @@ const authoring = await jiti.import("../src/lib/tcm-disease-differential-authori
   assert.deepEqual((await authoring.crossVerifiedDifferentials(rows, deferred, ctx, async () => undefined)).map((item) => item.diseaseName), ["牙宣"], "核对失败不收");
   n += 1; console.log("✓ 10.17 模型自提、教材没有定义的鉴别病名：另一家摘出病历里两病共有的表现才收（带下过多、口疮、胬肉攀睛这类教材鉴别少的病）");
 }
+
+const boundary = await jiti.import("../src/lib/candidate-boundary-text.ts");
+check("10.18", "逐味人群提示里模型照写的括注：本例不可能属于的人群去掉（41 岁男性不写「孕期/妊娠慎用」），一个不剩整条去掉；育龄女性照留", () => {
+  const male = { sex: "男", ageYears: 41, pregnancy: false, lactation: false, reproductive: false };
+  const woman = { sex: "女", ageYears: 30, pregnancy: true, lactation: true, reproductive: true };
+  assert.equal(boundary.withoutIrrelevantPopulationCautions("枳壳（孕期/妊娠慎用）", male), "");
+  assert.equal(boundary.withoutIrrelevantPopulationCautions("川芎（孕期/妊娠、出血倾向慎用）；牛膝（孕期/妊娠慎用）", male), "川芎（出血倾向慎用）");
+  assert.equal(boundary.withoutIrrelevantPopulationCautions("枳壳（孕期/妊娠慎用）", woman), "枳壳（孕期/妊娠慎用）");
+  assert.equal(boundary.withoutIrrelevantPopulationCautions("按本例情况已去除：附子（孕期不宜）", male), "按本例情况已去除：附子（孕期不宜）", "去除说明不动");
+});
 console.log(`r1081 main: ${n} checks passed`);
