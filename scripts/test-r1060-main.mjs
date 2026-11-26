@@ -366,10 +366,10 @@ await check("6.2 交付面：中成药的使用边界取说明书疗程句，与
   const out = surface.projectDeliveredReasoning(reasoning, {});
   const [first, second] = out.formula.patentAndWestern;
   assert.equal(first.usageBoundary, "服药2周症状无缓解，应去医院就诊。");
-  assert.equal(first.relationship, "是否与本方汤剂同用由医生评估");
+  assert.equal(first.relationship, "请医生评估选择中成药或汤剂，如需合用须由医生或药师审核");
   assert.doesNotMatch(first.riskNote, /尚不明确/u);
   assert.equal(second.usageBoundary, "");
-  assert.equal(second.relationship, "可与本方汤剂同期服用，两者间隔约1小时");
+  assert.equal(second.relationship, "由医生根据病情选择，如需与汤剂合用，须经医生或药师审核，请勿自行合用");
 });
 
 // ───── 7 辅助检查里别人的报告 ─────

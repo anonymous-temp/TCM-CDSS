@@ -34,7 +34,10 @@ const output = {
   generatedFrom: SOURCE,
   version: source.version,
   sourceLabels: SOURCE_LABELS,
-  contextConceptIds: source.contextConcepts.map((item) => item.conceptId),
+  contextConceptIds: [...source.contextConcepts, ...source.observationConcepts].map((item) => item.conceptId),
+  observationFollowup: Object.fromEntries(source.observationConcepts.map((item) => [item.conceptId, item.followup])),
+  observationExplanation: Object.fromEntries(source.observationConcepts.map((item) => [item.conceptId, item.explanation])),
+  medicationNameAnchors: source.medicationNameAnchors,
   // 只靠弱字样（嗜睡）成立的判别、且所在分句是疲乏写法（神疲嗜睡）时不采信：判别读者与闸门兜底提示读同一份词（第四十轮）。
   weakAnchors: source.quoteAnchors?.weakAnchors || {},
   fatigueFraming: source.quoteAnchors?.fatigueFraming || [],

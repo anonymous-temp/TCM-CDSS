@@ -7,6 +7,8 @@ export type WesternCriteriaEntry = {
   clinicallyDiagnosable: boolean;
   requiredTests: string[];
   durationThreshold: string;
+  /** 数值门槛仅定义这个下位类型，不适用于上位诊断。 */
+  durationLimitedSubtype?: string;
   definingFeatures: string[];
   quote: string;
   url: string;

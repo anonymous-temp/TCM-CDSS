@@ -237,7 +237,8 @@ await check("6.3 证名、病名不涉心神时治法里单列的「宁心安神
     overview: { tcmDiseaseName: disease, primarySyndrome: syndrome, secondarySyndromes: [] }, therapy: { overallMethod: method } }, {}).therapy.overallMethod;
   assert.equal(diag("虚劳", "脾胃阴虚证", "益气健脾，滋阴和胃，宁心安神"), "益气健脾，滋阴和胃");
   assert.equal(diag("消渴", "气阴亏虚证", "生津止渴，宁心安神"), "生津止渴");
-  assert.equal(diag("心悸", "心脾两虚证", "补血养心，益气安神，宁心安神"), "补血养心，益气安神");
+  // 第六十二轮起两脏同虚的证名治法每一脏都要有着落（甲方点名「肺脾两虚，治法未体现健脾」）：去掉重复的安神项后补一条健脾的国标治法。
+  assert.equal(diag("心悸", "心脾两虚证", "补血养心，益气安神，宁心安神"), "补血养心，益气安神，补益脾气");
   assert.equal(diag("虚劳", "脾胃阴虚证", "养阴和胃，健脾益气，宁心止汗"), "养阴和胃，健脾益气，宁心止汗");
 });
 

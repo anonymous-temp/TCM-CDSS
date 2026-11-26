@@ -930,6 +930,19 @@ export function withAxisBookkeepingFromFinalContent(reasoning: Record<string, un
     for (const organ of organsNamedBySyndromeMissingFrom(primarySyndromeNameText, semanticItems(location.items))) {
       if (fill(organ)) location.items = [...semanticItems(location.items), organ];
     }
+    const summary = String(pathogenesis?.summary || overviewForAxes?.overallPathogenesis || "");
+    for (const organ of organsNamedBySyndromeMissingFrom(summary, semanticItems(location.items))) {
+      if (clauseLocalMentionPolarityAt(summary, summary.indexOf(organ)) !== "affirmed") continue;
+      const node = chainNodes.find(node => {
+        const mechanism = String(node.pathogenesis || "");
+        return mechanism.includes(organ) && clauseLocalMentionPolarityAt(mechanism, mechanism.indexOf(organ)) === "affirmed" &&
+          Boolean(deliveredVerbatimBasis(node.patientFact, clinicalContext));
+      });
+      if (!node) continue;
+      const basis = deliveredVerbatimBasis(node.patientFact, clinicalContext);
+      location.items = [...semanticItems(location.items), organ];
+      if (!groundedNow().includes(organ)) details.push({ location: organ, basis });
+    }
     if (details.length > 0) location.details = details;
     const items = semanticItems(location.items);
     const groundedLocations = (Array.isArray(location.details) ? location.details : []).flatMap((detail) => {
@@ -1032,7 +1045,22 @@ export function withAxisBookkeepingFromFinalContent(reasoning: Record<string, un
   }
 }
 
-/** 最后交付时统一决定两轴的「高」；不改轴内容、不改变安全门，红旗不升。 */
+/** Only the unique symptom group sharing two distinct quoted findings can supply corroboration. */
+export function fillMissingChainEvidence(path: Record<string, unknown>, record: string): void {
+  for (const node of recordList(path.chain)) {
+    if (markdownCell(node.syndromeEvidence) || !markdownCell(node.patientFact)) continue;
+    const fact = markdownCell(node.patientFact);
+    const groups = recordList(path.symptomClusters).map(group => [...new Set(semanticItems(group.symptoms))]
+      .filter(quote => quote.length >= 2 && record.includes(quote) && sourceDocumentsAffirmation(record, quote)));
+    const matching = groups.filter(quotes => quotes.filter(quote => fact.includes(quote) &&
+      !quotes.some(other => other !== quote && fact.includes(other) && other.includes(quote))).length >= 2);
+    if (matching.length !== 1) continue;
+    const corroboration = matching[0].find(quote => !fact.includes(quote));
+    if (corroboration) node.syndromeEvidence = corroboration;
+  }
+}
+
+/** 最后交付时统一决定两轴的「高」；红旗不升。 */
 export function withResolvedAxisEvidenceConfidence(reasoning: Record<string, unknown>, clinicalContext: string, redFlag: boolean): void {
   if (!clinicalContext || redFlag) return;
   const pathogenesis = recordValue(reasoning.pathogenesis);
@@ -2637,6 +2665,8 @@ function derivedTreatmentPrinciple(nature: SignedNatureProfile): string {
  */
 export function nationalTreatmentPrinciple(current: string, reasoning: Record<string, unknown>, context?: Parameters<typeof redFlagActiveFor>[0]): string {
   const nature = signedNatureProfile(reasoning);
+  // 治则只按交付的证名（及其治法）推导，不读病性栏的本虚/标实分栏（第六十二轮试过按分栏推导又撤回：实链回放 90 份里
+  // 肝气犯胃证、寒凝血瘀证、风热外袭证、脾胃虚寒证都被写成「扶正祛邪」——分栏里的脾虚、津亏、内寒是兼带或继发，不是证名的虚实）。
   const normalized = current.normalize("NFKC");
   const written = NATIONAL_TREATMENT_PRINCIPLES
     .map((term) => ({ term, at: normalized.indexOf(term) }))
@@ -4739,7 +4769,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
     "# 中医辅助诊疗报告",
     "",
     westernHeading,
-    `**诊断倾向**：${westernDiagnosisLabelForDisplay(markdownCell(westernPrimary?.name), westernPrimary?.coding)}`,
+    `**诊断倾向**：${markdownCell(westernPrimary?.name)}`,
   ];
   // 甲方评测(2026-08-04) 1.1.1：诊断依据分「支持/排除/待查」三类并标注事实来源。
   // 三类都是对已签名载荷既有字段的重新归类（见 clinical-fact-source.ts），不新增任何推断；

@@ -432,7 +432,7 @@ await check("7.5 小模型按本例选穴：请求里有本例诊断、表现与
   // 第四十七轮：教材注意核对加入同一并行组、加减核对带完整分型上下文；居家选穴仍不串行。
   // R1064：候选核对包装器与调护任务继续并行。
   assert.match(route, /Promise\.all\(\[\s*prepareM04CandidateContent[\s\S]*?homeAcupointAuthoring,[\s\S]*?checkHerbCautions/);
-  assert.match(route, /\{ authoredHomeAcupoint \}\)/);
+  assert.match(route, /\{ authoredHomeAcupoint, cardReview \}\)/);
 });
 
 console.log(`r1037-main: ${cases} checks`);

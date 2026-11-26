@@ -1169,7 +1169,9 @@ export function buildTcmFormulaReasoningContext(
 }
 
 export function normalizedFormulaIdentity(value: string): string {
-  return value.replace(/\s+/g, "").replace(/(?:加减|化裁)$/, "");
+  // 栝楼、栝蒌、瓜蒌是同一味药的三种写法，没有哪两首方只差这一处（第六十二轮实链 d084：M03 锁「栝楼牛蒡汤」、
+  // 候选库条目是「瓜蒌牛蒡汤」，正向依据判据逐字比，教材代表方被判依据不足，整页退成不给剂量）。
+  return value.replace(/\s+/g, "").replace(/(?:加减|化裁)$/, "").replace(/栝蒌|栝楼/gu, "瓜蒌");
 }
 
 /**
@@ -1315,7 +1317,10 @@ export function namedFormulaPositiveSufficiencyIssue(
   const allowed = new Set(candidates.flatMap((entry) =>
     [entry.name, ...entry.aliases].map(normalizedFormulaIdentity)));
   for (const identity of trustedModelFormulaIdentityNames(reasoning, formulaNames, clinicalSourceText)) allowed.add(identity);
-  const unsupported = formulaNames.find((name) => !allowed.has(normalizedFormulaIdentity(name)));
+  // 同一首方的等价写法（丸散方作汤剂等，formula-name-spellings 的共用表）也算在内。
+  const allowedNames = [...allowed];
+  const unsupported = formulaNames.find((name) => !allowed.has(normalizedFormulaIdentity(name)) &&
+    !allowedNames.some((other) => sameFormulaNameSpelling(other, normalizedFormulaIdentity(name))));
   return unsupported ? `named_formula_positive_sufficiency_missing:${unsupported}` : undefined;
 }
 

@@ -4,7 +4,7 @@ import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, isKnownTcmHerbName } from "./tcm-knowledge";
-import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText } from "./pediatric-dose-rule";
+import { isPediatricGroundingText, pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText } from "./pediatric-dose-rule";
 import { precautionWithoutAbsentHerbs, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs } from "./m04-proposal-compiler";
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
 import rxConstraints from "../data/rx-case-constraints.source.json";
@@ -547,15 +547,22 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
     }
     // 方中原有慎用药保留，点明本例实际人群；不把君药改位或剔除。幂等，避免修复/投影重入时重复。
     let cautionChanged = false;
-    for (const value of (candidate.herbs as unknown[])) {
+    const byPopulation = new Map<string, Set<string>>();
+    for (const value of candidate.herbs as unknown[]) {
       const name = nameOf(value);
       for (const population of recordedPopulationCautions(name, clinicalContext)) {
-        const note = `${name}${population}慎用；本例有${population}记录，使用前请医生确认`;
-        const previous = String(candidate.notApplicable || "");
-        if (!previous.includes(note)) {
-          candidate.notApplicable = appendCaseSafetyNote(previous, note);
-          cautionChanged = true;
-        }
+        if (population === "儿童/婴幼儿" && !isPediatricGroundingText(clinicalContext)) continue;
+        const names = byPopulation.get(population) ?? new Set<string>();
+        names.add(name);
+        byPopulation.set(population, names);
+      }
+    }
+    for (const [population, names] of byPopulation) {
+      const note = `${[...names].join("、")}在${population}情况下须慎用，请医生核对后使用`;
+      const previous = String(candidate.notApplicable || "");
+      if (!previous.includes(note)) {
+        candidate.notApplicable = appendCaseSafetyNote(previous, note);
+        cautionChanged = true;
       }
     }
     const formula = recordValue(reasoning.formula)!;

@@ -12,7 +12,7 @@ import { rationaleAlignedWithCourseRename, rationaleAlignedWithRenamedPrimary } 
 
 export { rationaleAlignedWithRenamedPrimary };
 import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
-import { recordStatesWesternDiagnosis } from "./recorded-test-claims";
+import { pediatricOnlyWesternName, recordHasTestResultFor, recordStatesWesternDiagnosis } from "./recorded-test-claims";
 import { clinicalEventTemporalScopeAt } from "./clinical-polarity";
 
 /**
@@ -222,8 +222,10 @@ export function parseWesternNameCorrection(
   // 表里按临床表现即可诊断、没有必需检查的病（紧张型头痛、反应性关节炎）判 D，缺的是特征或前驱病史，不是确诊检查：首要考虑本身没有依据，
   // 不留「原病名待查」（2026-10-19 留出例 S079 交付「反应性关节炎待查」，病历没有前驱肠道或泌尿生殖道感染，复核不通过）。
   const currentEntry = westernCriteriaEntry(current);
+  const broader = (westernNamePreferred.broaderDiagnoses as Record<string, string>)[current.replace(/待查$/u, "")];
+  const governedBroader = broader === preferredWesternNameForm(name).replace(/待查$/u, "");
   const testDefined = !currentEntry || currentEntry.requiredTests.length > 0;
-  const keepHypothesis = type === "D" && /待查$/u.test(name) && !/待查$/u.test(current) && !courseDefined && testDefined &&
+  const keepHypothesis = type === "D" && /待查$/u.test(name) && !/待查$/u.test(current) && !courseDefined && testDefined && !governedBroader &&
     !pediatricOnlyWesternName(current) &&
     !namesSameDiseaseFamily(name, current) &&
     current.length >= 2 && current.length <= 24 && !INVALID_SUPPORTED_NAME_FORM.test(current);
@@ -245,7 +247,7 @@ export function parseWesternNameCorrection(
     isCharacterSubsequence(compact(symptomSupported.replace(/待查$/u, "")), compact(current))) {
     symptomSupported = symptomSupported.replace(/待查$/u, "");
   }
-  const supported = type === "D" && !/待查$/u.test(symptomSupported) &&
+  const supported = type === "D" && !governedBroader && !/待查$/u.test(symptomSupported) &&
     !isCharacterSubsequence(supportedCore, compact(current)) && !symptomLevelWesternName(supportedCore) &&
     !compact(recordText).includes(supportedCore) && current.length >= 2 && !INVALID_SUPPORTED_NAME_FORM.test(current)
     ? `${current}待查`
@@ -672,7 +674,7 @@ async function westernNameCheckPass(
  * 专家共识》（2017）都按 0～14 岁分年龄段定义。第二十四轮已在提示词与病名核对的 D 类里写明，但核对拿不准时走「原病名待查」，交付成
  *「反复上呼吸道感染待查」（生产一次）。这里确定性改名：本次有急性呼吸道感染表现写「急性上呼吸道感染」，没有时写症状层面名称。
  */
-const PEDIATRIC_ONLY_WESTERN_NAME = /^反复(?:上|下)?呼吸道感染/u;
+
 const CURRENT_RESPIRATORY_INFECTION_SIGN = /发热|咽痛|鼻塞|流涕|喷嚏|咳嗽/u;
 const ADULT_FATIGUE_SYMPTOM = /乏力|疲乏|神疲|倦怠/u;
 function currentAffirmedMention(text: string, pattern: RegExp): boolean {
@@ -684,9 +686,7 @@ function currentAffirmedMention(text: string, pattern: RegExp): boolean {
   }
   return false;
 }
-export function pediatricOnlyWesternName(name: string): boolean {
-  return PEDIATRIC_ONLY_WESTERN_NAME.test(name.trim().replace(/待查$/u, ""));
-}
+export { pediatricOnlyWesternName };
 
 /** 只是「器官＋病/疾病」的笼统写法（肾脏病、心脏病、肝病、肺病、胃病）：不是一个可交付的具体病名（构词守卫）。 */
 const GENERIC_ORGAN_DISEASE_NAME = /^[肾肝心肺脾胃胆肠](?:脏)?(?:疾)?病$/u;
@@ -728,12 +728,14 @@ export function deterministicWesternNameCorrection(name: string, recordText: str
   // 心肌梗死的 ST 段分型是心电图定的（第四版心肌梗死全球统一定义：STEMI/NSTEMI 按心电图分；MSD：心肌坏死标志物＋缺血临床背景）。
   // 病历没有心电图与肌钙蛋白时写不分型的「急性冠脉综合征待查」：急危重的方向不变，只是不把没有依据的分型写成已确诊
   //（2026-11-08 第三十七轮，甲方 11.05 病历16：胸痛 2 小时，交付「急性ST段抬高型心肌梗死」，评审「无心电图依据」）。
-  if (/(?:非)?ST段抬高型?(?:急性)?心肌梗死|STEMI/iu.test(core) && !/心电图|ECG|EKG|ST段|肌钙蛋白|TnI|TnT|cTn/iu.test(recordText)) {
+  const unconfirmedInfarction = core === "急性心肌梗死" && !recordStatesWesternDiagnosis(core, recordText) &&
+    !recordHasTestResultFor("心电图", recordText) && !recordHasTestResultFor("肌钙蛋白", recordText);
+  if (unconfirmedInfarction || (/(?:非)?ST段抬高型?(?:急性)?心肌梗死|STEMI/iu.test(core) && !/心电图|ECG|EKG|ST段|肌钙蛋白|TnI|TnT|cTn/iu.test(recordText))) {
     return {
       type: "D",
       supportedName: "急性冠脉综合征待查",
       quote: chiefComplaintLine(recordText) || core,
-      reason: "ST段分型与心肌梗死的确立需心电图与心肌坏死标志物，病历均未记录",
+      reason: "现有资料支持急性心肌缺血方向，尚需心电图和心肌坏死标志物鉴别",
       missingTest: "心电图、肌钙蛋白",
     };
   }

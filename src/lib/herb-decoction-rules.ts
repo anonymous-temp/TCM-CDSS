@@ -1,3 +1,4 @@
+import timing from "../data/tcm-decoction-timing.source.json";
 import knowledge from "../data/tcm-knowledge.json" with { type: "json" };
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { textbookHerbUsage } from "./herb-textbook-identity";
@@ -346,11 +347,24 @@ function firstDecoctionPhrase(herbs: string): string {
   ].join("，");
 }
 
+function lateDecoctionPhrase(herbs: string): string {
+  if (!herbs) return "后下";
+  const groups = new Map<string, string[]>();
+  for (const name of herbs.split("、")) {
+    const identity = resolveHerb(name)?.name || name;
+    const duration = (timing.exceptions as Record<string, string>)[identity] ||
+      (timing.aromaticNames.includes(identity) ? timing.aromaticTiming : "");
+    const phrase = duration ? `后下（第一煎结束前${duration}放入）` : "后下";
+    groups.set(phrase, [...(groups.get(phrase) || []), name]);
+  }
+  return [...groups].map(([phrase, names]) => names.join("、") + phrase).join("，") + "，第二煎用原药渣加水再煎，不另加一剂";
+}
+
 export const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (herbs: string) => string }> = [
   { pattern: /久煎/, phrase: (herbs) => `${herbs}先煎45–60分钟（至口尝无麻辣感）` },
   // 药典写了先煎时长、比一般先煎长得多的（水牛角，见 PHARMACOPOEIA_LONG_DECOCTION）在这一组里单独写、写在前面（先下锅）。
   { pattern: /先煎/, phrase: (herbs) => firstDecoctionPhrase(herbs) },
-  { pattern: /后下/, phrase: (herbs) => `${herbs}后下` },
+  { pattern: /后下/, phrase: lateDecoctionPhrase },
   { pattern: /包煎/, phrase: (herbs) => `${herbs}包煎` },
   { pattern: /另煎|另炖/, phrase: (herbs) => `${herbs}另煎兑入` },
   { pattern: /烊化/, phrase: (herbs) => `${herbs}烊化兑服` },

@@ -178,7 +178,7 @@ for (const [phiPathName, phiScrub] of phiAuditPaths) {
   assert.match(labeledChineseVisit, /就诊时间：\[已泛化\]/);
   const bareDateProbe = phiScrub("2026-07-18 突发胸痛");
   assert.doesNotMatch(bareDateProbe, /2026-07-18/, phiTag("a bare date is a quasi-identifier on both paths"));
-  assert.match(bareDateProbe, /\[日期已泛化\]/);
+  assert.equal(bareDateProbe, "当时 突发胸痛");
   assert.match(phiScrub("2026年3月发病，反复咳嗽"), /2026年3月/, phiTag("year-month onset text is clinically needed and must stay intact"));
   // (d) identifiers buried mid-record: scrub runs before any truncation on both paths.
   const phiFiller = "患者诉反复失眠多梦，伴心烦心悸，纳食尚可，二便调，夜寐不安。";

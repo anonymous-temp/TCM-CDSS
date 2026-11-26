@@ -11,6 +11,7 @@ import {
   withoutRepeatedAddedHerbs,
 } from "./m04-proposal-compiler";
 import { applyHerbCautionHits, checkHerbCautions } from "./herb-caution-check.server";
+import { herbFunctionSourceClauses } from "./herb-function-display-source";
 import { herbIndicationText } from "./herb-indication";
 import { patentMedicineDuplication } from "./patent-medicine-duplication.server";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
@@ -52,41 +53,42 @@ export const AUTHOR_SYSTEM = [
   "先在 findings 里逐项列出病历已记录的这位患者现在的表现（症状、体征；单独的舌象、脉象不算一项，可写进同一项里作佐证；否认的、既往的、家属的、化验与生命体征数值、外伤、生活习惯与诱因不列）。每项写：text 用病历原话；coveredBy 写方中直接针对它的药（没有写空串）；kind 写 main（主诉主症）、accompany（主方没有照顾到的伴随表现）、weak（主方只是兼顾、力量单薄的伴随表现）或 incidental（明确由主病引起、主病好了自然好的表现，如外感引起的睡眠欠佳、发热引起的纳差）。",
   "然后写 rows：",
   "1. accompany 与 weak 的表现都可以加药：accompany 是主方没有照顾到的，weak 是主方只兼顾、可以加一味加强的。trigger 用病历原话写这一项。",
-  "2. 主方对治法第一项的力量明显不足时（治法第一项在方中只有一味药承担、力量单薄），为主症加一味与治法第一项同一功效方向的药补强（治法第一项是益气就补气，不是活血），不用有毒或破血峻烈之品；trigger 写病历里该主症的原话，不超过8个字（如「胃脘隐痛」），reason 写明补强治法的哪一项。",
+  "2. 主方对治法第一项的力量明显不足时（治法第一项在方中只有一味药承担、力量单薄），为主症加一味与治法第一项同一功效方向的药补强（治法第一项是益气就补气，不是活血），不用有毒或破血峻烈之品；trigger 写病历里该主症的原话，不超过8个字（如「胃脘隐痛」），reason 只写这味药对该表现的教材功效。",
   "3. 选药时先在 indication 里写这味药在《中药学》里对这个表现的主治（功效或【应用】里的原话），写不出就换一味药。药的寒热补泻与证型、治法一致：实热、湿热证不加温燥、温补，虚寒证不加苦寒，没有阴虚之象不加滋阴，外感、痰热、湿热这类实证不为次要表现加补益药。",
   // 第五十九轮（r1077 百例阅卷加减 29 份欠妥里最多的两类）：感冒一日的乏力加太子参、党参；主方已有辛夷、牛蒡子，仍为一两天的鼻塞、咽痛加有毒药。
   "4. incidental 的表现不加药：外感新病（感冒、咳嗽初起）里由外邪引起的乏力、神疲、头晕属 incidental，不加补益药；主方已有同一功效的药时，不再为同一个主症另加有毒的药；急危重表现不作加减条件；加的药不在方中（含同一味药的另一种炮制品），与方中药不同类同效（方中有党参不加人参，有干姜不加生姜），同一味药只加一次。",
-  "5. dose 写一个数（如 10g），取《中国药典》该药内服用量范围之内、本例年龄的常用量。reason 只写这味药针对这个表现的作用（如「生津止渴」「利咽」「降逆止呕」），用治法里有的说法；治法里没有的温里、清热、补益、泻下、破血、散结、开窍这类方向词不写进 reason。symptomPathogenesis 写这个表现在本例的病机，不照抄主证病机。",
-  "existing 是开方时已写的加减行，每行带 indications（《中药学》该药的功效与【应用】标题）。逐行先核对：病历的这个表现，是不是这味药主治里所说的那一种（【应用】写在某个证候下的主治只对这个证候成立，本例证候不同就不算对症）。existing 里对的保留，把序号写进 keep；药症不对、寒热补泻与证型相反、针对 incidental 表现、只以舌象或脉象为条件、或条件病历里没有的，不保留，在 drop 里写序号和原因（不超过20字）。每个序号要么在 keep、要么在 drop。rows 只写新加的行，不重复 keep 里已保留的条件。",
-  "条数：病历里有 accompany、weak 的表现或治法第一项需要补强时，rows 与 keep 合计写到 2–4 条不同的条件；病历确实只有主症、主方已足够时可以少于两条。不编病历里没有的条件。rows 按把握从大到小排；每行 purpose 写 reinforce（补强治法第一项）、uncovered（主方没有照顾到）或 weak（主方兼顾力薄）。",
+  "5. dose 写一个数（如 10g），取《中国药典》该药内服用量范围之内、本例年龄的常用量。reason 只写这味药针对这个表现的作用（如「生津止渴」「利咽」「降逆止呕」），取该药自身的教材功效，不把总治法写成单味药功效；治法里没有的温里、清热、补益、泻下、破血、散结、开窍这类方向词不写进 reason。symptomPathogenesis 写这个表现在本例的病机，不照抄主证病机。",
+  "existing 是开方时已写的加减行，每行带 indications（《中药学》该药的功效与【应用】标题）。逐行先核对：病历的这个表现，是不是这味药主治里所说的那一种（【应用】写在某个证候下的主治只对这个证候成立，本例证候不同就不算对症）。逐项核实 reason。药症相符时，在 reasons 返回 {index,functionIndex}，从该行 functions 中选一个直接针对该表现的功效编号（从0开始），作为保留行的理由。功效与主治均无法支持这条加减的，列入 drop。生活习惯与诱因不作症状。existing 里对的保留，把序号写进 keep；药症不对、寒热补泻与证型相反、针对 incidental 表现、只以舌象或脉象为条件、或条件病历里没有的，不保留，在 drop 里写序号和原因（不超过20字）。每个序号要么在 keep、要么在 drop。rows 只写新加的行，不重复 keep 里已保留的条件。",
+  "条数：每个有依据的表现最多写一条，rows 与 keep 合计最多 4 条。病历稀疏时可以少于两条或留空。不编病历里没有的条件。rows 按把握从大到小排；每行 purpose 写 reinforce（加强主症治疗）、uncovered（主方没有照顾到）或 weak（主方兼顾力薄）。",
   "textbook 是教材本证的加减条目，只作参考：本例已有其条件的可以用其药，本例没有的条件不写。",
-  "只输出 JSON：{\"findings\":[{\"text\":\"\",\"coveredBy\":\"\",\"kind\":\"accompany\"}],\"keep\":[0],\"drop\":[{\"index\":1,\"why\":\"\"}],\"rows\":[{\"purpose\":\"uncovered\",\"trigger\":\"\",\"herbName\":\"\",\"dose\":\"10g\",\"indication\":\"\",\"reason\":\"\",\"symptomPathogenesis\":\"\"}]}",
+  "只输出 JSON：{\"findings\":[{\"text\":\"\",\"coveredBy\":\"\",\"kind\":\"accompany\"}],\"keep\":[0],\"reasons\":[{\"index\":0,\"functionIndex\":0}],\"drop\":[{\"index\":1,\"why\":\"\"}],\"rows\":[{\"purpose\":\"uncovered\",\"trigger\":\"\",\"herbName\":\"\",\"dose\":\"10g\",\"indication\":\"\",\"reason\":\"\",\"symptomPathogenesis\":\"\"}]}",
 ].join("\n");
 
 export const DELIVER_VERIFY_SYSTEM = [
   "你是审方的中医主治医师。下面这条随证加减已由主治医师写好，你只核对有没有以下明确的错误：",
-  "1. 条件不是病历已记录的这位患者现在的表现（病历没写、写的是否认、既往或家属的情况）；",
-  "2. 这味药管不到这个表现：row.indications（《中药学》该药的功效与【应用】）里既没有这个表现或它所属的病证，功效也推不出对它的直接作用；",
+  "1. 条件不是病历已记录的这位患者现在的表现（病历没写、写的是否认、既往或家属的情况，或条件只是生活习惯、诱因）；",
+  "2. 表现由主病引起，随主病缓解而改善，没有独立加药依据；或理由不能由这味药的教材功效支持；或这味药管不到这个表现：row.indications（《中药学》该药的功效与【应用】）里既没有这个表现或它所属的病证，功效也推不出对它的直接作用；",
   "3. 药性（row.property）与证型、治法相反（实热证加温补、虚寒证加苦寒、没有阴虚之象加滋阴）；或病历写着 row.caution 点名慎用、忌用的情况；",
   "4. 加的药就在方中，或与方中某味同类同效（方中有党参又加人参）。",
-  "主方已有药也照顾到这个表现、这一条只是加强，不算错；为主症补强治法第一项，不算错，但补强的药要与治法第一项同一功效方向。",
+  "主方已有药也照顾到这个表现、这一条只是加强，不算错；为主症加强治疗时，所写作用须能在这味药的教材功效中找到依据。",
+  "confirmed 为 true 时，functionIndex 填 functions 中直接支持这个表现的一条功效的编号（从 0 开始）；没有对应功效答 false。",
   "有上面一条明确的错误才答 false，其余答 true。先在 why 里写你核对的那一条依据（不超过30字），再下结论。",
-  "只输出 JSON：{\"why\":\"…\",\"confirmed\":true} 或 {\"why\":\"…\",\"confirmed\":false}",
+  "只输出 JSON：{\"why\":\"…\",\"confirmed\":true,\"functionIndex\":0} 或 {\"why\":\"…\",\"confirmed\":false}",
 ].join("\n");
 
 export const RECHECK_SYSTEM = [
-  "你是中医主治医师。审方医生认为下面这条随证加减有明确的错误，理由在 why。只核对这个理由说的事实是否属实：病历是否真的没有这个表现（或写的是否认、既往、家属的情况）；row.indications 里是否真的既没有这个表现也推不出对它的作用；药性是否真的与证型、治法相反，或病历是否真的写着 row.caution 点名的情况；方中是否真的已有这味药或同类同效的药。",
+  "你是中医主治医师。审方医生认为下面这条随证加减有明确的错误，理由在 why。只核对这个理由说的事实是否属实：条件是否只是习惯、诱因或主病直接造成的继发表现；所写理由是否超出该药教材功效；病历是否真的没有这个表现（或写的是否认、既往、家属的情况）；row.indications 里是否真的既没有这个表现也推不出对它的作用；药性是否真的与证型、治法相反，或病历是否真的写着 row.caution 点名的情况；方中是否真的已有这味药或同类同效的药。",
   "理由属实答 true，不属实或只是可加可不加答 false。先在 check 里写你核对的病历原文或药的功效（不超过30字），再下结论。",
   "只输出 JSON：{\"check\":\"…\",\"confirmed\":true} 或 {\"check\":\"…\",\"confirmed\":false}",
 ].join("\n");
 
-export type ReviewVerdict = { confirmed: boolean; why: string };
+export type ReviewVerdict = { confirmed: boolean; why: string; functionIndex?: number };
 /** 复核答案（纯函数，供测试）：要有布尔结论，理由可空。 */
 export function parseReviewVerdict(content: unknown): ReviewVerdict | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;
   try {
     const value = record(JSON.parse(content));
-    return value && typeof value.confirmed === "boolean" ? { confirmed: value.confirmed, why: text(value.why).slice(0, 60) } : undefined;
+    return value && typeof value.confirmed === "boolean" ? { confirmed: value.confirmed, why: text(value.why).slice(0, 60), ...(Number.isInteger(value.functionIndex) ? { functionIndex: Number(value.functionIndex) } : {}) } : undefined;
   } catch { return undefined; }
 }
 
@@ -96,6 +98,7 @@ export type AuthoringPlan = {
   keep: number[];
   drop: Array<{ index: number; why: string }>;
   rows: AuthoredRow[];
+  reasons?: Array<{ index: number; functionIndex: number }>;
 };
 
 /** 写作结果的解析（纯函数，供测试）。序号越界、重复的丢掉；同一序号既留又删按删处理并交复核；行至多 6 条备选。 */
@@ -123,7 +126,13 @@ export function parseAuthoringPlan(content: unknown, existingCount: number): Aut
     const row = record(entry);
     return row && text(row.text) ? [{ text: text(row.text), coveredBy: text(row.coveredBy), kind: text(row.kind) }] : [];
   }).slice(0, 16);
-  return { findings, keep, drop, rows };
+  const reasons = (Array.isArray(value.reasons) ? value.reasons : []).flatMap((item) => {
+    const choice = record(item);
+    return choice && inRange(choice.index) && Number.isInteger(choice.functionIndex)
+      ? [{ index: choice.index, functionIndex: Number(choice.functionIndex) }] : [];
+  });
+  const incidental = new Set(findings.filter((finding) => finding.kind === "incidental").map((finding) => finding.text));
+  return { findings, keep, drop, ...(reasons.length ? { reasons } : {}), rows: rows.filter((row) => !incidental.has(row.trigger)) };
 }
 
 /** 复核看到的一行（纯函数，供测试）：条件、药、理由，《中药学》功效与【应用】、药性、使用注意。 */
@@ -135,6 +144,7 @@ export function verifyRowPayload(row: Json) {
     herb,
     dose: text(row.doseOrHandling) || text(row.dose),
     reason: text(row.reason),
+    functions: herbFunctionSourceClauses(herb).map((source) => source.text),
     indications: herbIndicationText(herb) || herbClaimReferenceText(herb).slice(0, 160) || null,
     property: herbPropertyReferenceText(herb) || null,
     caution: herbCautionReferenceText(herb) || null,
@@ -192,7 +202,7 @@ export async function authorModificationsInContent(
     { role: "user", content: JSON.stringify({
       disease, syndrome, secondarySyndromes: secondary, method, chiefComplaint, rationale,
       herbs: herbRows.map((herb) => ({ name: text(herb.name), role: text(herb.role), function: text(herb.function).slice(0, 24) })),
-      existing: existing.map((row, index) => ({ index, trigger: text(row.trigger), action: text(row.action), herb: text(row.herbName), reason: text(row.reason), indications: herbIndicationText(text(row.herbName)) || null })),
+      existing: existing.map((row, index) => ({ index, trigger: text(row.trigger), action: text(row.action), herb: text(row.herbName), reason: text(row.reason), indications: herbIndicationText(text(row.herbName)) || null, functions: herbFunctionSourceClauses(text(row.herbName)).map((source) => source.text) })),
       textbook: (textbook?.modifications || []).slice(0, 10).map((entry) => ({ condition: entry.condition, herbs: entry.herbs })),
       record: context.recordText.slice(0, 2_400),
     }) },
@@ -205,7 +215,8 @@ export async function authorModificationsInContent(
   // 首轮的行：写作说留的交付前由另一家只核明确错误；写作说删的就删（写作逐项列过病历表现与方中谁管它）。没提到的序号按留处理。
   const keepSet = new Set(plan.keep);
   const unmentioned = existing.map((_, index) => index).filter((index) => !keepSet.has(index) && !plan.drop.some((entry) => entry.index === index));
-  const keptIndexes = [...plan.keep, ...unmentioned].sort((a, b) => a - b);
+  const incidental = new Set(plan.findings.filter((finding) => finding.kind === "incidental" && context.recordText.includes(finding.text)).map((finding) => finding.text));
+  const keptIndexes = [...plan.keep, ...unmentioned].filter((index) => !incidental.has(text(existing[index]?.trigger).replace(/^本例已见/u, ""))).sort((a, b) => a - b);
   // 新写的行先过编译判据，进不了的不问复核（省一次调用；拦掉的判据记进遥测）。
   const rejected: string[] = [];
   const taken = [...herbs, ...keptIndexes.map((index) => text(existing[index]?.herbName))];
@@ -215,6 +226,7 @@ export async function authorModificationsInContent(
   for (const row of plan.rows) {
     const compiled = topUpModificationRow(row, {
       prior, caseState: context.caseState, candidateHerbNames: taken, baseHerbNames: herbs, existingTriggers: triggers, authored: true,
+      reviewedIndependentFinding: context.recordText.includes(row.trigger) && plan.findings.some((finding) => finding.text === row.trigger && ["main", "accompany", "weak"].includes(finding.kind)),
       onReject: (code) => rejected.push(code),
     });
     if (!compiled) continue;
@@ -233,7 +245,14 @@ export async function authorModificationsInContent(
   const reviewNew = async (row: Json): Promise<boolean | undefined> => {
     const verdict = await review("m04_modification_authoring_new", deliverRequest(row), signal);
     if (!verdict) return undefined;
-    if (verdict.confirmed) return true;
+    if (verdict.confirmed) {
+      if (verdict.functionIndex !== undefined) {
+        const source = herbFunctionSourceClauses(text(row.herbName))[verdict.functionIndex];
+        if (!source || /^有(?:大|小)?毒$/u.test(source.text)) return false;
+        row.reason = source.text;
+      }
+      return true;
+    }
     const confirmedError = await recheck("m04_modification_authoring_recheck", [
       { role: "system", content: RECHECK_SYSTEM },
       { role: "user", content: JSON.stringify({ ...verifyContext, row: verifyRowPayload(row), why: verdict.why }) },
@@ -247,7 +266,13 @@ export async function authorModificationsInContent(
   if (signal?.aborted) return undefined;
   // 复核没答出来（超时、失败）时新写的行不进。写作删掉的首轮行不再交复核：第一版让复核判「删得对不对」，
   // 甲方标准病历1 写作按「外感所致睡眠欠佳」删掉的酸枣仁被复核留了回来（甲方 10.12 点过名的顺带安神药）。
-  const keptExisting = keptIndexes.map((index) => existing[index]);
+  const keptExisting = keptIndexes.map((index) => {
+    const row = existing[index];
+    const choices = plan.reasons?.filter((choice) => choice.index === index);
+    if (choices?.length !== 1) return row;
+    const source = herbFunctionSourceClauses(text(row.herbName))[choices[0].functionIndex];
+    return source && !/^有(?:大|小)?毒$/u.test(source.text) ? { ...row, reason: source.text } : row;
+  });
   let newRows = compiledNew.filter((_, position) => newVerdicts[position] === true);
   if (cautionHits.length && newRows.length) {
     const checked = applyHerbCautionHits(`${START_MARKER}\n${JSON.stringify({ formula: { candidates: [], modifications: newRows } })}\n${END_MARKER}`, cautionHits);
@@ -258,8 +283,7 @@ export async function authorModificationsInContent(
     } catch { newRows = []; }
   }
   // 首轮的行在前（原顺序），新写的行在后；至多 4 行。
-  const existingOrder = new Map(existing.map((row, index) => [row, index]));
-  const fromExisting = [...keptExisting].sort((a, b) => (existingOrder.get(a) ?? 0) - (existingOrder.get(b) ?? 0));
+  const fromExisting = keptExisting;
   // 新写的行只补到两个不同的条件，另加至多一条补强治法第一项的行（第五十二轮试跑：写作把条件写到 3–4 条时，
   // 多出来的行没有让评审结论变好，反而多出药症不对的行——小便短黄加车前子、精血不足的头晕加天麻）。
   let delivered = [...fromExisting];

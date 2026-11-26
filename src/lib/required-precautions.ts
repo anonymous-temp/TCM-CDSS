@@ -35,6 +35,8 @@ export type RequiredPrecaution =
       kind: "current_medications";
       names: string[];
       given?: string[];
+      prescribedCourse?: boolean;
+      maintenance?: string[];
       /** 红旗未解除（先急诊处置）：不写与中药间隔服用，写带药就医、告诉医生最近一次用药时间（2026-10-19 留出集 S188：心率 42、血压 82/48 仍写「间隔1小时服用」）。 */
       urgent?: boolean;
       /** 激素、免疫抑制剂（names 里的那几个）：骤停有风险，补的那句加「不要自行停用或减量」（2026-10-19 M 集 RobustSDT-0530）。 */

@@ -126,7 +126,7 @@ await check('16','主路径接点在最后投影后与签名前，M05预取读�
  const prefetch=readFileSync(new URL('../src/lib/stage-prefetch.server.ts',import.meta.url),'utf8').split('export function prefetchAssessFollowupFromFinalCandidate')[1];assert.match(prefetch,/authorFollowupFromPrescribeHandoff\(requestCaseState, reasoning, ""\)/);assert.doesNotMatch(prefetch,/normalizeM04DraftCandidate/);
 });
 const api = await jiti.import('../src/lib/diagnosis-api.ts');
-async function wire(first=proposal, options={}) {
+export async function wire(first=proposal, options={}) {
  const savedFetch=globalThis.fetch;const requests=[];
  Object.assign(process.env,{OPENAI_API_KEY:'test-only',OPENAI_BASE_URL:'https://api.deepseek.com',CONTROLLED_TERMINOLOGY_MODEL:'deepseek-flash',AI_TEXT_PROVIDER:'bailian-qwen',BAILIAN_QWEN_API_KEY:'test-only',BAILIAN_QWEN_BASE_URL:'https://dashscope.aliyuncs.com/compatible-mode/v1',BAILIAN_QWEN_MODEL:'qwen3.7-plus',PRIMARY_PRESCRIBE_MODEL:'qwen3.7-plus',PRIMARY_PRESCRIBE_REPAIR_MODEL:'qwen3.8-max',M04_ORCHESTRATION_DEADLINE_MS:'60000'});
  if(options.nonStrict)process.env.PRIMARY_PRESCRIBE_MODEL='deepseek-flash';

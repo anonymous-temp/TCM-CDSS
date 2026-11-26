@@ -24,6 +24,7 @@ const jiti = createJiti(import.meta.url, {
 Object.assign(process.env, {
   AI_TEXT_PROVIDER: "openai-compatible", OPENAI_API_KEY: "test-key", OPENAI_BASE_URL: "https://api.deepseek.com",
   OPENAI_MODEL: "deepseek-flash", CONTROLLED_TERMINOLOGY_MODEL: "deepseek-flash", CDSS_SMALL_TASK_MEMO: "false",
+  BAILIAN_QWEN_API_KEY: "test-key", PRIMARY_STRUCTURED_FALLBACK_MODEL: "qwen3.8-flash",
 });
 
 let cases = 0;

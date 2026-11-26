@@ -45,7 +45,9 @@ import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdenti
 import { clinicalReviewNotPerformedAttestation } from "@/lib/clinical-review-binding";
 import { applyDeliveredSurfaceToContent } from "./delivered-surface";
 import { activeBleedingInGroundingText, clinicalGroundingText, sanitizeUngroundedRedFlagNegations, trustedInputText } from "./diagnosis-safety";
-import { finalConsistencyReview, finalConsistencyReviewMode } from "./final-consistency-review.server";
+import { finalConsistencyReview, finalConsistencyReviewMode, selectFinalHerbFunctions } from "./final-consistency-review.server";
+import { renderFinalM04Content } from "./diagnosis-visible-summary";
+import { m04FinalContractView } from "./m04-final-projection";
 import type { FormulaReferenceCaseSafety } from "@/lib/tcm-formula-provenance";
 
 /** 教材锚定用的本例安全事实（见 withDeterministicFormulaReferences）：与开方核对同一判据、同一份接地正文。 */
@@ -67,7 +69,7 @@ import { mergeParallelM03Halves, parseM03WesternHalf } from "@/lib/m03-parallel-
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
 import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, isAcceptableM04TherapyIssue, m03LimitedInformationRepairRoundAllowed, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
-import { deliveredFormDeclassification, m04SalvageTelemetry, salvageM04Content } from "@/lib/m04-salvage";
+import { deliveredFormDeclassification, m04SalvageTelemetry, salvageM04Content, uniqueEmperorRepairHint, repairRetainedM04 } from "@/lib/m04-salvage";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
 import { recordCdssStageTelemetry, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
@@ -454,7 +456,7 @@ type StreamSafetyOptions = {
    * This is intentionally limited to fail-closed M03 responses that cannot authorize dosing.
    */
   authoritativeTruncateFallback?: boolean;
-  streamErrorFallback?: string;
+  streamErrorFallback?: string | (() => Promise<string>);
   /** Server-owned content that must be visible before any progress or provisional module frame. */
   initialVisiblePrefix?: string;
   outputTransform?: (content: string) => string;
@@ -1780,6 +1782,8 @@ async function retryCompletePrimaryResponse(
       try {
         const rejectedReasoning = JSON.parse(rejectedJson);
         const rejectedHerbs = m04CandidateHerbsFromRepairPayload(rejectedReasoning);
+        const replacementHint = uniqueEmperorRepairHint(rejectedHerbs, rejectionReason || "");
+        if (replacementHint) emperorDirectionHint = replacementHint;
         // 门禁在算 unsupported 时会传候选自己的方名做基准豁免（锁定方自带的药味不算越界）。
         // 提示侧不传就会把基准药味误列进「必须删除」清单，指挥模型拆掉锁定方的核心组成。
         const rejectedCandidateFormulaNames = (() => {
@@ -2984,6 +2988,7 @@ async function callPrimaryTextModelStream(
         if (root.stage !== stage) return content;
         const result = await finalConsistencyReview(stage, root, {
           recordText: clinicalGroundingText(opts.structuredCaseState),
+          unconfirmedFollowupQuestions: opts.structuredCaseState.unconfirmedFollowupQuestions,
           redFlag: content.includes("<!-- CDSS_SAFETY_ADVISORY -->"),
           prior: opts.structuredPriorReasoning as unknown as Record<string, unknown> | undefined,
           signal: upstreamController.signal,
@@ -3407,7 +3412,27 @@ async function callPrimaryTextModelStream(
         m04PendingDeliveryCheckpoint = attested;
         m04DeliveryCheckpoint = preferM04DeliveryCheckpoint(m04DeliveryCheckpoint, attested);
       };
+      const repairContinuityCandidate = async () => {
+        const before = m04DeliveryCheckpoint, prior = opts.structuredPriorReasoning;
+        if (!before?.contractIssues?.length || before.signedContent || !prior || !opts.outputTransform ||
+          opts.structuredDoseWithheldReasons?.length || opts.requestSignal?.aborted || Date.now() >= absoluteRunDeadline) return;
+        const clinicalContext = opts.structuredClinicalContext || "";
+        const fresh = repairRetainedM04(before, { prior, clinicalContext,
+          declassify: (content) => deliveredFormDeclassification(content, prior),
+          afterHerbRemoval: (content) => withoutPrecautionsNamingAbsentHerbs(applyDeterministicDecoctionMethod(content, clinicalContext, opts.structuredPatientAge)),
+        }, (content) => {
+          const reasoning = structuredReasoningFromContent(content);
+          return reasoning && retainM04DeliveryCheckpoint(undefined, { content, reasoning, priorReasoning: prior, clinicalContext, acceptanceScope: m04AcceptanceScope });
+        }, opts.outputTransform);
+        if (!fresh) return;
+        m04PendingDeliveryCheckpoint = fresh;
+        enterVerificationPhase();
+        await signM04Checkpoint(fresh.reasoning, clinicalReviewNotPerformedAttestation(fresh.reasoning));
+      };
       const m04ContinuityFallback = (reason: Parameters<typeof renderM04DeliveryCheckpoint>[2]) => {
+        // 剂量授权另行收回、且手里有完整候选时才按「剂量收回」交付（该页可复用）。上游故障、超时而没有候选时保留真实原因：
+        // 那一页下次要重算，不能当成由病例内容决定的稳定结果留存 30 天（第六十二轮整合，test:reasoning-signature 钉住）。
+        if (opts.structuredDoseWithheldReasons?.length && m04DeliveryCheckpoint) reason = "dose_withheld";
         const page = renderM04DeliveryCheckpoint(
           m04DeliveryCheckpoint, opts.structuredPriorReasoning, reason, opts.structuredDoseWithheldReasons || [],
           { herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState),
@@ -5770,6 +5795,7 @@ async function callPrimaryTextModelStream(
           // 「复核不可用 ⇒ 非剂量投影」在这里；线上 15/35 次 M04 就是被它扣掉剂量的，
           // 而那 15 次 contractIssues=[]、safetyFindingCount=0——确定性层一条都没拦。
           if (opts.structuredStage === "prescribe" && (truncated || !transformed.ok)) {
+            await repairContinuityCandidate();
             deliverM04Continuity(m04ContinuityReason(!transformed.ok ? "interrupted" : "contract_rejected"));
             return;
           }
@@ -5961,9 +5987,35 @@ async function callPrimaryTextModelStream(
               }
             }
           }
-          ({ content: emissionContent, attestation: emissionM04Attestation } = await applyM04FinalContent(
-            emissionContent, emissionM04Attestation, opts, upstreamController.signal, absoluteRunDeadline,
-          ));
+          const functionPolicy = m04FinalContentPolicy();
+          const draft = !truncated && transformed.ok && opts.structuredCaseState && opts.structuredStage === "prescribe" && functionPolicy.enabled && functionPolicy.functions === "on"
+            ? structuredReasoningFromContent(emissionContent) : undefined;
+          const pendingFunctions = draft ? selectFinalHerbFunctions(draft as unknown as Record<string, unknown>, { recordText: opts.structuredClinicalContext || "",
+            ageYears: opts.structuredPatientAge, sex: opts.structuredCaseState?.patient?.sex },
+            upstreamController.signal, undefined, absoluteRunDeadline).catch(() => undefined) : undefined;
+          const terminal = await applyM04FinalContent(emissionContent, emissionM04Attestation, opts, upstreamController.signal, absoluteRunDeadline);
+          const choices = await pendingFunctions;
+          emissionContent = terminal.content;
+          emissionM04Attestation = terminal.attestation;
+          if (choices?.size && draft) {
+            const final = structuredReasoningFromContent(emissionContent);
+            const candidate = final?.formula?.candidates[0], before = draft.formula?.candidates[0];
+            const scope = (row: typeof before) => JSON.stringify([row?.name, row?.formulaAnalysis, row?.herbs.map((h) => [h.name, h.role, h.targetPathogenesis])]);
+            if (final && candidate && scope(candidate) === scope(before)) {
+              for (const herb of candidate.herbs) herb.function = choices.get(herb.name) ?? herb.function;
+              const issue = reasoningV2SchemaIssueCode(final) || m04SafetyContractIssue(m04FinalContractView(final), opts.structuredPriorReasoning, {
+                isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false,
+                clinicalContext: opts.structuredClinicalContext || "", waiveTherapyCoverageAnnotated: true,
+              });
+              if (!issue && terminal.attestation) {
+                const bound = rebindClinicalReviewAttestation(terminal.attestation, final);
+                if (bound) {
+                  emissionContent = renderFinalM04Content(emissionContent, final, opts.structuredCaseState as CaseState | undefined);
+                  emissionM04Attestation = bound;
+                }
+              }
+            }
+          }
           if (finalDelivery && deliveryPolicy.mode !== "off") {
             if (!truncated && transformed.ok && !authoredRationaleHash) rememberAcceptedProjection(emissionContent);
             emissionContent = await finalDelivery.run(emissionContent);
@@ -6140,9 +6192,11 @@ async function callPrimaryTextModelStream(
         if (opts.streamErrorFallback) {
           stageOutcome = "fallback";
           stageReasonCode = "provider_error_fallback";
-          let fallback = opts.streamErrorFallback;
+          let fallback = typeof opts.streamErrorFallback === "function"
+            ? await opts.streamErrorFallback()
+            : opts.streamErrorFallback;
           try {
-            fallback = opts.outputTransform ? opts.outputTransform(fallback) : fallback;
+            if (typeof opts.streamErrorFallback === "string" && opts.outputTransform) fallback = opts.outputTransform(fallback);
           } catch {
             // The caller-provided deterministic M02 fallback is already safe and answerable.
           }

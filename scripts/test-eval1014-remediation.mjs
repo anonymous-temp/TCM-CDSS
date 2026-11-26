@@ -607,8 +607,9 @@ const checkAsync = async (name, run) => {
   check("5.4 加减加入有特殊煎法的药：煎法写在这一条的说明里（附子先煎45–60分钟），普通药不写（对照）", () => {
     const { specialDecoctionPhrase } = herbDecoction;
     assert.equal(specialDecoctionPhrase("附子"), "附子先煎45–60分钟（至口尝无麻辣感）");
-    assert.equal(specialDecoctionPhrase("大黄"), "大黄后下", "几选一没有标注时取所列的第一种");
-    assert.equal(specialDecoctionPhrase("砂仁"), "砂仁后下");
+    // r1081《方剂学》煎药方法：大黄取攻下作用时后下煎10～15分钟；几选一仍以声明为准。
+    assert.equal(specialDecoctionPhrase("大黄"), "大黄后下（第一煎结束前10～15分钟放入），第二煎用原药渣加水再煎，不另加一剂", "几选一没有标注时取所列的第一种");
+    assert.equal(specialDecoctionPhrase("砂仁"), "砂仁后下（第一煎结束前约5分钟放入），第二煎用原药渣加水再煎，不另加一剂");
     assert.equal(specialDecoctionPhrase("姜半夏"), "", "普通药不写");
     // 第四十九轮：共用 modificationDecoctionPhrase（含捣碎），仍是 additionRiskNote 的第一项；先煎原句不变。
     assert.match(compilerSource, /riskNote: item\.actionType === "add" \? additionRiskNote\(item\.herbName\.trim\(\), caseState\)/,
@@ -957,7 +958,7 @@ const checkAsync = async (name, run) => {
     assert.equal(rules.withOneOfDecoctionResolved("大黄", "后下或先煎或冲服、禁止久煎"), "后下、禁止久煎");
     assert.equal(rules.withOneOfDecoctionResolved("大黄", "冲服"), "冲服");
     assert.equal(rules.requiredDecoctionRequirement("大黄"), "后下、禁止久煎");
-    assert.equal(rules.specialDecoctionPhrase("大黄", rules.withOneOfDecoctionResolved("大黄", "后下或先煎或冲服、禁止久煎")), "大黄后下");
+    assert.equal(rules.specialDecoctionPhrase("大黄", rules.withOneOfDecoctionResolved("大黄", "后下或先煎或冲服、禁止久煎")), "大黄后下（第一煎结束前10～15分钟放入），第二煎用原药渣加水再煎，不另加一剂");
   });
 }
 
@@ -1382,10 +1383,10 @@ const checkAsync = async (name, run) => {
     // 模型把提示里给的整串组成抄成「重叠」：本方没有的药删掉，只留本方真有的（本地复测病历 7：处方没有黄芩、黄柏、栀子、连翘）。
     const copied = projectDeliveredReasoning(prescription(["病历记录已自服黄连上清丸，与本方黄连、大黄、黄芩、黄柏、栀子、连翘等重叠，服本方期间应停服黄连上清丸。", "甲硝唑服药期间不要饮酒。"]), { requiredPrecautions: items });
     // 2026-10-19 第六轮：照抄核对清单的「病历记录已自服」改成对患者说的「您已自服」（甲方病历 3、M 集 MTCMB-73 一类）；本断言核的是重叠药只留本方实有的。
-    assert.equal(copied.nonPharma.precautions[0], "您已自服黄连上清丸，与本方黄连、大黄等重叠，服本方期间应停服黄连上清丸。");
+    assert.equal(copied.nonPharma.precautions[0], "您已自服黄连上清丸，与本方黄连、大黄等重叠，如仍在服用黄连上清丸请告知医生，合用前请医生或药师核对。");
     // 一味真有的都不剩还说重叠：换成规则那一句（按本方实有药味说）。
     const none = projectDeliveredReasoning(prescription(["已自服黄连上清丸，与本方黄芩、栀子重叠，请停服。", "甲硝唑服药期间不要饮酒。"], ["升麻", "生地黄", "牡丹皮", "当归", "石膏"]), { requiredPrecautions: items });
-    assert.match(none.nonPharma.precautions[0], /^已自服的黄连上清丸是否继续服用/);
+    assert.match(none.nonPharma.precautions[0], /^曾自服黄连上清丸，如仍在服用请告知医生/);
     assert.ok(!none.nonPharma.precautions.some((line) => /黄芩、栀子重叠/.test(line)));
     const postpartumOut = projectDeliveredReasoning(prescription(["补益药宜饭前温服。"], ["当归", "川芎", "熟地黄", "白芍", "麦芽"]), { requiredPrecautions: [{ kind: "postpartum_lactation" }] });
     // 哺乳期慎用的药与逐味人群提示同一份知识库、同一档（中、高）：川芎、麦芽列，当归、白芍（低）不列。

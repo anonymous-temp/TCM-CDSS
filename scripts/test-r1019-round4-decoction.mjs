@@ -123,9 +123,10 @@ await check("2.2 对照：只要一种煎法的照旧一组（附子先煎45–6
   assert.deepEqual(rules.specialDecoctionOrderIndexes("附子"), [0]);
   assert.equal(rules.specialDecoctionPhrase("附子"), "附子先煎45–60分钟（至口尝无麻辣感）");
   assert.equal(rules.specialDecoctionPhrase("车前子"), "车前子包煎");
-  assert.equal(rules.specialDecoctionPhrase("大黄"), "大黄后下");
+  // r1081《方剂学》煎药方法：大黄取攻下作用时后下煎10～15分钟；几选一仍以声明为准。
+  assert.equal(rules.specialDecoctionPhrase("大黄"), "大黄后下（第一煎结束前10～15分钟放入），第二煎用原药渣加水再煎，不另加一剂");
   assert.equal(rules.specialDecoctionPhrase("大黄", "先煎"), "大黄先煎20–30分钟");
-  assert.equal(rules.specialDecoctionPhrase("砂仁"), "砂仁后下");
+  assert.equal(rules.specialDecoctionPhrase("砂仁"), "砂仁后下（第一煎结束前约5分钟放入），第二煎用原药渣加水再煎，不另加一剂");
   assert.equal(rules.specialDecoctionPhrase("黄柏"), "");
   assert.equal(rules.specialDecoctionOrderIndex("金礞石"), 1, "取第一组的老接口不变（先煎）");
 });

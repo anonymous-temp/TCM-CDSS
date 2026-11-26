@@ -141,7 +141,7 @@ await check("2.1 积证的针刺卡不写「针对本例功能性消化不良」
   assert.doesNotMatch(out.treatmentContent, /功能性消化不良/u, out.treatmentContent);
   assert.doesNotMatch(out.treatmentContent, /针对本例/u, out.treatmentContent);
   const control = card(compile(prior, "胁肋胀满、腹部隐痛，腹部有柔软包块", `${record}，消化不良`, proposals), "acupuncture");
-  assert.match(control.treatmentContent, /针对本例[^。]*消化不良/u, control.treatmentContent);
+  assert.match(control.treatmentContent, /本例见[^。]*消化不良/u, control.treatmentContent);
 });
 
 // ── 3 食物与处方药味相冲 ───────────────────────────────────────────────────────

@@ -27,7 +27,7 @@ const redFlags = (text) => evaluateSafetyGate({
   vitals: {},
   history: {},
 })?.redFlags || [];
-const hasMajorBleedingFlag = (text) => redFlags(text).some((flag) => /活动性大量阴道出血/.test(flag));
+const hasMajorBleedingFlag = (text) => redFlags(text).some((flag) => /需立即评估失血量与循环状态/.test(flag));
 
 const positives = [
   "阴道大量出血，仍未停止",
@@ -51,7 +51,7 @@ for (const text of negatives) {
   assert.ok(!hasMajorBleedingFlag(text), `不得把否定/旧史/少量稳定出血升级为硬红旗：${text}\n${JSON.stringify(redFlags(text))}`);
 }
 
-const findingMessage = redFlags(positives[1]).find((flag) => /活动性大量阴道出血/.test(flag));
+const findingMessage = redFlags(positives[1]).find((flag) => /需立即评估失血量与循环状态/.test(flag));
 assert.equal(redFlagRuleIdForMessage(findingMessage), "active-major-bleeding",
   "新红旗必须进入统一 finding rule 映射，不能失去可追溯 ruleId");
 

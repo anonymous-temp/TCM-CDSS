@@ -116,7 +116,7 @@ await check("S3", "认不出的药名、不能同煎的药：去掉这一味并�
 });
 
 // ───── S4 唯一君药冲突：臣药接任 ─────
-await check("S4", "唯一君药与本例安全边界冲突（华法林 + 活血君药）：臣药升君、写明；没有可接任的臣药时不保底", () => {
+await check("S4", "唯一君药与本例安全边界冲突（华法林 + 活血君药）：臣药升君、写明；无臣药时允许已有方向依据且指向 P1 的佐药接任", () => {
   const context = `${fixtures.f31.record}；用药史：长期口服华法林 3mg 每日1次`;
   const { before, result, issueOf } = run("f31", (m04) => {
     const herbs = m04.formula.candidates[0].herbs;
@@ -132,14 +132,16 @@ await check("S4", "唯一君药与本例安全边界冲突（华法林 + 活血�
   assert.equal(emperors.length, 1);
   assert.equal(emperors[0].targetRef, "P1");
   assert.match(candidate.notApplicable, /已去除：丹参（[^）]+）[，,].+改作君药/u);
-  // 没有臣药可接任：不保底
+  // 无臣药：有 P1 用途且符合治法的佐药可接任，整方仍过同一合同。
   const none = run("f31", (m04) => {
     const herbs = m04.formula.candidates[0].herbs;
     herbs[1].role = "佐"; herbs[2].role = "佐"; herbs[3].role = "佐";
     herbs[0].name = "丹参"; herbs[0].dose = "15g";
   }, { context });
   assert.match(none.before, /special_population/);
-  assert.equal(none.result, undefined);
+  assert.ok(none.result);
+  assert.equal(none.issueOf(none.result.content), undefined);
+  assert.ok(!unwrap(none.result.content).formula.candidates[0].herbs.some((herb) => herb.name === "丹参"));
 });
 
 // ───── S5 剂量超出可核对范围的有毒药：不自动减量，去掉这一味 ─────

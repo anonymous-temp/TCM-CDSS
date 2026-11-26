@@ -5,6 +5,16 @@
  * independent reviewers failed 出处方义 in 40–62% of outputs against 5–9% for the model-written path.
  * Off = the first pass writes 方义 and the delivered surface checks it against the final table. */
 export type FinalContentMode = "off" | "shadow" | "on";
+/** Skip the initial card compilation too when review is disabled. */
+export function scheduledTreatmentCardReview<T>(review: () => Promise<T>) {
+  return process.env.CDSS_TREATMENT_CARD_REVIEW === "false" ? undefined : review();
+}
+/** Only completed prescriptions depend on these choices. Preserve the default
+ * key, per-call memo keys and the regeneration anchor across scheduler changes. */
+export function prescriptionReviewCacheSuffix() {
+  return (process.env.CDSS_M04_FUNCTION_CHOICE === "false" ? ":no-function-choice" : "")
+    + (process.env.CDSS_TREATMENT_CARD_REVIEW === "false" ? ":no-card-review" : "");
+}
 export function m04FinalContentPolicy(env: Readonly<Record<string, string | undefined>> = process.env) {
   const mode = (value: string | undefined, fallback: FinalContentMode): FinalContentMode => value === undefined ? fallback : value === "on" || value === "true" ? "on" : value === "shadow" ? "shadow" : "off";
   const enabled = env.CDSS_M04_FINAL_CONTENT !== "false" && env.CDSS_M04_FINAL_CONTENT !== "off";

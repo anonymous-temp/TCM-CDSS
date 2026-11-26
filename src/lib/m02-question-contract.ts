@@ -389,6 +389,11 @@ function fallbackRecordText(state?: QuestionFallbackCase): string {
   ].filter((value): value is string => typeof value === "string").join("；");
 }
 
+export function m02FallbackYoungChildBand(state: QuestionFallbackCase): M02YoungChildBand | undefined {
+  const recordText = fallbackRecordText(state);
+  return m02YoungChildBand(fallbackAgeDays(state, recordText), recordText);
+}
+
 function fallbackAgeDays(state: QuestionFallbackCase | undefined, recordText: string): number | undefined {
   return m02PatientAgeDays(state?.patient?.age ?? state?.hisRecord?.fields?.age, recordText);
 }
@@ -522,7 +527,7 @@ function structuredVitalsComplete(state?: QuestionFallbackCase): boolean {
 export function m02NarrowCheckRecordText(sourceText: string, conversation?: readonly ConversationMessageLike[]): string {
   const pairs = followupConversationView(conversation).answers
     .map(({ question, answer }) => `问：${question.replace(/\s+/g, " ").slice(0, 200)} 答：${answer}`);
-  return [sourceText, ...pairs].filter((value) => value.trim()).join("\n");
+  return [...pairs.reverse(), sourceText].filter((value) => value.trim()).join("\n");
 }
 
 /** 路由用：本例此刻会出的急症筛查题（没有则 undefined）。 */
@@ -919,7 +924,7 @@ export function redFlagDispositionQuestion(redFlags: readonly string[]): string 
   );
 }
 
-/** 「本轮无需追问」的信封（decision=proceed、题目为空）；只在 m02ProceedWhenSettled() 打开时由路由使用。 */
+/** 「本轮无需追问」的信封（decision=proceed、题目为空）。 */
 export function m02ProceedPlanContent(rationale: string): string {
   const plan: M02Plan = { schemaVersion: "tcm-cdss-m02-plan-v1", decision: "proceed", rationale, questions: [] };
   return JSON.stringify({ m02Plan: plan });
@@ -1241,9 +1246,8 @@ export function enforceM02UnansweredAxes(
       ...questions.filter((question) => !questionCoversGroundedRisk(question, groundedRisk, state)),
     ];
   }
-  // 一轮只问一题（2026-10-13，甲方 10.12 测评「追问是必选项吗」；生产 26 轮追问被跳过 21 轮）：急症澄清题之外
-  // 只留一题，优先留能区分证型的那一题，西医鉴别方向的题排在最后。
-  const BRANCH_RANK: Record<string, number> = { syndrome: 0, treatment_safety: 1, triage: 2, differential: 3 };
+  // 一轮只问一题：先处置与用药安全，其次辨证鉴别。
+  const BRANCH_RANK: Record<string, number> = { triage: 0, treatment_safety: 1, syndrome: 2, differential: 3 };
   const riskLead = prependRisk || modelCoversOpenRisk ? questions.slice(0, 1) : [];
   // 模型出的题按分支排序取一题；服务端自有的题（主诉类别兜底）保持它自己的先后——第一题是该类主诉的安全轴。
   const others = source === fallback || !fallbackContent

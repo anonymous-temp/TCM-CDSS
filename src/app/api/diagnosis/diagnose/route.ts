@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { completeTcmOverview, stageParallelFinalize } from "@/lib/stage-finalize-schedule";
 import { logSkippedFinalRationale } from "@/lib/m03-final-rationale.server";
 import { m03TcmTwoPassPolicy } from "@/lib/m03-tcm-two-pass.server";
 import { TRUE_HEART_PAIN_DISEASE, trueHeartPainSignal } from "@/lib/true-heart-pain";
@@ -14,7 +15,7 @@ import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars, promptSe
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normalization.server";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
-import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
+import { buildDiagnosePrompt, westernDiagnosisEvidenceInstruction } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { alignWesternPrimaryAndName } from "@/lib/western-primary-reselect.server";
 import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consistency.server";
@@ -49,6 +50,7 @@ import { checkLineageLensInContent, withLensFrom } from "@/lib/m03-lens-consiste
 import { finalizeWesternPrimaryName } from "@/lib/western-name-standard.server";
 import { applyWesternVisitReasonDecision, westernVisitReasonDecision } from "@/lib/western-visit-reason-check.server";
 import { authorWesternBasis, withAuthoredWesternBasis } from "@/lib/western-basis-authoring.server";
+import { westernPatientRecord } from "@/lib/western-patient-record";
 import { completeMethodCoverage, prefetchMethodCoverage, withVerifiedMethodItemFrom } from "@/lib/m03-method-coverage.server";
 
 type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
@@ -167,6 +169,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
   // 追问因此变成可选的增强：医生随时可以补充信息并重跑推理，而不是被拦在门外。
 
   const safeState = sanitizeCaseStateForModel(gated);
+  const westernState = westernPatientRecord(safeState);
   // 口语主诉在受控主治语料里匹配不到术语时（"睡不着觉""腰杆子疼"），先用轻量模型改写成标准中医
   // 术语作为检索查询。只影响候选召回，不进入病历事实、不呈现给医生；不可用时静默降级为纯确定性召回。
   // 证据检索只依赖病历本身，与下面两个语义增补层没有数据依赖，因此在最前面就发出去，
@@ -178,9 +181,9 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
   const preModelTimings: Record<string, number> = {};
   const preModelMark = (name: string) => { preModelTimings[name] = Date.now() - orchestrationStartedAt; };
   preModelMark("facts");
-  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose", undefined, signal, {
+  const evidenceContextPromise = buildCdssEvidenceContext(westernState, "diagnose", undefined, signal, {
     externalSoftDeadlineMs: m03ExternalEvidenceSoftDeadlineMs(),
-    externalEvidenceMemo: (compute) => memoizedScopeText("external_evidence_diagnose", trustedInputText(safeState), compute),
+    externalEvidenceMemo: (compute) => memoizedScopeText("external_evidence_diagnose", trustedInputText(westernState), compute),
   })
     .then((value) => { preModelMark("evidence"); return value; })
     .catch(() => "");
@@ -309,15 +312,17 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
       .find((value): value is string => typeof value === "string" && Boolean(value.trim())) || "",
     ageYears: typeof safeState.patient?.age === "number" ? safeState.patient.age : undefined,
   };
-  const m03HalfPrompts = m03ParallelGenerationEnabled()
-    ? buildM03ContextPackets({
-      sharedPatientContext: buildM03SharedPatientContext(safeState),
-      fullPrompt: prompt,
-      evidenceContext,
-      evidenceBudgetChars: diagnoseEvidenceBudget,
-      stageInstructions,
-    })
-    : undefined;
+  const westernRecord = clinicalGroundingText(westernState);
+  const westernClaimRecord = [patientClaimRecordText(westernRecord, westernState.patient, westernState.vitals),
+    commaContinuedDenialReadingNotice(westernState).trim()].filter(Boolean).join("\n");
+  const m03HalfPrompts = m03ParallelGenerationEnabled() ? (() => {
+    const base = { sharedPatientContext: buildM03SharedPatientContext(westernState),
+      stageInstructions: stageInstructions + "\n" + westernDiagnosisEvidenceInstruction };
+    const westernBase = buildM03ContextPackets({ ...base, fullPrompt: "", evidenceContext: "" }).western;
+    const available = Math.max(0, primaryTextMaxPromptChars() - westernBase.length);
+    return buildM03ContextPackets({ ...base, fullPrompt: prompt, evidenceContext,
+      evidenceBudgetChars: Math.min(m03EvidencePromptBudgetChars(), available) });
+  })() : undefined;
   // 各知识通道这一次是否进了提示词（段名与闭集选择出的病名，不含病例内容）。
   console.info("[tcm-cdss:knowledge] prompt_sections", {
     stage: "diagnose",
@@ -368,8 +373,17 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
               }
               // 辨证依据漏讲已记录表现时先按病历重写这一段（m03-rationale-coverage.server.ts，只在漏两项以上时发请求），
               // 后面的兼证、证素、本例说法核对都在重写稿上做。
-              const covered = await completeRationaleCoverage(content, { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState), chiefFindings: chiefComplaintFindings(safeState), keyFindings: recordedTonguePulse(safeState) }, transformSignal);
-              const completed = await completeTcmDiseaseDifferentials(covered, differentialTopUpContext, transformSignal);
+              // Reads the disease, primary syndrome, locations and therapy, none
+              // of which the coverage/differential writers change.
+              const methodCoverage = (draft: string) => completeMethodCoverage(draft,
+                { recordText: patientClaimRecord, chiefComplaint: safeState.chiefComplaint || "" }, transformSignal);
+              const earlyMethod = stageParallelFinalize() ? methodCoverage(content) : undefined;
+              // Attach a rejection handler now. The join below still propagates
+              // an unexpected failure to the same half-draft fallback as before.
+              void earlyMethod?.catch(() => undefined);
+              const completed = await completeTcmOverview(content,
+                draft => completeRationaleCoverage(draft, { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState), chiefFindings: chiefComplaintFindings(safeState), keyFindings: recordedTonguePulse(safeState) }, transformSignal),
+                content => completeTcmDiseaseDifferentials(content, differentialTopUpContext, transformSignal));
               // 流派视角句不另下诊断、不与病历相反；治法补上漏掉的成组主症（都是一个模型提名、另一厂商的模型复核才动）。与下面的核对互不相干，一起并行，不占关键路径。
               const [secondary, claimRemovals, legacyDecision, lensChecked, methodCovered] = await Promise.all([
                 elementClosure.policy.mode === "off"
@@ -378,7 +392,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
                 decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
                 elementClosure.policy.mode === "off" ? decideElementSupport(completed, elementContext, transformSignal) : undefined,
                 checkLineageLensInContent(completed, { recordText: patientClaimRecord, lineage: safeState.tcmLineagePreference }, transformSignal),
-                completeMethodCoverage(completed, { recordText: patientClaimRecord, chiefComplaint: safeState.chiefComplaint || "" }, transformSignal),
+                earlyMethod ? earlyMethod.then(result => result === content ? completed : result) : methodCoverage(completed),
               ]);
               const { content: reconciled } = secondary;
               const elementDecision = legacyDecision || secondary.legacyDecision;
@@ -451,21 +465,21 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal, 
           // 诊断依据在病名定稿之后按诊断要点单独写（western-basis-authoring，第三十九轮）：先按核对前的病名起一份与核对并行，病名没变直接用。
           // 病历用带年龄、性别标签行的接地语料：甲方形状里性别年龄常只在结构化字段（实测 8/113 份因「女性」被判病历没写性别）。
           m03WesternHalfTransform: async (westernContent: string, transformSignal: AbortSignal) => {
-            const basisContext = { recordText: clinicalGroundingText(safeState), chiefComplaint: safeState.chiefComplaint || "", redFlag: redFlagAnalysis, claimRecordText: patientClaimRecord };
+            const basisContext = { recordText: westernRecord, chiefComplaint: safeState.chiefComplaint || "", redFlag: redFlagAnalysis, claimRecordText: westernClaimRecord };
             const basisDraft = authorWesternBasis(westernContent, basisContext, transformSignal).catch(() => undefined);
             const [aligned, claimRemovals, visitReason] = await Promise.all([
               alignWesternPrimaryAndName(
                 westernContent,
-                { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age }, redFlag: redFlagAnalysis },
+                { recordText: westernRecord, patient: { sex: safeState.patient?.sex, age: safeState.patient?.age }, redFlag: redFlagAnalysis },
                 transformSignal,
               ),
-              decidePatientClaimRemovals(westernContent, { recordText: patientClaimRecord }, "western", transformSignal),
-              westernVisitReasonDecision(westernContent, { recordText: trustedInputText(safeState), chiefComplaint: safeState.chiefComplaint || "", redFlag: redFlagAnalysis }, transformSignal),
+              decidePatientClaimRemovals(westernContent, { recordText: westernClaimRecord }, "western", transformSignal),
+              westernVisitReasonDecision(westernContent, { recordText: westernRecord, chiefComplaint: safeState.chiefComplaint || "", redFlag: redFlagAnalysis }, transformSignal),
             ]);
             // 主诊断的写法收尾：症状层面的名字关联已确诊慢性病，查不到编码的归到 ICD 同义写法（western-name-standard.server.ts）。
             const finalized = await finalizeWesternPrimaryName(
-              applyWesternVisitReasonDecision(applyPatientClaimRemovalsToContent(aligned, "western", claimRemovals, patientClaimRecord), visitReason),
-              { recordText: trustedInputText(safeState), redFlag: redFlagAnalysis, chiefComplaint: safeState.chiefComplaint || "" },
+              applyWesternVisitReasonDecision(applyPatientClaimRemovalsToContent(aligned, "western", claimRemovals, westernClaimRecord), visitReason),
+              { recordText: westernRecord, redFlag: redFlagAnalysis, chiefComplaint: safeState.chiefComplaint || "" },
               transformSignal,
             );
             return withAuthoredWesternBasis(finalized, basisContext, basisDraft, transformSignal);

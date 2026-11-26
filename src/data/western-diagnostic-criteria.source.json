@@ -2141,6 +2141,20 @@
    "evidence": []
   },
   {
+   "name": "失眠障碍",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": ["持续的睡眠困难", "有充足的睡眠机会", "出现相关的日间功能受损"],
+   "quote": "诊断失眠障碍需满足3个主要条件：持续的睡眠困难、有充足的睡眠机会，以及出现相关的日间功能受损。",
+   "url": "https://sso.uptodate.com/contents/zh-Hans/evaluation-and-diagnosis-of-insomnia-in-adults",
+   "siteName": "Wolters Kluwer",
+   "title": "成人失眠的评估和诊断",
+   "retrievedAt": "2026-10-18",
+   "durationLimitedSubtype": "慢性失眠障碍",
+   "featureRule": "病程达到三个月是慢性分型的要求，不能以不足三个月否定上位诊断。"
+  },
+  {
    "name": "慢性失眠障碍",
    "clinicallyDiagnosable": true,
    "requiredTests": [],

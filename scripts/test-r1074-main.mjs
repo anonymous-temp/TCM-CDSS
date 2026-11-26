@@ -39,10 +39,10 @@ const f26 = record("产后阴道流血5周未净", "患者2026-10-14顺产一女
   { 婚育史: "已婚，G1P1，2026-10-14足月顺产1女，纯母乳喂养", 辅助检查: "盆腔彩超示子宫复旧欠佳，宫腔内未见明显组织物残留；血常规Hb 105g/L；血β-hCG 5mIU/mL" }, { sex: "女", age: 29 }, { T: "36.6", P: "84", R: "18", BP: "106/68" });
 await check("R2", "阴道出血窗口里被否认的程度词（无大血块）不算量多的证据；肯定的血块、量多、不止照报", () => {
   assert.deepEqual(gate(f26).redFlags.filter((item) => /阴道出血/u.test(item)), []);
-  assert.ok(gate(record("阴道流血3天", "阴道流血3天，量多，有大血块。")).redFlags.some((item) => /活动性大量阴道出血/u.test(item)));
-  assert.ok(gate(record("阴道流血", "阴道流血不止，夹有血块，面色苍白。")).redFlags.some((item) => /活动性大量阴道出血/u.test(item)));
+  assert.ok(gate(record("阴道流血3天", "阴道流血3天，量多，有大血块。")).redFlags.some((item) => /需立即评估失血量与循环状态/u.test(item)));
+  assert.ok(gate(record("阴道流血", "阴道流血不止，夹有血块，面色苍白。")).redFlags.some((item) => /需立即评估失血量与循环状态/u.test(item)));
   // 同一窗口里先否认一个、后肯定另一个：肯定的那个照算（逐个判，不是只看最后一个）
-  assert.ok(gate(record("阴道流血", "阴道流血10天，无血块，量多。")).redFlags.some((item) => /活动性大量阴道出血/u.test(item)));
+  assert.ok(gate(record("阴道流血", "阴道流血10天，无血块，量多。")).redFlags.some((item) => /需立即评估失血量与循环状态/u.test(item)));
 });
 
 const f35 = record("腰背酸痛2年，加重3月", "患者2年来腰背酸痛，久坐久站后加重，躺下休息减轻，近3月加重，身高比年轻时矮了约3cm。伴腰膝酸软，下肢无力，头晕耳鸣，记性差，头发稀少，牙齿松动，夜尿2次。近期无摔倒、无外伤，无突然剧烈疼痛，无夜间静息痛加重，无发热，体重无下降，下肢无麻木，大小便控制正常。",

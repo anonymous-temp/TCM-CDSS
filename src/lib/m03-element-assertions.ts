@@ -244,6 +244,15 @@ function directDeliveryNamePairs(name: string, policy: ElementClosurePolicy): El
     : unique([name, standard || name]).flatMap(value => clauseAssertions(core(value), "name", policy));
 }
 
+/** All components must come from the same affirmed expression in the patient's rationale. */
+export function rationaleNamesComposite(rationale: string, name: string): boolean {
+  const types = new Set(elementAssertionsInText(name).map(hit => hit.type));
+  if (types.size < 2) return false;
+  const hits = elementAssertionsInText(rationale);
+  return hits.some(first => [...types].every(type =>
+    hits.some(hit => hit.start === first.start && hit.end === first.end && hit.type === type)));
+}
+
 export function deliveryNamePairs(name: string, policy: ElementClosurePolicy = fullPolicy): ElementPair[] {
   const direct = directDeliveryNamePairs(name, policy);
   const result: ElementPair[] = [];

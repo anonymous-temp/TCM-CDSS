@@ -81,6 +81,7 @@ export type M03TcmContext = {
   /** Read-only outputs of the existing deterministic layer. Never model-authored. */
   safety: { redFlag: boolean; context: string };
   findingsChecklist: string[];
+  unconfirmedFollowupQuestions?: readonly string[];
 };
 
 export function m03TcmHash(value: unknown): string {
@@ -259,6 +260,7 @@ export function buildM03TcmConclusionPrompt(ctx: M03TcmContext, violations: read
       unitCandidates: ctx.units, methodCandidates: ctx.methods,
     } }),
     '结构示意（占位符须换成候选值，不是病例答案）：{"disease":{"name":"<候选病名>","quotes":[0]},"quotePool":[{"quote":"<病历完整分句>","sourceHint":null}],"locations":[{"id":"<locationIds中的编号>","quotes":[0],"criteria":["<该编号的criteriaIds原文>"]}],"elements":{"root":[],"branch":[]},"primary":"<syndromeNames中的证名>","secondary":[],"methods":[],"direction":"","lineage":null}',
+    ...(ctx.unconfirmedFollowupQuestions?.length ? ["未确认事项只有题干，不能引用为事实。依赖答案才能定下的证候要保留疑问，与其无关的判断照常。"] : []),
     JSON.stringify({ context: ctx, violations }),
   ].join("\n");
 }

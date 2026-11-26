@@ -5,8 +5,9 @@ import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { SIX_HEALTH_FOLLOWUP_DIMENSIONS } from "./tcm-followup-dimensions";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
-import { authoritativePatientAgeYears, deriveFirstReviewTiming, hasStrongPrescriptionRisk, isRecordCompletenessStatement, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sanitizeFreeTextForModel, trustedInputText } from "./diagnosis-safety";
+import { withoutAgeImplausibleReproductiveStatements, authoritativePatientAgeYears, deriveFirstReviewTiming, hasStrongPrescriptionRisk, isRecordCompletenessStatement, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sanitizeFreeTextForModel, trustedInputText } from "./diagnosis-safety";
 import generalDomainsSource from "../data/m05-followup-general-domains.source.json";
+import { adultFollowupReferences, diseaseCareItemsForName } from "./western-disease-care";
 import { signListForPopulation, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
@@ -136,9 +137,16 @@ export function clinicalContextForAuthoring(
   // and unknowns intact; the model determines which recorded details matter to this follow-up.
   const course = [...new Set([fields?.xianbingshi, symptoms.presentHistory]
     .map((value) => supplied(value, 1600)).filter(Boolean))].join("；").slice(0, 2000);
-  const dailyLife = [...new Set([fields?.tcmDetail, symptoms.tcmDetail]
-    .map((value) => supplied(value, 800)).filter(Boolean))].join("；").slice(0, 1600);
+  // 与年龄不符的婚育月经记录（疑为录入有误）不交给随访写作。
+  const dailyLife = [...new Set([symptoms["个人史"], symptoms.personalHistory, fields?.tcmDetail, symptoms.tcmDetail]
+    .map((value) => supplied(typeof value === "string" ? withoutAgeImplausibleReproductiveStatements(value, state) : value, 800)).filter(Boolean))].join("；").slice(0, 1600);
+  const primary = state.reasoningDiagnose?.westernDiagnosis?.primary ?? state.reasoningPrescribe?.westernDiagnosis?.primary;
+  const diseaseCare = diseaseCareItemsForName(primary?.name || "", state.safetyGate?.status === "red_flag");
   return [
+    primary ? `西医判断：${supplied(primary.name, 200)}（${primary.status}），建议检查：${(primary.suggestedChecks || []).map((check) => supplied(check, 200)).join("、")}` : "",
+    `已记录的辅助检查：${supplied(fields?.fuzhuJiancha || symptoms.exams || symptoms["辅助检查"], 1400) || "未提供"}`,
+    ...adultFollowupReferences(primary?.name || "", authoritativePatientAgeYears(state)).map((text) => `复查参考，仅在所述前提符合时采用：${text}`),
+    ...diseaseCare.map((item) => `与该病相关的调护参考：${item.sentence} ${item.timeWindow}`),
     `主诉：${supplied(state.chiefComplaint || fields?.zhushu, 400)}`,
     course ? `已提供的现病史与症状变化：${course}` : "现病史与症状变化：未知",
     dailyLife ? `已提供的问诊与生活信息：${dailyLife}` : "问诊与生活信息：未知",
@@ -172,6 +180,7 @@ const SYSTEM_PROMPT = [
   "字段要求：",
   "· 必须体现本例证候特点，但用白话写出来。寒证忌生冷、湿热忌肥甘厚味、肝郁重情绪疏导、",
   "  阴虚忌辛辣熬夜、气虚忌过劳——写出这一例真正该注意的。",
+  "· 结合本例异常检查及已确立的诊断，在复诊重点写要复查的客观指标，时间轴写有依据的复查时机，以及症状持续或加重时需看哪个专科、由医生评估哪项检查。已有检查写复查或比较，不重复建议初查；缺少依据时保留不确定性。",
   "· reviewFocus：告诉患者复诊时医生会重点了解什么，以及请患者服药期间留意、记下哪些变化。",
   "  正例：「复诊时医生会重点了解大便每天几次、是否成形，腹胀和胃口有没有好转，精神体力怎样，",
   "  并查看舌象和脉象；请您服药期间留意并记下这些变化。」",

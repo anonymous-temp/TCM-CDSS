@@ -19,11 +19,13 @@ import { formulaBaseHerbsBarredForCase } from "@/lib/formula-base-herbs-barred.s
 import { activeBleedingM04Rule } from "@/lib/active-bleeding-treatment";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
 import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
-import { ageImplausibleReproductiveNotice, auxiliaryReportForeignPersonNotice, authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, currentAntithromboticTherapyRecorded, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, activeBleedingInGroundingText, activeBleedingWording, trustedInputText } from "@/lib/diagnosis-safety";
+import { ageImplausibleReproductiveNotice, auxiliaryReportForeignPersonNotice, authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, currentAntithromboticTherapyRecorded, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, registerCurrentAntithromboticTherapy, activeBleedingInGroundingText, activeBleedingWording, trustedInputText } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { reconcileRecordedHistoryClaimsInPrescribeContent, recordedHistoryFields } from "@/lib/record-history-consistency";
+import { reviewTreatmentCards, type TreatmentReview } from "@/lib/tcm-treatment-card-review.server";
+import { prescriptionReviewCacheSuffix, scheduledTreatmentCardReview } from "@/lib/m04-final-content-policy";
 import { applyTcmTreatmentCapabilityPriority, homeAcupointAuthoringInputForCase } from "@/lib/tcm-treatment-capabilities.server";
 import { authorHomeAcupointCare, type AuthoredHomeAcupoint } from "@/lib/home-acupoint-authoring.server";
 import { rationaleFindingsChecklist } from "@/lib/rationale-findings-checklist";
@@ -90,7 +92,7 @@ async function handlePost(req: Request) {
     : undefined;
   return coalesceStageResponse({
     stage: "prescribe",
-    key: stageRequestFingerprint("prescribe", parsed.customer, parsed.caseState),
+    key: stageRequestFingerprint("prescribe", parsed.customer, parsed.caseState) + prescriptionReviewCacheSuffix(),
     bypass: regenerate,
     compute: (signal) => computePrescribe(parsed, signal, orchestrationStartedAt, regenerationAnchor),
     cacheable: prescribeResultReusable,
@@ -271,6 +273,8 @@ async function computePrescribe(
   // 本次闸门（含事实层）的出血类红旗按接地正文登记：开方核对与定稿剔除只拿得到正文，凭正文重算会丢掉靠结构化生命体征
   // 才成立的红旗（第二十三轮 C062），活血化瘀药就漏剔了。
   registerActiveBleedingRedFlags([groundingText, structuredClinicalContext, clinicalGroundingText(gated)], gated.safetyGate?.redFlags || []);
+  // 在用抗凝或抗血小板药同理：事实层筛查读出的在用药（出院带药等写法）只在整份病例上读得到。
+  registerCurrentAntithromboticTherapy([groundingText, structuredClinicalContext, clinicalGroundingText(gated)], gated);
   // 居家穴位保健由小模型按本例选穴（home-acupoint-authoring.server.ts）：只依赖已签名的辨证与病历，开方一开始就发出，与 M04 并行；
   // M04 候选定稿时等它（m04CandidateTransform），输出变换里排版。技术规范段落给不出（红旗、儿童、妊娠等）时不发请求。
   const homeAcupointInput = homeAcupointAuthoringInputForCase(
@@ -279,6 +283,7 @@ async function computePrescribe(
     [String(safeState.chiefComplaint || ""), ...rationaleFindingsChecklist(safeState)],
   );
   const homeAcupointAuthoring = homeAcupointInput ? authorHomeAcupointCare(homeAcupointInput, signal).catch(() => undefined) : Promise.resolve(undefined);
+  let cardReview: TreatmentReview | undefined;
   let authoredHomeAcupoint: AuthoredHomeAcupoint | undefined;
   // 口语否定增补：**必须传 signal**。此前漏传，医生中断请求后它仍会空转满 6s
   // 才自己超时——diagnose 路由（:83）一直是传的，两条路径写法不同源。
@@ -567,11 +572,17 @@ async function computePrescribe(
     },
     // 方义药物功效核对（小模型报疑、确定性核实后只删那一小段；见 m04-formula-analysis-claim-check.server.ts）。签名与合同核对之前执行。
     m04CandidateTransform: async (content, transformSignal) => {
-      const [prepared, authored, cautionHits] = await Promise.all([
+      const [prepared, authored, cautionHits, reviewed] = await Promise.all([
         prepareM04CandidateContent(content, { recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState }, transformSignal),
         homeAcupointAuthoring,
         checkHerbCautions(content, { recordText: structuredClinicalContext }, transformSignal),
+        scheduledTreatmentCardReview(() => reviewTreatmentCards(
+          parseReasoningV2(applyTcmTreatmentCapabilityPriority(content, safeState, signedPriorReasoning))?.nonPharma?.tcmTreatments || [],
+          structuredClinicalContext, [signedPriorReasoning?.overview.tcmDiseaseName, signedPriorReasoning?.overview.primarySyndrome,
+            signedPriorReasoning?.westernDiagnosis?.primary?.name].filter(Boolean).join("；"), transformSignal,
+        )),
       ]);
+      cardReview = reviewed;
       authoredHomeAcupoint = authored;
       // 两件核对都在同一份内容上并行，方义与加减互不相干：取方义核对的结果，把加减行换成核对后的。
       // 核对之后不同的条件不足两个时补写（教材没有这一证、模型也没写时，其余病例不发请求）。
@@ -588,7 +599,7 @@ async function computePrescribe(
     // 先校验并清理模型引用，再由服务端用本地方剂库写入可信原典；否则本地补入的
     // 经典出处会被模型证据白名单误判为未核验来源。
     outputTransform: (content) => {
-      const sanitized = applyTcmTreatmentCapabilityPriority(evidenceOutputTransform(content), safeState, signedPriorReasoning, { authoredHomeAcupoint });
+      const sanitized = applyTcmTreatmentCapabilityPriority(evidenceOutputTransform(content), safeState, signedPriorReasoning, { authoredHomeAcupoint, cardReview });
       // Deterministic safety fallbacks intentionally contain no structured M04 sentinel. They have
       // already been generated by the server and must not be reinterpreted as a malformed model
       // prescription, otherwise the original rejection is hidden behind a misleading contract error.

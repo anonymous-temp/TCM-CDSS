@@ -462,6 +462,7 @@ export function evaluateCriteriaMatches(
   const seenQuotes = new Set<string>();
   // 成组计数可扣除主证共有表现；文字不能把已见的共有表现写成「未见」。
   const observedQuotes = new Set<string>();
+  const usedItems = new Set<string>();
   const componentHits = new Map<string, number>();
   let specific = 0;
   // 特异表现病历里有、但与主证同脏同一表现而扣掉的条数（主证心血瘀阻、兼证心阳虚：心悸、胸闷两边都有）。
@@ -473,7 +474,10 @@ export function evaluateCriteriaMatches(
     if (quote.length < 2 || quote.length > 20 || seenQuotes.has(quote)) continue;
     if (!affirmedClauses.some((clause) => clause.includes(quote) || orderedWithin(clause, quote, quote.length + 3))) continue;
     if (!specificSet.has(match.item) && !categorySet.has(match.item) && !manifestSet.has(match.item)) continue;
+    if (usedItems.has(match.item) || [...observedQuotes].some(other => other !== quote && (other.includes(quote) || quote.includes(other)))) continue;
+    if (observedQuotes.has(quote)) continue;
     observedQuotes.add(quote);
+    usedItems.add(match.item);
     if (sharesPrimaryManifestation(quote, context.primaryTerms)) {
       if (specificSet.has(match.item)) sharedSpecific += 1;
       continue;
@@ -640,13 +644,13 @@ const GROUPED_CRITERIA_SYSTEM = [
 
 /** Same task name, timeout and output budget as the single-entry verifier. */
 export async function requestGroupedSecondaryCriteria(
-  targets: readonly CriteriaEntry[], recordText: string, signal?: AbortSignal,
+  targets: readonly CriteriaEntry[], recordText: string, signal?: AbortSignal, primary?: { name: string; secondaryNames: readonly string[]; manifestations: readonly string[] },
 ): Promise<Map<string, CriteriaMatches>> {
   if (!targets.length || !criteriaCheckEnabled()) return new Map();
   const entries = targets.map(target => ({ name: target.name, keyPoints: target.keyPointsText, items: criteriaItemsFor(target) }));
   const parsed = await smallJsonTask("m03_secondary_criteria", [
-    { role: "system", content: GROUPED_CRITERIA_SYSTEM },
-    { role: "user", content: JSON.stringify({ entries, record: recordText.slice(0, MAX_RECORD_CHARS) }) },
+    { role: "system", content: primary?.secondaryNames.length ? GROUPED_CRITERIA_SYSTEM + "\n对已列兼证，只摘主证与其教材表现不能充分解释的独立表现。两证共有的症状不计入兼证。" : GROUPED_CRITERIA_SYSTEM },
+    { role: "user", content: JSON.stringify({ entries, primary, record: recordText.slice(0, MAX_RECORD_CHARS) }) },
   ], 700, (content) => {
     let value: Json | undefined;
     try { value = typeof content === "string" ? record(JSON.parse(content)) : undefined; } catch { return undefined; }
@@ -680,8 +684,8 @@ export async function verifySecondaryByCriteria(
     const items = criteriaItemsFor(target);
     const recordText = context.recordText.slice(0, MAX_RECORD_CHARS);
     const matches = await smallJsonTask("m03_secondary_criteria", [
-      { role: "system", content: CRITERIA_MATCH_SYSTEM },
-      { role: "user", content: JSON.stringify({ syndrome: target.name, keyPoints: target.keyPointsText, items, record: recordText }) },
+      { role: "system", content: CRITERIA_MATCH_SYSTEM + (context.primaryTerms.length ? "\n主证表现能够解释的条目不计为兼证独立证据。" : "") },
+      { role: "user", content: JSON.stringify({ syndrome: target.name, keyPoints: target.keyPointsText, primaryManifestations: context.primaryTerms, items, record: recordText }) },
     ], 700, (content) => parseCriteriaMatches(content, items), signal);
     return matches ? evaluateCriteriaMatches(target, matches, context) : { ...unknown, entry: target.name };
   };
@@ -897,7 +901,9 @@ export async function reconcileSecondarySyndromes(
     const verdicts = await Promise.all(remainingSecondary.map((name) => verify(text(name), { recordText: context.recordText, primaryTerms }, signal)));
     let withdrawn = structural;
     remainingSecondary.forEach((name, index) => {
-      if (verdicts[index].verdict === "fail" && withdrawSecondarySyndrome(root!, text(name), textbookRow?.therapy || "")) withdrawn += 1;
+      const verdict = verdicts[index];
+      if ((verdict.verdict === "fail" || (strictAdd && verdict.verdict === "pass" && verdict.strict === false)) &&
+          withdrawSecondarySyndrome(root!, text(name), textbookRow?.therapy || "")) withdrawn += 1;
     });
     console.info("[tcm-cdss:telemetry] m03_secondary_criteria", {
       source: "model", candidates: secondary.length, withdrawn,

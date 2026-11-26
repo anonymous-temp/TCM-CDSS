@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "discharge-antithrombotic-use",
+  "mode": "deterministic",
+  "paritySchema": "sibling-phrasing",
+  "layerAttribution": {
+    "layer": "deterministic_medication_boundary",
+    "mechanism": "出院给药和延续至今的给药记录缺少现用药读法；同一判别式筛查补读用药类。",
+    "exception": "闭集药名与给药时态形态守卫，药物边界由 test:r1081-safety 直接逐项核对。"
+  },
+  "contexts": ["outpatient_record", "sparse"],
+  "parity": {"pairs": [
+    {"subject": "出院予利伐沙班片抗凝治疗。", "sibling": "目前口服利伐沙班。", "siblingExpect": "ready"},
+    {"subject": "出院带药：氯吡格雷。", "sibling": "目前口服氯吡格雷。", "siblingExpect": "ready"},
+    {"subject": "予阿哌沙班口服至今。", "sibling": "目前口服阿哌沙班。", "siblingExpect": "ready"}
+  ]},
+  "controls": {"mustStayReady": ["出院带药华法林，现已停药。","曾用利伐沙班。","母亲出院予阿哌沙班。","阿司匹林过敏。","拟出院予利伐沙班。"]}
+}

@@ -7,6 +7,7 @@ import { affirmedClinicalSourceClauses, clinicalEventTemporalScopeAt } from "./c
 import { governedFourCharacterMethodTerms, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 import { clinicalGroundingText, clauseLocalMentionPolarityAt } from "./diagnosis-safety";
 import { applyGovernedCompositeName, compositeSyndromeRename } from "./delivered-surface";
+import { applyFormulaRelock, formulaRelockAfterSyndromeRewrite } from "./tcm-formula-indications";
 import { withMethodImpliedNatureElements } from "./analysis-element-closure";
 import { closureGuardReason } from "./m03-element-closure-guard.server";
 import { isCriticalSyndromeName } from "./m03-critical-syndrome";
@@ -76,10 +77,10 @@ export function closureCriteriaLookup(pair: ElementPair, compound?: string): Clo
 // Every candidate can spend the existing secondary-criteria slot once. Compatibility
 // readers and closure readers use the same raw matches, with their own count policy.
 function createCriteriaBatch(recordText: string, targets: readonly CriteriaEntry[], policy: ElementClosurePolicy, signal?: AbortSignal,
-  request = requestGroupedSecondaryCriteria) {
+  request = requestGroupedSecondaryCriteria, primary?: Parameters<typeof requestGroupedSecondaryCriteria>[3]) {
   const planned = new Map(targets.map(entry => [entry.name, entry]));
   let result: Promise<Map<string, CriteriaMatches>> | undefined;
-  const run = () => result ??= Promise.resolve().then(() => request([...planned.values()], recordText, signal)).catch(() => new Map());
+  const run = () => result ??= Promise.resolve().then(() => request([...planned.values()], recordText, signal, primary)).catch(() => new Map());
   const verify: SecondaryCriteriaVerifier = async (name, context) => {
     const selected = secondaryCriteriaTargets(name);
     for (const entry of selected) planned.set(entry.name, entry);
@@ -289,7 +290,7 @@ Promise<{ content: string; evidence?: EvidenceSnapshot; legacyDecision?: Awaited
   }, false);
   const entries = policy.mode === "observe" ? [...closureEntries, ...existingCriteria.values()] : closureEntries;
   const current = criteriaRecord(context);
-  const batch = createCriteriaBatch(current, entries, policy, signal, io.request);
+  const batch = createCriteriaBatch(current, entries, policy, signal, io.request, { name: candidate.primarySyndrome, secondaryNames: candidate.secondarySyndromes, manifestations: primaryManifestationTerms(row) });
   const next = await (io.reconcile || reconcileSecondarySyndromes)(content, context, signal, batch.verify, policy.mode === "enforce").catch(() => content);
   const canRequest = process.env.CDSS_M03_SECONDARY_CRITERIA !== "false" || Boolean(io.request);
   const available = canRequest && (batch.started() || existingCriteria.size > 0);
@@ -390,7 +391,14 @@ export function solveM03ElementClosure(input: ClosureJson, context: ClosureConte
     const collected = evidence?.context.primarySyndrome === original.primarySyndrome &&
       original.secondarySyndromes.every(name => evidence.context.secondarySyndromes.includes(name)) ? evidence.composite : undefined;
     const composite = groundedComposite(root, context.recordText, policy) || collected;
-    if (composite) applyGovernedCompositeName(overview, original.primarySyndrome, original.secondarySyndromes, composite);
+    if (composite) {
+      const rename = (copy: ClosureJson) => applyGovernedCompositeName(closureObject(copy.overview)!, original.primarySyndrome, original.secondarySyndromes, composite);
+      const relock = formulaRelockAfterSyndromeRewrite(root, rename, context.recordText);
+      if (relock !== null) {
+        if (!compositeSyndromeRename(root, context.recordText, true)) rename(root);
+        if (relock) applyFormulaRelock(root, relock);
+      }
+    }
   }
   const initial = boundRowContext(root, original);
   const groups = assertionGroups(root, policy);

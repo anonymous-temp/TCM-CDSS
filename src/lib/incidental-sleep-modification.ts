@@ -21,7 +21,9 @@ export const SEDATIVE_CATEGORY = /(?:^|；)(?:养心|重镇)?安神药(?:；|$)/
  */
 export function signedScopeInvolvesMind(prior: SignedScopeLike): boolean {
   const mindScope = `${prior.overview?.primarySyndrome || ""}${(prior.overview?.secondarySyndromes || []).join("")}${prior.overview?.tcmDiseaseName || ""}`;
-  return /心|神|寐|眠|悸|郁|啼|多动|抽动|痴呆|癫|狂|痫/.test(mindScope);
+  // 「郁」只认病名（郁证、郁病、脏躁之外的情志病）：证名里的「郁」多是气机、郁热（蛇串疮·肝经郁热证、胁痛·肝气郁结证），
+  // 睡眠差仍是顺带的（第六十一轮扫描：甲方标准病历 8 因证名带「郁」被放行加了安神药）。
+  return /心|神|寐|眠|悸|啼|多动|抽动|痴呆|癫|狂|痫/.test(mindScope) || /郁/.test(prior.overview?.tcmDiseaseName || "");
 }
 /**
  * 随证加减里为顺带的睡眠差加安神药（2026-10-18；留出例 S132 瘾疹「若瘙痒不能入眠：加珍珠母（平肝潜阳安神）」、
@@ -36,12 +38,12 @@ const SLEEP_TRIGGER = /眠|寐|夜啼|夜醒|易醒|早醒|多梦|睡|卧不安/
  */
 const MIND_SYMPTOMS: readonly string[] = ["失眠", "不寐", "多梦", "梦多", "寐浅", "夜寐不宁", "入睡困难", "易醒", "早醒", "夜寐不安", "寐差", "眠差", "心悸", "怔忡", "心慌", "心烦", "健忘"];
 /**
- * 同一件事的几种写法算一项（第三十八轮）：睡不好、多梦、心悸、心烦、健忘各是一项。
+ * 同一件事的几种写法算一项（第三十八轮）：睡不好（含多梦，第六十二轮并入：「失眠多梦」是一个睡眠主诉）、心悸、心烦、健忘各是一项。
  * 「伴…心悸、睡眠差」只是两项伴随表现，甲方 10.12 点名的标准病历 3（血虚头痛加酸枣仁）、病历 10（血热月经先期加安神药）就是这种。
  */
 const MIND_CONCEPT_OF: Readonly<Record<string, string>> = {
   失眠: "sleep", 不寐: "sleep", 寐浅: "sleep", 夜寐不宁: "sleep", 入睡困难: "sleep", 易醒: "sleep", 早醒: "sleep", 夜寐不安: "sleep", 寐差: "sleep", 眠差: "sleep",
-  多梦: "dream", 梦多: "dream", 心悸: "palpitation", 怔忡: "palpitation", 心慌: "palpitation", 心烦: "irritability", 健忘: "memory",
+  多梦: "sleep", 梦多: "sleep", 心悸: "palpitation", 怔忡: "palpitation", 心慌: "palpitation", 心烦: "irritability", 健忘: "memory",
 };
 /**
  * 现病史在第一个「伴」之前的那一段（起病的主要表现）。给了现病史原文就用它；只有病历文本时，有「现病史：」标签从标签取，

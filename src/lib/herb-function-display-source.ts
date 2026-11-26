@@ -193,7 +193,11 @@ export function selectGroundedHerbFunction(input: {
     .filter((pair) => input.analysisUse!.includes(pair)).length;
   const top = ranked.filter((item) => item.score === max).map((item) => item.source);
   const ordered = bestFit >= ANALYSIS_USE_MINIMUM ? [...top].sort((left, right) => literalPieces(right.text) - literalPieces(left.text)) : top;
-  const chosen = max > 0 ? withoutOverlappingClause(ordered.slice(0, 2)) : eligible.slice(0, 1);
+  const preferred = input.preferredSourceIds || [];
+  const selected = preferred.map((id) => eligible.find((source) => source.id === id));
+  const closed = selected.length > 0 && selected.length <= 2 && new Set(preferred).size === preferred.length &&
+    selected.every((source): source is SourceSpan => Boolean(source)) ? selected : undefined;
+  const chosen = closed ?? (max > 0 ? withoutOverlappingClause(ordered.slice(0, 2)) : eligible.slice(0, 1));
   const toxicity = available.filter((source) => /^有(?:大|小)?毒$/u.test(source.text));
   const sources = [...new Map([...chosen, ...toxicity].map((source) => [source.id, source])).values()];
   return { text: sources.map((source) => source.text).join("，"), sources, status: "grounded", relevant: max > 0 };
@@ -214,7 +218,13 @@ export function projectGroundedHerbFunctions<T>(reasoning: T, patient: HerbFunct
   const projected = structuredClone(reasoning);
   const root = asRecord(projected), formula = asRecord(root.formula);
   for (const candidate of asRecords(formula.candidates)) for (const herb of asRecords(candidate.herbs)) {
-    herb.function = selectGroundedHerbFunction({ name: asText(herb.name), role: asText(herb.role),
+    // On a signed delivery a second display projection preserves valid literal choices.
+    // Validate the herb, source text and patient constraints again; never use this for admission.
+    const delivered = asText(root.contractSignature) && asText(asRecord(root.clinicalReview).reviewedPayloadHash);
+    const clauses = delivered ? functionClauses(asText(herb.function)).filter((clause) => !/^有(?:大|小)?毒$/u.test(clause)) : [];
+    const available = herbFunctionSourceClauses(asText(herb.name));
+    const preferredSourceIds = clauses.map((clause) => available.find((source) => source.text === clause)?.id || "");
+    herb.function = selectGroundedHerbFunction({ name: asText(herb.name), role: asText(herb.role), preferredSourceIds,
       target: [asText(herb.targetPathogenesis), asText(herb.prescriptionRole), ...asRecords(asRecord(root.pathogenesis).chain).filter((node) => node.nodeId === herb.targetRef).map((node) => [asText(node.pathogenesis), asText(node.therapyDirection)].join("；"))].join("；"),
       therapy: [asText(asRecord(root.therapy).overallMethod), asText(asRecord(root.overview).primarySyndrome)].join("；"), modelText: asText(herb.function), patient,
       analysisUse: formulaAnalysisUseOfHerb(asText(candidate.formulaAnalysis), asText(herb.name)) }).text;

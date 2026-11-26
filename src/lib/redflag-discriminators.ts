@@ -105,7 +105,7 @@ function populationMatches(row: Row, patient: DiscriminatorPatient, context: { f
 
 /** 读病历小任务要判的文字概念：这一年龄段（与妊娠状态）可能用到的文字行，加上两个前提概念。去重后按表序。 */
 export function discriminatorTextConceptsForPatient(patient: DiscriminatorPatient): string[] {
-  const concepts = new Set<string>([CONTEXT_FEVER, CONTEXT_INFECTION]);
+  const concepts = new Set<string>(table.contextConceptIds);
   for (const row of ROWS) {
     if (row.kind === "text" && populationMatches(row, patient, undefined)) concepts.add(row.conceptId);
   }

@@ -25,6 +25,7 @@ const lib = (name) => jiti.import(path.join(SRC, "lib", name));
 Object.assign(process.env, {
   AI_TEXT_PROVIDER: "openai-compatible", OPENAI_API_KEY: "test-key", OPENAI_BASE_URL: "https://api.deepseek.com",
   OPENAI_MODEL: "deepseek-flash", CONTROLLED_TERMINOLOGY_MODEL: "deepseek-flash", CDSS_SMALL_TASK_MEMO: "false",
+  BAILIAN_QWEN_API_KEY: "test-key", PRIMARY_STRUCTURED_FALLBACK_MODEL: "qwen3.8-flash",
 });
 
 const failures = [];
@@ -164,6 +165,7 @@ await check("A3 决定：两次核对并行、交集再复核；复核失败时�
     const removals = await claim.decidePatientClaimRemovals(content, { recordText: RECORD }, "tcm");
     assert.deepEqual(removals, [{ field: "tcmDiseaseDifferentials[0].distinguishingPoints", span: "口不渴" }]);
     assert.equal(bodies.filter((body) => body.messages[0].content.includes("你是病历事实核对器")).length, 2, "两次核对");
+    assert.equal(bodies.at(-1).model, "qwen3.8-flash");
     const passes = bodies.filter((body) => body.messages[0].content.includes("你是病历事实核对器")).map((body) => JSON.parse(body.messages[1].content).fields.map((item) => item.id));
     assert.deepEqual(passes[1], [...passes[0]].reverse(), "第二次字段顺序反过来");
     verifyReply = { items: [{ id: 0, verdict: "supported", quote: "流清涕" }] };
@@ -215,7 +217,7 @@ await check("W1 辨证路由：中医半与兼证一致并行、西医半与病�
   // 第四十九轮 D3：并行补法后重落同一证素决定，避免撤回项被补回，再提急症主证。
   assert.match(route, /return promoteCriticalSecondarySyndrome\(applyElementSupportDecision\(withVerifiedMethodItemFrom\(withLensFrom\(reattributed, completed, lensChecked\), methodCovered\), elementDecision\),/u);
   assert.match(route, /Promise\.all\(\[\s*alignWesternPrimaryAndName\([\s\S]{0,400}decidePatientClaimRemovals\(westernContent,[^)]*"western"/u);
-  assert.match(route, /finalizeWesternPrimaryName\(\s*applyWesternVisitReasonDecision\(applyPatientClaimRemovalsToContent\(aligned, "western", claimRemovals, patientClaimRecord\), visitReason\)/u);
+  assert.match(route, /finalizeWesternPrimaryName\(\s*applyWesternVisitReasonDecision\(applyPatientClaimRemovalsToContent\(aligned, "western", claimRemovals, westernClaimRecord\), visitReason\)/u);
   assert.match(route, /patientClaimRecordText\(trustedInputText\(safeState\), safeState\.patient, safeState\.vitals\)/u);
   assert.match(route, /redFlags: \[\.\.\.gated\.safetyGate\.redFlags, \.\.\.semanticBannerFlags\]/u);
 });

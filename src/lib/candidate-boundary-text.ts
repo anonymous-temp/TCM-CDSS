@@ -187,3 +187,30 @@ export function followupSignsForPopulation(text: string, audience?: HerbBoundary
 export function signListForPopulation(items: readonly string[] | undefined, audience?: HerbBoundaryAudience): string[] {
   return (items || []).filter((item) => !followupSignOutsidePopulation(item, audience));
 }
+
+/** 旧签名页缺少尾段标记。只迁移本模块可逐字重建的提示，保留医生另写的说明。 */
+export function migrateDeliveredHerbCautions(text: string, profiles: readonly HerbBoundaryProfile[], audience: HerbBoundaryAudience): string {
+  let result = text;
+  const grouped = new Map<string, string[]>();
+  for (const profile of [...profiles].sort((a, b) => b.herb.length - a.herb.length)) {
+    const escaped = profile.herb.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const old = new RegExp(escaped + "([^；;。，（）]{1,25})慎用；本例有\\1记录，使用前请医生确认[；;]?", "gu");
+    result = result.replace(old, (_match, population: string) => {
+      if (herbBoundaryPopulationRelevant(population, audience)) {
+        grouped.set(population, [...new Set([...(grouped.get(population) || []), profile.herb])]);
+      }
+      return "";
+    });
+    const current = herbBoundaryNote(profile, audience)?.replaceAll("禁用或须强复核", "禁用");
+    if (!current || !result.includes(current)) continue;
+    const unknownAge = herbBoundaryNote(profile, { ...audience, ageYears: null })?.replaceAll("禁用或须强复核", "禁用");
+    if (unknownAge && unknownAge !== current) {
+      for (const obsolete of [unknownAge, unknownAge.replace(/(毒性：[^；（）]+)；/u, "$1")]) {
+        result = result.replace(obsolete + "。", "");
+      }
+    }
+  }
+  if (result === text) return text;
+  const cautions = [...grouped].map(([population, names]) => `${names.join("、")}在${population}情况下须慎用，请医生核对后使用`);
+  return [...cautions, result.trim().replace(/^[；;。]+/u, "")].filter(Boolean).join("。");
+}

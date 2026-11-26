@@ -4,12 +4,13 @@ import { crossVendorConfirm, primaryModelJsonTask } from "./cross-model-small-ta
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals } from "./m03-patient-claim-check.server";
 import { recordMentionPolarityAt } from "./diagnosis-safety";
 import { alignQuoteToSource, normalizedQuoteText } from "./source-quote-alignment";
-import { recordHasTestResultFor, westernBasisWithoutEstablishmentContradiction, settleWesternDiagnosisBasis } from "./recorded-test-claims";
+import { westernCriteriaCertainty, recordHasTestResultFor, westernBasisWithoutEstablishmentContradiction, settleWesternDiagnosisBasis } from "./recorded-test-claims";
+import westernNames from "../data/western-name-preferred.source.json";
 import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json" with { type: "json" };
 import establishmentCheckSource from "../data/western-establishment-check.source.json" with { type: "json" };
 import { quoteGroundedInText } from "./verbatim-quote";
 import { westernCriteriaEntry, type WesternCriteriaEntry } from "./western-diagnostic-criteria.server";
-import { applyWesternNameCorrection, listedWesternDiagnosisNames, recordStatesWesternDiagnosis } from "./western-name-evidence-check.server";
+import { applyWesternNameCorrection, listedWesternDiagnosisNames, pediatricOnlyWesternName, symptomLevelWesternName, recordStatesWesternDiagnosis } from "./western-name-evidence-check.server";
 
 /**
  * 西医诊断依据在病名定稿之后、按该病的诊断要点单独写（2026-11-09 第三十九轮）。
@@ -31,6 +32,7 @@ import { applyWesternNameCorrection, listedWesternDiagnosisNames, recordStatesWe
  * 开关：CDSS_WESTERN_BASIS_AUTHORING=false 关闭。
  */
 const TIMEOUT_MS = 6_000;
+const BROADER_NAMES: Record<string, string> = westernNames.broaderDiagnoses;
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json | undefined => value && typeof value === "object" && !Array.isArray(value) ? value as Json : undefined;
 const compact = (value: string) => value.normalize("NFKC").replace(/\s+/gu, "");
@@ -47,6 +49,11 @@ export type WesternBasisProposal = {
   negatives: WesternBasisItem[];
   /** 这一级诊断现在是否已确立（第四十二轮）：yes / no；模型没答为空串。 */
   established: "yes" | "no" | "";
+  supportedName?: string;
+  establishmentQuote?: string;
+  /** 同时出现于正文和原始病历的「表现＋时长」连续片段。 */
+  timedFacts?: string[];
+  hypotheses?: Array<WesternBasisItem & { name: string }>;
   level: string;
   exclude: string[];
   text: string;
@@ -108,7 +115,8 @@ function numbersGrounded(sentence: string, recordText: string, allowed = ""): bo
   const source = `${normalizedQuoteText(recordText)}｜${normalizedQuoteText(allowed)}`;
   // 紧跟拉丁字母的数字是名称的一部分（维生素B12、HLA-B27），不是本例的读数。
   const numbers = normalizedQuoteText(sentence).match(/(?<![A-Za-z\d.])\d+(?:\.\d+)?/gu) || [];
-  return numbers.every((number) => source.includes(number));
+  const recorded = new Set(source.match(/\d+(?:\.\d+)?/gu) || []);
+  return numbers.every((number) => recorded.has(number));
 }
 
 /**
@@ -126,7 +134,7 @@ export function demographicNotInRecord(sentence: string, recordText: string): bo
  *（第三十九轮实链盲评 v6：84 份里 6 份；本例说法核对抓不到这种否定式查体说法）。
  */
 export function examFindingNotInRecord(sentence: string, recordText: string): boolean {
-  if (!compact(sentence).replace(/生命体征/gu, "").includes("体征")) return false;
+  if (!/体征|(?:体格检查|查体)(?:见|示|发现|确立|提示)/u.test(compact(sentence).replace(/生命体征/gu, ""))) return false;
   const record = compact(recordText).replace(/生命体征/gu, "");
   return !["体征", "查体", "体格检查"].some((word) => record.includes(word));
 }
@@ -183,6 +191,21 @@ export function groundedWesternBasisItems(proposal: WesternBasisProposal, contex
 export function westernBasisIssue(proposal: WesternBasisProposal, context: WesternBasisContext): string | undefined {
   const sentence = compact(proposal.text);
   if (sentence.length < 30 || sentence.length > 160) return "text_length";
+  if (proposal.timedFacts) {
+    const normalized = normalizedQuoteText(sentence);
+    const spans = proposal.timedFacts.map(normalizedQuoteText).filter(span =>
+      span.length >= 4 && normalizedQuoteText(context.recordText).includes(span));
+    for (const match of normalized.matchAll(/(?:\d+(?:\.\d+)?|半)(?:个?月|周|年|天|小时|分钟)(?:余|后|前)?/gu)) {
+      const covered = spans.some(span => {
+        if (!span.replace(match[0], "").match(/[一-龥]{2}/u)) return false;
+        for (let at = normalized.indexOf(span); at >= 0; at = normalized.indexOf(span, at + 1)) {
+          if (at <= match.index && at + span.length >= match.index + match[0].length) return true;
+        }
+        return false;
+      });
+      if (!covered && !normalizedQuoteText(context.criteria?.durationThreshold || "").includes(match[0])) return "duration_not_bound_to_fact";
+    }
+  }
   const core = westernNameCore(context.name);
   if (!core || !sentence.includes(core)) return "text_misses_name";
   if (!/待查|待排/u.test(compact(context.name)) && /待查|待排/u.test(sentence)) return "text_contradicts_name";
@@ -225,6 +248,12 @@ export function parseWesternBasisProposal(content: unknown): WesternBasisProposa
       criteria: items(parsed.criteria, 3),
       negatives: items(parsed.negatives, 2),
       established: parsed.established === "yes" || parsed.established === true ? "yes" : parsed.established === "no" || parsed.established === false ? "no" : "",
+      hypotheses: (Array.isArray(parsed.hypotheses) ? parsed.hypotheses : []).slice(0, 2).map(item => ({
+        name: text(record(item)?.name), point: text(record(item)?.point), quote: text(record(item)?.quote),
+      })),
+      supportedName: text(parsed.supportedName),
+      establishmentQuote: text(parsed.establishmentQuote),
+      timedFacts: Array.isArray(parsed.timedFacts) ? parsed.timedFacts.map(text).filter(Boolean).slice(0, 8) : undefined,
       level: text(parsed.level),
       exclude: (Array.isArray(parsed.exclude) ? parsed.exclude : []).map(text).filter(Boolean).slice(0, 4),
       text: text(parsed.text),
@@ -236,18 +265,18 @@ export function parseWesternBasisProposal(content: unknown): WesternBasisProposa
 }
 
 const SYSTEM = `你给一个西医诊断写诊断依据，给医生看。给你 name（诊断名）、criteria（该病的诊断要点，可能为空；clinicallyDiagnosable=false 表示确诊必须靠 requiredTests 里的检查）、listed（本例列过的候选与鉴别病名）、chiefComplaint（主诉）、record（病历）、redFlag（是否有急危重征象）。
-依据要如实：支持这个诊断的是什么，还缺什么。确诊必需的检查病历里没有时，写明「尚缺…，需…确认」，不要说依据临床表现即可诊断。
-按下面的顺序填，前面几项是最后那句话的提纲：
+逐项区分确诊、检查结果支持、仍待核实。establishmentQuote 是足以确立当前病名的本人检查结论或确诊记录的一段逐字原文；只有症状、阴性结果或待回报时留空。分型、严重程度和并存诊断须各有支持，不能用既往病史证明本次急性并发症。依据要如实：支持这个诊断的是什么，还缺什么。确诊必需的检查病历里没有时，写明「尚缺…，需…确认」，不要说依据临床表现即可诊断。
+原病名缺少必需依据，而 broader 中的上位诊断更符合时，supportedName 取该上位名；上位名亦待核实可加“待查”。其余情形留空。按所选病名及对应的要点填以下提纲，正文与病名采用同一次判断：
 1. summary：一句话概括本例问题的特点（≤25字），用急性/慢性、反复/持续、诱因、部位这类定性说法，不要逐条罗列症状。定性词要有病历依据：病程不足3个月不写「慢性」，只写了一次发作不写「反复」，病历没写年龄性别就不写。
 2. criteria：本例满足的诊断要点，1–3条，只列病历里确有原文支持的要点。point 写要点本身（criteria 不为空时只能用其中的要点，沿用它的说法；为空时写该病公认的诊断要点）；quote 是病历里支持这一点的一段原文，逐字照抄、不增不减（≤30字）。病历没有原文支持的要点不列，也不写进 text。
 3. negatives：病历里写明的、有鉴别意义的否认或正常结果，0–2条，quote 逐字照抄病历里那句否认或正常结果（如「无呕血、黑便」「心电图未见异常」）。病历没写否认就留空数组，不要把阳性症状放进来。
 4. established：这个诊断名本身现在是否已确立，yes 或 no。只看诊断名本身，不看病因、分型、严重程度或并发症：门诊按公认标准凭症状、体征与常规化验即可临床诊断的（以症状、体征或病程定义的症状性、综合征性诊断，常见急性感染与急症的临床诊断），即使还需检查明确病因、病原、部位或排除并发症，也写 yes；病历写明既往已确诊的写 yes。只有确诊这个病名必须依赖病历里没有的检查（病原学、脑脊液、影像、内镜、病理、心电图与心肌标志物、规范血糖检测等），或必须满足而病历未满足的病程门槛（criteria.durationThreshold），或它是需先排除器质性疾病才能下的排除性诊断（功能性、神经症一类）时，写 no。
 5. level：诊断为什么写到这一级（≤40字）：是哪项检查或客观所见确立的；没有确诊检查的，写尚缺什么检查或尚需排除什么。病历写明既往已确诊、本次没有复查的，写「既往已确诊X，本次未复查Y」，不要同时写「诊断已确立」和「尚缺…确认」。病程门槛只用 criteria.durationThreshold 里给的，并且要与病历记录的病程对照属实；criteria 没给病程门槛就不写「病程未满…」。功能性疾病、原发性疾病这类排除性诊断，写「尚需排除器质性病变」，不写「可诊断」「可确诊」。
-6. exclude：还需排除的病，0–2个，写规范病名。
-7. text：把上面各项写成一句话（60–120字），这就是医生读到的诊断依据：先写 summary，再写本例的所见如何满足要点（用 quote 里的本例所见来写，不要把要点原文当成本例所见），再写阴性所见（没有就不写这一部分），再写 level，最后写「需与/需排除…」。句中要逐字出现诊断名 name。
-name 是「症状＋待查」（如「心悸待查」「胸痛待查」）时，按《病历书写基本规范》对待查病例列出可能性较大的诊断的要求，text 写出最可能的一两个病（从 listed 里取，写「考虑X可能」）。
+6. exclude：只列本例优先鉴别的病，0–2个。类型已明而病因待明时写查明病因。单一阴性指标只能降低可能性。
+7. text：把上面各项写成一句话（60–120字），这就是医生读到的诊断依据：先写 summary，再写本例的所见如何满足要点（用 quote 里的本例所见来写，不要把要点原文当成本例所见），再写阴性所见（没有就不写这一部分），再写 level，最后写「需与/需排除…」。句中写病名本身，不把“待查”嵌在句子主语里。缺项只写确实未查的关键检查，最多两项。每个数值和时长都须与它所描述的症状、检查项目一一对应，不换算间隔。timedFacts 逐条摘录成句中每处时长及其对应表现，两者合在一起必须是病历连续原文；不便照引时只作定性概括。
+name 是「症状＋待查」（如「心悸待查」「胸痛待查」）时，按《病历书写基本规范》对待查病例列出可能性较大的诊断的要求，仅当 listed 内某个病符合本人的人群、病程和该器官表现时才写可能病因；参考 listedCriteria，无符合者省略。不得用中医脏腑证候支持西医器官疾病。每个考虑的病因在 hypotheses 中给出 name、定义性表现 point 和本例逐字原文 quote；有 listedCriteria 时 point 原样取其中与该病直接相关的一项。缺少该病特异支持时不列。
 text 是临床表述：不逐条复述病史，不用「」引病历原文，不写「病历载」「病历未记录相关阴性」「无明确否认项」这类讲病历本身的话，不写病历里没有的检查结果或数字，不写中医证候。name 不带「待查」时句中不出现「待查」。
-只输出 JSON：{"summary":"","criteria":[{"point":"","quote":""}],"negatives":[{"point":"","quote":""}],"established":"","level":"","exclude":[""],"text":""}`;
+只输出 JSON：{"summary":"","criteria":[{"point":"","quote":""}],"negatives":[{"point":"","quote":""}],"established":"","supportedName":"","establishmentQuote":"","timedFacts":[],"hypotheses":[],"level":"","exclude":[""],"text":""}`;
 
 function westernPrimaryOf(westernContent: string): { name: string; listed: string[] } | undefined {
   try {
@@ -282,7 +311,16 @@ export async function authorWesternBasis(
     { role: "user", content: JSON.stringify({
       name: primary.name,
       criteria,
+      broader: BROADER_NAMES[westernNameCore(primary.name)] ? {
+        name: BROADER_NAMES[westernNameCore(primary.name)],
+        criteria: westernBasisCriteriaEntry(BROADER_NAMES[westernNameCore(primary.name)])?.definingFeatures,
+      } : null,
       listed: primary.listed,
+      listedCriteria: primary.listed.map(name => {
+        const row = westernBasisCriteriaEntry(name);
+        return { name, pediatricOnly: pediatricOnlyWesternName(name), features: row?.definingFeatures,
+          duration: row?.durationThreshold, history: row?.requiredHistory };
+      }),
       chiefComplaint: context.chiefComplaint,
       record: context.recordText.slice(0, 3_000),
       redFlag: Boolean(context.redFlag),
@@ -322,7 +360,26 @@ export async function withAuthoredWesternBasis(
     console.info("[tcm-cdss:telemetry] western_basis_authoring", { accepted: false, reason: "unavailable" });
     return withNameMatchingBasisCertainty(westernContent, context.recordText);
   }
+  const supported = authored.proposal.supportedName;
+  if (supported && supported !== primary.name) {
+    const broader = BROADER_NAMES[westernNameCore(primary.name)];
+    if (!context.redFlag && broader && (supported === broader && authored.proposal.established === "yes" ||
+        supported === broader + "待查" && authored.proposal.established === "no") &&
+        !recordStatesWesternDiagnosis(primary.name, context.recordText)) {
+      const proposal = authored.proposal;
+      const corrected = applyWesternNameCorrection(westernContent, {
+        type: "D", supportedName: supported, reason: proposal.level, quote: proposal.criteria[0]?.quote || "",
+      });
+      const candidate = westernPrimaryOf(corrected);
+      if (candidate?.name === supported) {
+        const reviewed = await withAuthoredBasisText(corrected, candidate, authored, context, reused, signal);
+        if (reviewed !== corrected) return withNameMatchingBasisCertainty(reviewed, context.recordText);
+      }
+    }
+    return withNameMatchingBasisCertainty(westernContent, context.recordText);
+  }
   const withBasis = await withAuthoredBasisText(westernContent, primary, authored, context, reused, signal);
+  if (withBasis === westernContent) return withNameMatchingBasisCertainty(westernContent, context.recordText);
   return withNameMatchingBasisCertainty(await withEstablishmentDowngrade(withBasis, primary.name, authored.proposal, context, signal), context.recordText);
 }
 
@@ -438,7 +495,29 @@ async function withAuthoredBasisText(
   signal?: AbortSignal,
 ): Promise<string> {
   const entry = westernBasisCriteriaEntry(primary.name);
-  const issue = westernBasisIssue(authored.proposal, { name: primary.name, recordText: context.recordText, listedNames: primary.listed, criteria: entry });
+  const proposed = authored.proposal;
+  if (proposed.hypotheses) {
+    const supported = new Set(proposed.hypotheses.filter(item => {
+      const criteria = westernBasisCriteriaEntry(item.name);
+      return primary.listed.includes(item.name) && item.quote.length >= 2 && quoteAffirmedInRecord(item.quote, context.recordText) &&
+        item.point && (!criteria || criteria.definingFeatures.includes(item.point));
+    }).map(item => item.name));
+    const reviewed = proposed.text.replace(/(^|[。；，,])考虑([^，,；。]{2,60}?)可能([，,；。]|$)/gu, (whole, before: string, list: string, after: string) => {
+      const names = list.split("、");
+      const kept = names.filter(name => name === westernNameCore(primary.name) || supported.has(name));
+      return kept.length === names.length ? whole : kept.length ? `${before}考虑${kept.join("、")}可能${after}` : before && /[。；]/u.test(after) ? after : before;
+    }).replace(/[，,；]$/u, "。");
+    authored = { ...authored, proposal: { ...proposed, text: reviewed } };
+  }
+  const proof = authored.proposal.establishmentQuote;
+  const core = westernNameCore(primary.name);
+  const basisContext = { name: core, recordText: context.recordText, listedNames: primary.listed, criteria: entry };
+  const confirmed = core !== primary.name && authored.proposal.established === "yes" && proof && proof.length >= 4 &&
+    !symptomLevelWesternName(core) && alignQuoteToSource(proof, context.recordText, {
+      excludedAt: (source, at) => recordMentionPolarityAt(source, at) !== "affirmed",
+    }) && groundedWesternBasisItems(authored.proposal, basisContext).criteria.some(item => item.quote === proof) &&
+    !westernCriteriaCertainty(core, context.recordText)?.pending;
+  const issue = westernBasisIssue(authored.proposal, { ...basisContext, name: confirmed ? core : primary.name });
   console.info("[tcm-cdss:telemetry] western_basis_authoring", { accepted: !issue, reason: issue || null, criteriaTable: Boolean(entry), reusedDraft: reused });
   if (issue) return westernContent;
   try {
@@ -446,6 +525,11 @@ async function withAuthoredBasisText(
     const western = record(root?.westernDiagnosis);
     const target = record(western?.primary);
     if (!root || !target) return westernContent;
+    if (confirmed) {
+      target.name = core;
+      if (Array.isArray(western?.candidates)) western.candidates = western.candidates.map((item, index) =>
+        record(item) && (index === 0 || record(item)?.name === primary.name) ? { ...record(item), name: core } : item);
+    }
     target.clinicalRationale = authored.proposal.text.replace(/\s+/gu, " ").trim();
     const replaced = JSON.stringify(root);
     if (!context.claimRecordText) return replaced;
@@ -453,8 +537,10 @@ async function withAuthoredBasisText(
     // 把要点表原文或常识当成本例所见（「肺部无异常体征」而病历无肺部查体）。只核对这一句，其余字段收口前已核对过。
     const onlyBasis = JSON.stringify({ westernDiagnosis: { primary: { clinicalRationale: target.clinicalRationale } } });
     const check = context.claimCheck || ((content: string, recordText: string, abort?: AbortSignal) => decidePatientClaimRemovals(content, { recordText }, "western", abort));
-    const removals = await check(onlyBasis, context.claimRecordText, signal).catch(() => []);
+    const removals = await check(onlyBasis, context.claimRecordText, signal);
     if (removals.length === 0) return replaced;
+    // 被事实核对撤掉的证据也不能用于提升确定程度。
+    if (target.name !== primary.name) return westernContent;
     const cleaned = applyPatientClaimRemovalsToContent(replaced, "western", removals, context.claimRecordText);
     const after = text(record(record(record(JSON.parse(cleaned))?.westernDiagnosis)?.primary)?.clinicalRationale);
     console.info("[tcm-cdss:telemetry] western_basis_claim_check", { removals: removals.length, kept: compact(after).length >= 30 });

@@ -51,7 +51,7 @@ export function buildM03TcmRuntimeContext(state: CaseState, preferredDiseases: r
   const candidates = textbookCandidatesForCase({ chiefComplaint: state.chiefComplaint, recordText: clinicalContext,
     presentHistory: record.sources.filter(source => record.hpiPaths.includes(source.sourcePath)).map(source => source.text).join("\n"),
     preferredDiseases, sex: state.patient?.sex, ageYears: typeof state.patient?.age === "number" ? state.patient.age : undefined });
-  const ctx: M03TcmContext = { facts: [], chiefComplaint: state.chiefComplaint || "", diseases: [], units: [], syndromes: [], methods: [],
+  const ctx: M03TcmContext = { ...(state.unconfirmedFollowupQuestions?.length ? { unconfirmedFollowupQuestions: state.unconfirmedFollowupQuestions } : {}), facts: [], chiefComplaint: state.chiefComplaint || "", diseases: [], units: [], syndromes: [], methods: [],
     differentials: { disease: [], syndrome: [] }, lineage: null,
     safety: { redFlag: Boolean(state.safetyGate?.redFlags.length), context: JSON.stringify(state.safetyGate || {}) }, findingsChecklist: [] };
   for (const candidate of candidates) {

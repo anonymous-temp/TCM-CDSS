@@ -66,7 +66,7 @@ await check('S08','慎用标签对上肝损伤人群时不加，无此人群时�
  const liver='患者年龄：60岁\n患者性别：男\n肝功能不全。';assert.ok(contract.recordedPopulationCautions('补骨脂',liver).length);assert.equal(contract.herbAdditionPopulationConflict('补骨脂',liver),true);assert.equal(contract.herbAdditionPopulationConflict('补骨脂','腰痛。'),false);
 });
 await check('S09','主方慎用药与君药保留，只加本例人群说明且幂等',()=>{
- const r=rx([h('补骨脂','君'),h('白术','臣'),h('茯苓')]),ctx='患者年龄：60岁\n患者性别：男\n肝功能不全。';const out=prune(r,ctx);assert.deepEqual(names(out),names(r));assert.match(out.formula.candidates[0].notApplicable,/补骨脂.*肝功能不全.*慎用；本例有肝功能不全记录，使用前请医生确认/);assert.deepEqual(prune(out,ctx),out);
+ const r=rx([h('补骨脂','君'),h('白术','臣'),h('茯苓')]),ctx='患者年龄：60岁\n患者性别：男\n肝功能不全。';const out=prune(r,ctx);assert.deepEqual(names(out),names(r));assert.match(out.formula.candidates[0].notApplicable,/补骨脂在肝功能不全情况下须慎用，请医生核对后使用/);assert.deepEqual(prune(out,ctx),out);
 });
 await check('S10','旧结构定稿也删去慎用加味，不动减药行',()=>{
  const r=rx(safe,[{action:'加',herbName:'补骨脂',trigger:'腰膝酸软'},{action:'减',herbName:'白术',trigger:'口干'}]);const out=prune(r,'患者年龄：60岁\n肝功能不全。');assert.deepEqual(out.formula.modifications.map(x=>x.action),['减']);
@@ -103,7 +103,7 @@ await check('S19','本例安全说明在逐味尾注重建与模板清理后仍�
  const r=rx([h('补骨脂','君'),h('白术','臣'),h('茯苓')]);
  r.formula.candidates[0].notApplicable='证候、病机、舌脉或安全边界变化时暂停采用，并重新辨证。 '+boundary.herbBoundaryTail([{herb:'补骨脂',isToxic:false,toxicity:[],populationRules:[{population:'肝功能不全',severity:'MEDIUM'}]}]);
  const finalized=prune(r,ctx);const out=surface.projectDeliveredReasoning(finalized,{caseState:s,recordText:ctx,herbBoundaryAudience:{reproductive:false,ageYears:60}});
- assert.match(out.formula.candidates[0].notApplicable,/本例有肝功能不全记录，使用前请医生确认/);
+ assert.match(out.formula.candidates[0].notApplicable,/肝功能不全情况下须慎用，请医生核对后使用/);
  assert.deepEqual(surface.projectDeliveredReasoning(out,{caseState:s,recordText:ctx,herbBoundaryAudience:{reproductive:false,ageYears:60}}),out);
  const withoutTail=rx(safe);withoutTail.formula.candidates[0].notApplicable='证候、病机、舌脉或安全边界变化时暂停采用，并重新辨证；按本例情况已去除：鸡血藤（抗凝在用）';
  assert.match(project(withoutTail,state('华法林3mg每日1次')).formula.candidates[0].notApplicable,/已去除：鸡血藤/);
@@ -211,7 +211,7 @@ await check('S30','研究减弱方向含贯叶金丝桃及别名不作D2禁药�
 await check('S31','不足三味未提交剔药时，新增慎用说明不能带出临时君药晋位',()=>{
  const r=rx([h('羚羊角','君'),h('钩藤','臣'),h('补骨脂')]);const out=prune(r,'患者年龄：60岁\n患者性别：男\n肝功能不全。');
  assert.deepEqual(out.formula.candidates[0].herbs.map(x=>[x.name,x.role]),r.formula.candidates[0].herbs.map(x=>[x.name,x.role]));
- assert.match(out.formula.candidates[0].notApplicable,/补骨脂.*本例有肝功能不全记录/);
+ assert.match(out.formula.candidates[0].notApplicable,/补骨脂在肝功能不全情况下须慎用/);
 });
 await check('S32','在用药名剥除家属说明与残缺括号，已知缓释剂型保留',()=>{
  const s=state('氨氯地平按家属说明每日1次，降压药（备注剂量不详，另药待核）');

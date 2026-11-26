@@ -202,8 +202,8 @@ check(() => {
   const withNonStandard = structuredClone(M03);
   withNonStandard.westernDiagnosis.primary.name = "头痛（症状性）";
   const visible = visibleOf(withNonStandard, "diagnose", CONTEXT);
-  assert.ok(visible.includes("**诊断倾向**：头痛"), "医生可见行必须只显示诊断核心名");
-  assert.ok(!visible.includes("（症状性）"), "「（症状性）」不得出现在医生可见正文");
+  assert.equal(visible.split("\n").find(line => line.startsWith("**诊断倾向**：")),
+    "**诊断倾向**：" + withNonStandard.westernDiagnosis.primary.name, "最终报告须逐字显示结构化主诊断");
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

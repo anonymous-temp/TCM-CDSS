@@ -1,4 +1,5 @@
 import "server-only";
+import { stageParallelFinalize } from "./stage-finalize-schedule";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "./diagnosis-types";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "./diagnosis-types";
 import { finalizeM04Content, type FinalizeM04Context } from "./m04-final-content.server";
@@ -137,6 +138,14 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
 /** Old candidate tasks remain byte-for-byte on rollback; new authoring must not stack on old repairs. */
 export async function prepareM04CandidateContent(content: string, context: { recordText: string; prior: ClinicalReasoningResultV2; caseState: CaseState }, signal?: AbortSignal): Promise<string> {
   const policy = m04FinalContentPolicy();
+  if (stageParallelFinalize() && !(policy.enabled && policy.modifications === "on")) {
+    return prepareParallelM04Candidate(content, {
+      checkAnalysis: () => policy.enabled && policy.analysis === "on" ? Promise.resolve(content) : checkFormulaAnalysisClaimsInContent(content, signal),
+      author: () => modificationAuthoringEnabled() ? authorModificationsInContent(content, context, signal).catch(() => undefined) : Promise.resolve(undefined),
+      fit: () => dropMisfitModifications(content, context, signal),
+      topUp: draft => topUpModificationConditions(draft, context, signal),
+    });
+  }
   // 第五十二轮：随证加减在定稿后由模型专写、另一厂商复核（m04-modification-authoring.server.ts），与方义核对并行。
   // 写作失败、超时时回到下面原来的核对＋补写两步。
   if (modificationAuthoringEnabled() && !(policy.enabled && policy.modifications === "on")) {
@@ -155,6 +164,48 @@ export async function prepareM04CandidateContent(content: string, context: { rec
   ]);
   const combined = withModificationsFrom(checked, fitted);
   return policy.enabled && policy.modifications === "on" ? combined : topUpModificationConditions(combined, context, signal);
+}
+
+/** Start fallback top-up as soon as fit and authoring settle. Top-up consumes
+ * herbs, method and existing rows, never formulaAnalysis. It can change medicines
+ * and precautions too, so use its entire document as the base of the join. */
+export async function prepareParallelM04Candidate(content: string, tasks: {
+  checkAnalysis: () => Promise<string>; author: () => Promise<string | undefined>;
+  fit: () => Promise<string>; topUp: (draft: string) => Promise<string>;
+}): Promise<string> {
+  const [checked, modifications] = await Promise.all([
+    tasks.checkAnalysis(),
+    Promise.all([tasks.author(), tasks.fit()]).then(async ([authored, fitted]) => {
+      if (authored !== undefined) return { authored: withoutRowsRemovedBy(authored, content, fitted), fitted };
+      return { topped: await tasks.topUp(withModificationsFrom(content, fitted)), fitted };
+    }),
+  ]);
+  if (modifications.authored !== undefined) return withAuthoredModificationsFrom(checked, modifications.authored);
+  const topped = modifications.topped!;
+  if (checked === content) return topped;
+  if (topped === content) return checked;
+  const marker = "<!-- DIAGNOSIS_JSON_START -->";
+  const read = (text: string) => {
+    const start = text.lastIndexOf(marker) + marker.length, end = text.indexOf("<!-- DIAGNOSIS_JSON_END -->", start);
+    return { start, end, root: JSON.parse(text.slice(start, end)) };
+  };
+  try {
+    const old = read(content), analysis = read(checked), next = read(topped);
+    const candidates = old.root.formula.candidates;
+    if (candidates.length === next.root.formula.candidates.length && candidates.every((row: Record<string, unknown>, index: number) =>
+      JSON.stringify(row) === JSON.stringify(next.root.formula.candidates[index]))) {
+      candidates.forEach((row: Record<string, unknown>, index: number) => {
+        const paragraph = analysis.root.formula.candidates[index].formulaAnalysis;
+        row.formulaAnalysis = paragraph;
+        next.root.formula.candidates[index].formulaAnalysis = paragraph;
+      });
+      // If either writer broadens its scope, restore the serial merge order.
+      if (JSON.stringify(old.root) === JSON.stringify(analysis.root)) {
+        return topped.slice(0, next.start) + "\n" + JSON.stringify(next.root, null, 2) + "\n" + topped.slice(next.end);
+      }
+    }
+  } catch { /* malformed or missing table: retain the serial fallback */ }
+  return tasks.topUp(withModificationsFrom(checked, modifications.fitted));
 }
 
 /** 把写作结果里的加减行与（因与加减重复而去掉后的）中成药行放进方义核对后的内容（两份来自同一份内容、各改一处）。 */

@@ -134,7 +134,7 @@ export function instructionRecordPoolFromText(text: string): InstructionRecordPo
       evidenceId,
       evidenceFingerprint: fingerprint,
       relationship: local
-        ? "与中药饮片方案不默认联用，由医生结合重复功效、相互作用和治疗目标择一或评估联用。"
+        ? "由医生根据病情选择中成药或汤剂，如需合用须由医生或药师审核，请勿自行合用。"
         : "是否与当前中药饮片方案联用或替代，须由医生结合完整用药史和治疗目标决定。",
       riskNote: risk || FALLBACK_RISK_NOTE,
     });

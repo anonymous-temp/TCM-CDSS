@@ -1,4 +1,59 @@
 {
+  "alcoholInDietRecipe": {
+    "terms": ["酒酿", "饮酒", "米酒", "黄酒", "白酒", "药酒", "酒曲"],
+    "source": "《中医食疗学》各病食疗方的酒类原料与酿酒做法，慢性胃炎的戒酒依据见本表对应条目。"
+  },
+  "febrileSkinInfectionReview": {
+    "names": ["丹毒", "蜂窝织炎"],
+    "requiredObservations": ["ctx-fever", "ctx-infection-suspected"],
+    "source": "https://www.nhs.uk/conditions/cellulitis/",
+    "windowRationale": "疑似蜂窝织炎需紧急面诊；伴发热且筛查已核实感染表现时，沿用 priority-evaluation-windows.source.json 感染当日评估档。"
+  },
+  "adultFollowupReferences": [
+    {
+      "names": [
+        "缺铁性贫血",
+        "缺铁贫血",
+        "营养性缺铁性贫血"
+      ],
+      "text": "确诊缺铁性贫血需查明失铁原因并由医生安排规范补铁。开始口服补铁后4周内复查血常规比较血红蛋白，结合铁蛋白评估铁储备。月经过多者需评估持续失血原因。",
+      "source": "https://doi.org/10.1136/gutjnl-2021-325210"
+    },
+    {
+      "names": [
+        "慢性萎缩性胃炎",
+        "萎缩性胃炎",
+        "幽门螺杆菌感染"
+      ],
+      "text": "已经接受幽门螺杆菌根除治疗者，按原医嘱完成疗程，治疗结束至少4周后以尿素呼气或粪便抗原试验确认根除。复查前由医生安排暂停影响结果的药物，质子泵抑制剂需停2周，抗菌药物与铋剂需停4周。",
+      "source": "https://webfiles.gi.org/links/journals/ACG-Hpylori-Guidelines-Highlights-2024-FINAL.pdf"
+    },
+    {
+      "names": [
+        "慢性萎缩性胃炎",
+        "萎缩性胃炎"
+      ],
+      "text": "消化专科按病理分级、萎缩范围及危险因素决定是否复查胃镜。进展期通常每3年评估；轻中度局限胃窦且无其他风险者一般无需常规定期胃镜。",
+      "source": "https://pubmed.ncbi.nlm.nih.gov/40112834/"
+    },
+    {
+      "names": [
+        "便秘",
+        "功能性便秘"
+      ],
+      "text": "排便困难经规范通便治疗仍不缓解时，消化专科可安排肛门直肠测压与球囊排出试验，评估有无排便协调障碍。",
+      "source": "https://gastro.org/clinical-guidance/evaluation-and-management-of-constipation/"
+    },
+    {
+      "names": [
+        "关节痛",
+        "多关节痛",
+        "类风湿关节炎"
+      ],
+      "text": "多关节持续肿胀且查体怀疑滑膜炎时，应尽快看风湿免疫科；医生可查类风湿因子，必要时查抗CCP抗体，检查不应延误转诊。",
+      "source": "https://www.nice.org.uk/guidance/ng100/chapter/Recommendations"
+    }
+  ],
   "entries": [
     {
       "disease": "急性上呼吸道感染",
@@ -1052,7 +1107,9 @@
     {
       "disease": "慢性胃炎",
       "aliases": [
-        "慢性胃黏膜炎"
+        "慢性胃黏膜炎",
+        "慢性萎缩性胃炎",
+        "慢性非萎缩性胃炎"
       ],
       "items": [
         {
@@ -4107,6 +4164,8 @@
             }
           ],
           "id": "care-095-2",
+          "requiresMaintenanceMedication": ["雌激素", "雌二醇"],
+          "reviewNote": "须有长期使用雌激素的本人用药史，不作为该病的常规随访。",
           "reviewedAt": "2026-11-15"
         }
       ]

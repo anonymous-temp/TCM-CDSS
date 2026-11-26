@@ -10,6 +10,8 @@
 export function clinicalTreatmentScheduleWording(value: string): string {
   const text = String(value || "");
   const reworded = text
+    .replace(/针灸治疗常规为一日治疗一次；根据病情和实际情况，也可一日两次或两日一次/g, "常规每日治疗一次")
+    .replace(/间隔与疗程按病情和耐受确定。?/g, "首次面诊治疗一次，治疗后评估局部反应，再约下次时间。")
     .replace(/疗程由复评决定。?/g, "")
     .replace(/[；;，,]?\s*穴位仅为课程索引与门诊病种频次的组合参考。?/g, "。")
     .replace(/按(本例)?耐受和复评结果确定/g, "按$1耐受和疗效调整")

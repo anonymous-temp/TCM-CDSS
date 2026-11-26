@@ -168,7 +168,7 @@ check("3.1 目录证型配穴只对上兼证（湿热中阻），教材泄泻节
   assert.ok(!bare(acu.suggestedSitesOrPoints).includes("内庭"), "主证阳虚不取清热的内庭");
   const primaryFits = signedPrior("泄泻", "湿热中阻证", "湿热蕴结肠道", "腹泻待查", { overallPrinciple: "实则泻之", overallMethod: "清热利湿" }, ["脾肾阳虚泻"]);
   const control = card(compile(primaryFits, "泄泻3天", "泻下急迫，大便黄褐臭秽，肛门灼热，口渴。", acuProposal, { sex: "男", age: 30 }), "acupuncture");
-  assert.match(control.treatmentContent, /按湿热中阻取穴/u, control.treatmentContent);
+  assert.match(control.treatmentContent, /湿热中阻配/u, control.treatmentContent);
 });
 
 check("3.2 食疗先主证：脾肾阳虚泻兼湿热内蕴证不给湿热伤中型的马齿苋粥；仅湿热内蕴证给；脾胃虚弱兼湿热给脾胃虚弱型（对照）", () => {

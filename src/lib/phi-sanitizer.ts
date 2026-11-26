@@ -238,7 +238,7 @@ export function scrubQuasiIdentifierText(text: string): string {
     .replace(/20\d{2}年\d{1,2}月\d{1,2}日\s*\d{1,2}[:：]\d{2}(?::\d{2})?/g, "[精确时间已泛化]")
     // Bare dates are quasi-identifiers on every egress path (model + snapshot). Year-month onset text
     // (2026年3月) carries clinical meaning and intentionally stays intact.
-    .replace(/\b(?:19|20)\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b/g, "[日期已泛化]")
+    .replace(/\b(?:19|20)\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b/g, "当时")
     // Address labels are handled by the existing scrubbers. This catches an address embedded in
     // prose without a label, while requiring an address-specific road/street token plus house no.
     // The tail tolerates 号院/号楼 and a trailing room number so no fragment (院3栋502) survives.

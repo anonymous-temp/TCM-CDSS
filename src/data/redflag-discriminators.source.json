@@ -4258,7 +4258,43 @@
   "disabledWhen": "verified=false 或 enabledByDefault=false 的行不进闸门（MTS 体温三行阈值未能核对原手册）。",
   "mtsTextRowsNote": "2026-10-26 实测后收回：曼彻斯特分诊的文字判别项是急诊分诊护士当面判断用的，交给模型读病历时常凭单项判（「大汗不止」判休克、「像在抽搐」判正在抽搐、「白天嗜睡」判意识改变），在甲方 100 例与基层 144 份里没有一例红旗是只靠它们补出来的，却多出 1 例误报与多条错的理由。文字行保留在表里、不进闸门；数值行（未吸氧血氧 <90%、成人体温 >41℃）照用。"
  },
+ "medicationNameAnchors": {
+  "medication-anticoagulant": ["华法林", "华法令", "利伐沙班", "阿哌沙班", "达比加群", "艾多沙班", "依诺肝素", "肝素", "磺达肝癸钠"],
+  "medication-antiplatelet": ["阿司匹林", "氯吡格雷", "替格瑞洛", "普拉格雷"]
+ },
+ "observationConcepts": [
+  {
+   "conceptId": "observe-stool-color", "labelZh": "服药后排黑便",
+   "definitionZh": "本次在用可能使大便着色的药物，排黑便但性状、出血检查及全身情况支持非急性出血解释。引用排便改变的原文。",
+   "explanation": "可能与药物着色有关，仍需留意消化道出血",
+   "followup": "观察粪便性状，如出现柏油样便、呕血或晕厥须立即就医"
+  },
+  {
+   "conceptId": "observe-anemia", "labelZh": "有依据的慢性贫血",
+   "definitionZh": "有当前血红蛋白降低的读数，病程及其他检查支持慢性原因，无急性失血或循环不稳定。引用血红蛋白原始读数。",
+   "explanation": "病程和检查支持慢性贫血，仍需复核原因",
+   "followup": "复查血常规并记录出血量，如出血突然增多或出现晕厥须立即就医"
+  },
+  {
+   "conceptId": "observe-joint", "labelZh": "持续关节肿痛",
+   "definitionZh": "慢性关节痛伴实际肿胀或活动受限，查体或检查支持非急性感染解释。引用患者阳性体征。",
+   "explanation": "目前更符合非急性的关节病程，仍需观察肿痛变化",
+   "followup": "观察关节肿胀及活动范围，如突然红肿热痛伴发热或不能负重须立即就医"
+  }
+ ],
  "contextConcepts": [
+  {
+   "conceptId": "medication-anticoagulant",
+   "labelZh": "患者本人现用抗凝药",
+   "definitionZh": "出院带药、长期服用或至今仍在服用。引文必须逐字包含具体药名和表明继续使用的上下文。",
+   "notCountZh": "已停、曾用、拟用、仅记录过敏、他人在用，或仅提及治疗类别。"
+  },
+  {
+   "conceptId": "medication-antiplatelet",
+   "labelZh": "患者本人现用抗血小板药",
+   "definitionZh": "出院带药、长期服用或至今仍在服用。引文必须逐字包含具体药名和表明继续使用的上下文。",
+   "notCountZh": "已停、曾用、拟用、仅记录过敏、他人在用，或仅提及治疗类别。"
+  },
   {
    "conceptId": "ctx-fever",
    "labelZh": "本次发热",

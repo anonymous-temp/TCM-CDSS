@@ -401,7 +401,8 @@ await check("15.2 外用药（红花油、奇正消痛贴）的注意事项不�
     { kind: "current_medications", names: ["奇正消痛贴"] },
   ] });
   const lines = projected.nonPharma.precautions.join("|");
-  assert.match(lines, /已外用的红花油/u, lines);
+  // 第六十二轮：病历只写「外用过」时改问「如仍在使用请告知医生」（曾用不等于在用），措辞从「已外用的」变为「曾外用」；本条要钉的是不写「服用」。
+  assert.match(lines, /(?:已|曾)外用的?红花油/u, lines);
   assert.match(lines, /正在外用的奇正消痛贴/u, lines);
   assert.doesNotMatch(lines, /红花油是否继续服用|奇正消痛贴请告知医生，是否继续服用/u, lines);
 });

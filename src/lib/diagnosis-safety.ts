@@ -20,9 +20,11 @@ import {
   REPRODUCTIVE_STATE_MIN_AGE_YEARS,
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
+import { febrileSkinInfectionReview } from "./western-disease-care";
 import priorityEvaluationWindowTable from "../data/priority-evaluation-windows.source.json";
 import drugConditionSources from "../data/drug-condition-contraindications.json";
 import { DEEP_NECK_SPACE_INFECTION, evaluateDiscriminators, isFatigueFramed, redFeatureChecklistForPatient, WEAK_CONSCIOUSNESS_TERMS, type DiscriminatorOutcome } from "./redflag-discriminators";
+import discriminatorTable from "../data/redflag-discriminators.json";
 import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json";
 import intracranialBleedingSigns from "../data/intracranial-bleeding-signs.source.json";
 import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
@@ -6196,7 +6198,7 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     });
   const criticalHemoglobin = [...text.matchAll(
     /(?:血红蛋白|血色素|HGB|Hb(?!A1c))\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(?:g\s*\/\s*L|g\/L)?/gi,
-  )].some((match) => Number(match[1]) > 0 && Number(match[1]) <= 70);
+  )].find((match) => Number(match[1]) > 0 && Number(match[1]) <= 70);
   // 重度血小板减少（2026-10-19 A 集 A-non-0046：「反复牙龈出血和月经增多半年…PLT 13×109/L」只给了「出血优先复核」，照常给剂量）。
   // 数值阈值（冻结规则允许的例外）：ASH 2019 成人 ITP 指南——新诊断且 PLT<20×10⁹/L 建议住院（有条件推荐），已知 ITP、
   // 无出血者可门诊随访。这里取：PLT<10 直接报；10–<20 须同时有当前皮肤黏膜或脏器出血才报。
@@ -6324,7 +6326,12 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     }
   }
   if (activeMajorVaginalBleedingSignal && !activeObstetricHemorrhageSignal && !antepartumBleedingSignal) {
-    redFlags.push("活动性大量阴道出血伴持续/反复、重度贫血或循环灌注风险，需立即评估失血量与循环状态并急诊处置");
+    const smallBleed = [...text.matchAll(/阴道少量(?:出血|流血)/gu)].find((hit) => assertedAt(hit.index!, hit[0].length));
+    const companion = GOVERNED_BLEEDING_COMPANIONS.find((term) => hasPatternWithoutNegation(text, new RegExp(term)));
+    const documentedBleed = [...text.matchAll(vaginalBleedingRegex)].find((hit) => assertedAt(hit.index!, hit[0].length));
+    const finding = smallBleed?.[0] || documentedBleed?.[0] || "阴道出血";
+    const basis = [criticalHemoglobin?.[0], companion].filter(Boolean).join("、");
+    redFlags.push(`${finding}${basis ? `，伴${basis}` : ""}，需立即评估失血量与循环状态并急诊处置`);
   }
   const breathingDistressSignal =
     hasAnyTerm(text, ["端坐呼吸", "不能平卧", "无法平卧", "喘不上气",
@@ -6484,7 +6491,7 @@ const RED_FLAG_FINDING_RULES: Array<{
   { id: "active-gi-bleeding", message: /消化道出血/, source: new RegExp(`呕血|吐血|黑便|柏油样便|便血|咖啡(?:色|样)|${governedTermAlternation([...HAEMATEMESIS_COLLOQUIAL_FORMS])}`), explanation: "活动性消化道出血表现需立即评估失血量和循环状态。" },
   { id: "syncope-high-risk-arrhythmia", message: /晕厥伴心电记录的高危心律失常/, source: /晕厥|黑矇|意识丧失|晕倒|昏倒|停搏|长间歇|房室传导阻滞|室速|室性心动过速|室颤/, explanation: "晕厥合并心电记录的主要高危心律失常（长间歇、高度房室传导阻滞、室速），需心电监护下急诊评估，可能需要起搏或住院。" },
   { id: "severe-thrombocytopenia", message: /重度血小板减少/, source: /血小板|PLT/i, explanation: "血小板低于10×10⁹/L，或低于20×10⁹/L并有出血表现，有颅内出血等严重自发出血风险，需血液科急诊评估。" },
-  { id: "active-major-bleeding", message: /活动性大量阴道出血/, source: /阴道(?:出血|流血)|血红蛋白|血色素|HGB|Hb/i, explanation: "活动性大量阴道出血伴持续、重度贫血或循环灌注表现，达到非产科大出血硬门槛。" },
+  { id: "active-major-bleeding", message: /活动性大量阴道出血|需立即评估失血量与循环状态并急诊处置/, source: /阴道(?:少量|大量)?(?:出血|流血)|血红蛋白|血色素|HGB|Hb/i, explanation: "结合阴道出血及伴随表现，需立即评估失血和循环状态。" },
   { id: "acute-respiratory-event", message: /呼吸循环急症|缺氧/, source: /呼吸困难|气促|喘憋|端坐呼吸|不能平卧|无法平卧|喘不上气|发紫/, explanation: "静息或快速加重的呼吸困难及缺氧表现需立即评估。" },
   { id: "incarceration", message: /不能还纳（嵌顿）/, source: /不能还纳|无法还纳|不能回纳|无法回纳|还纳不能|嵌顿/, explanation: "脱出物或疝块不能还纳，有绞窄坏死风险，需急诊或专科评估。" },
   { id: "acute-trauma-fracture", message: /外伤后3天内的骨折/, source: /骨折|摔伤|跌伤|跌倒|摔倒|车祸|外伤|撞伤|砸伤|坠落|扭伤|挤压伤/, explanation: "外伤后数日内的骨折需先完成急诊或骨科处置，再评估中药处方。" },
@@ -6798,7 +6805,10 @@ export function measuredVitalAdvisories(state: CaseState): string[] {
   if (bp && !bloodPressureIsCritical(bp, pediatricVitals) &&
       (bp.systolic >= 180 || bp.diastolic >= 120 ||
         (!pediatricBloodPressure && (bp.systolic <= 90 || bp.diastolic <= 50)))) {
-    advisories.push(`血压 ${bp.systolic}/${bp.diastolic}mmHg 需立即规范复测，并结合胸痛、气促、神经症状及急性靶器官损害判断处置级别`);
+    const assessment = bp.systolic >= 180 || bp.diastolic >= 120
+      ? "并结合胸痛、气促、神经症状及急性靶器官损害判断处置级别"
+      : "并评估意识、脉搏、末梢灌注及有无失血";
+    advisories.push(`血压 ${bp.systolic}/${bp.diastolic}mmHg 需立即规范复测，${assessment}`);
   }
   // 重度高血压而病历未记录急性靶器官表现（2017 ACC/AHA、ACEP）：不按急症收回剂量，但给醒目提示——当日复测、尽快调整降压治疗。
   if (bp && (bp.systolic >= 180 || bp.diastolic >= 120) && !severeHypertensionTargetOrganSign(state)) {
@@ -7077,6 +7087,18 @@ export function ageImplausibleReproductiveAdvisory(state: CaseState): string | u
 }
 
 /** 给辨证、开方模型的同一提示（M03 两半与 M04 的提示词末尾）。 */
+/**
+ * 把与年龄不符的婚育月经记录从一段要交给模型的病历文字里拿掉（第六十二轮实链：1 岁女童个人史误录「月经周期13天，有痛经史」，
+ * 随访写作读了个人史，写出「月经期注意保暖和休息」）。与提示词里的【病历与年龄核对】同一份清单；没有这类记录时原样返回。
+ */
+export function withoutAgeImplausibleReproductiveStatements(text: string, state: CaseState): string {
+  let out = String(text || "");
+  for (const statement of ageImplausibleReproductiveStatements(state)) {
+    if (statement) out = out.split(statement).join("");
+  }
+  return out.replace(/[，,、；;]{2,}/gu, "，").replace(/^[，,、；;\s]+|[，,、；;\s]+$/gu, "");
+}
+
 export function ageImplausibleReproductiveNotice(state: CaseState): string {
   const statements = ageImplausibleReproductiveStatements(state);
   const age = authoritativePatientAgeYears(state);
@@ -7259,6 +7281,8 @@ function medicationStatusIsActionable(text: string): boolean {
     !/(?:现服|正在|仍在|仍服|一直|长期|间断|常(?:服|口服|用)|偶服|每日|每天|在用|目前(?:仍)?(?:服用|使用|口服))/.test(text)) return true;
   const namedDose = /(?:服用|口服|使用|应用|在用|现服|偶服|吃)[^。；\n]{0,10}([\u4e00-\u9fa5A-Za-z]{2,20})\s*\d+(?:\.\d+)?\s*(?:mg|g|ml|毫克|克|片|粒|袋|丸)/i.exec(text) ||
     /(?:^|[，,；;。\n])\s*((?:阿司匹林|华法林|二甲双胍|胰岛素|硝苯地平|缬沙坦|氯吡格雷|褪黑素)|[\u4e00-\u9fa5A-Za-z]{2,20}(?:片|胶囊|颗粒|丸|散|口服液|注射液))\s*\d+(?:\.\d+)?\s*(?:mg|g|ml|毫克|克|片|粒|袋|丸)/i.exec(text);
+  const listedDose = /(?:[、（(]|(?:方案)?调整为)\s*[\p{L}]{2,18}\s*\d+(?:\.\d+)?\s*(?:mg|毫克|片|粒)(?=[、，,）)\s/]|每日|每天|$)/iu.test(text);
+  if (listedDose && medicationTextNamesDrug(text) && MEDICATION_FREQUENCY.test(text)) return true;
   if (!namedDose || /^(?:药物|中药|西药|成药|安眠药|降压药|降糖药|抗凝药|止痛药|止咳药)$/.test(namedDose[1])) return false;
   return MEDICATION_FREQUENCY.test(text);
 }
@@ -7695,7 +7719,27 @@ export function recordedSerumPotassium(text: string, above = 0, inclusive = fals
 
 /** 正在用抗凝或抗血小板药：与剂量边界「当前抗凝或抗血小板治疗」同一判据（外治项目禁忌读它，第四十六轮复核 C086）。 */
 const currentAntithromboticTextMemo = new Map<string, boolean>();
+const registeredAntithromboticTexts = new Map<string, number>();
+/**
+ * 开方路由把整份病例（含事实层筛查读出的在用药）的结论按接地正文登记（第六十二轮，web/w36「出院予利伐沙班片抗凝治疗」）：
+ * 开方合同与交付面只拿得到正文，筛查模型单独读出的在用药凭正文重算读不到。与 registerActiveBleedingRedFlags 同一做法：
+ * 登记只会把「在用抗凝或抗血小板药」补成真，不会把正文自己读出的结论抹掉。
+ */
+export function registerCurrentAntithromboticTherapy(texts: readonly string[], state: CaseState): void {
+  if (!currentAntithromboticTherapyRecorded(state)) return;
+  for (const text of texts) {
+    if (!text.trim()) continue;
+    registeredAntithromboticTexts.delete(text);
+    registeredAntithromboticTexts.set(text, Date.now());
+  }
+  while (registeredAntithromboticTexts.size > REGISTERED_ACTIVE_BLEEDING_LIMIT) {
+    const oldest = registeredAntithromboticTexts.keys().next().value;
+    if (oldest === undefined) break;
+    registeredAntithromboticTexts.delete(oldest);
+  }
+}
 export function currentAntithromboticTherapyRecorded(state: CaseState | string): boolean {
+  if (typeof state === "string" && registeredAntithromboticTexts.has(state)) return true;
   if (typeof state === "string" && currentAntithromboticTextMemo.has(state)) return currentAntithromboticTextMemo.get(state)!;
   // 开方合同只有接地正文；转换输入形状后仍调用剂量边界原判据，不另建药名或在用药判断。
   const record = typeof state === "string" ? normalizeCaseStateInput({ chiefComplaint: "", symptoms: { 现病史: state } }) : state;
@@ -7705,6 +7749,40 @@ export function currentAntithromboticTherapyRecorded(state: CaseState | string):
     currentAntithromboticTextMemo.set(state, result);
   }
   return result;
+}
+
+const observationFollowup: Readonly<Record<string, string>> = discriminatorTable.observationFollowup;
+const MEDICATION_CLASS_NAMES = new Map(Object.entries(discriminatorTable.medicationNameAnchors)
+  .map(([id, names]) => [id, new RegExp(governedTermAlternation(names), "u")] as const));
+
+const DISCHARGE_MEDICATION_PATTERNS = [...MEDICATION_CLASS_NAMES].map(([conceptId, names]) => {
+  const discharge = new RegExp(String.raw`(?:出院(?:时)?(?:予|给予|带药)[:：]?\s*(?:${names.source})|予(?:${names.source})(?:片|胶囊)?口服至今)`, "gu");
+  return { conceptId, discharge };
+});
+
+export function currentMedicationQuoteName(source: string, quote: string, concept: string): string | undefined {
+  const drug = MEDICATION_CLASS_NAMES.get(concept)?.exec(quote);
+  if (!drug || drug[0] === quote.trim()) return undefined;
+  const start = source.indexOf(quote);
+  if (start < 0) return undefined;
+  const at = start + drug.index;
+  const clause = source.slice(0, at).split(/[，,。；;\n]/u).at(-1) || "";
+  const tail = source.slice(at + drug[0].length).split(/[，,。；;\n]/u)[0];
+  if (recordMentionPolarityAt(source, at) !== "affirmed" || isHistoricalOrResolvedAt(source, at, drug[0].length) ||
+      /曾|既往|拟|计划|过敏|停用|停服|家属|父亲|母亲/u.test(clause) ||
+      /过敏|已停|停药|停服|停用/u.test(tail)) return undefined;
+  const after = source.slice(at + drug[0].length);
+  // 后续停药、再用沿用同一按时间顺序的用药事件读法。
+  return (affirmedCurrentMedicationText("目前口服" + drug[0] + after) || "").includes(drug[0]) ? drug[0] : undefined;
+}
+
+function additionalAntithromboticUse(state: CaseState, source: string): boolean {
+  const screen = state.clinicalFacts?.discriminatorScreen;
+  const candidates = screen?.status === "checked" ? [...screen.present] : [];
+  for (const { conceptId, discharge } of DISCHARGE_MEDICATION_PATTERNS) {
+    for (const match of source.matchAll(discharge)) candidates.push({ conceptId, quote: match[0] });
+  }
+  return candidates.some(({ conceptId, quote }) => currentMedicationQuoteName(source, quote, conceptId));
 }
 
 export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
@@ -7730,7 +7808,7 @@ export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
     push("心力衰竭或射血分数降低需结合容量状态、肾功能及现用药完成剂量复核");
   }
   if (ANTITHROMBOTIC_MEDICATION.test(activeMedication) && [...activeMedication.matchAll(new RegExp(ANTITHROMBOTIC_MEDICATION.source, "giu"))]
-    .some((match) => recordMentionPolarityAt(activeMedication, match.index!) === "affirmed")) {
+    .some((match) => recordMentionPolarityAt(activeMedication, match.index!) === "affirmed") || additionalAntithromboticUse(state, source)) {
     push("当前抗凝或抗血小板治疗需完成出血风险与药物相互作用复核");
   }
   if (IMMUNOSUPPRESSIVE_MEDICATION.test(activeMedication)) {
@@ -7834,7 +7912,7 @@ export function priorityEvaluationFollowupTarget(state: CaseState): PriorityEval
   // 剂量一致化（D4）：给了剂量的红旗病例，复诊第一步是当天急诊或专科排除急危重情况；不给剂量时由 followupWhenDoseWithheld 写。
   if (gate.status === "red_flag") return doseRestrictionFollowupTarget(state);
   const restriction = doseRestrictionFollowupTarget(state);
-  const gateTarget = gatePriorityEvaluationTarget(state, gate);
+  const gateTarget = gatePriorityEvaluationTarget(state, gate) ?? febrileSkinInfectionReview(state, state.reasoningDiagnose?.westernDiagnosis?.primary?.name);
   if (!restriction) return gateTarget;
   if (!gateTarget) return restriction;
   const rank = (window: FollowupWindowId) => FOLLOWUP_WINDOW_ORDER.indexOf(window);
@@ -8402,6 +8480,40 @@ export function withoutCodeClearedVitalFindings(state: CaseState): CaseState {
   return redFlags.length === facts.redFlags.length ? state : { ...state, clinicalFacts: { ...facts, redFlags } };
 }
 
+function observationAdvisories(state: CaseState, source: string): string[] {
+  const facts = state.clinicalFacts;
+  if (!facts || !clinicalFactsReviewSettled(facts.reviewStatus) || facts.disposition?.setting !== "outpatient_ok") return [];
+  const reason = facts.disposition.rationale?.trim();
+  if (!reason) return [];
+  const findings = groundClinicalFacts(facts, source).redFlags.filter((f) =>
+    f.subject === "patient" && f.status === "positive" && (f.urgency === "routine" || f.urgency === "clarify"));
+  const screen = facts.discriminatorScreen?.status === "checked" ? facts.discriminatorScreen.present : [];
+  const explanations: Readonly<Record<string, string>> = discriminatorTable.observationExplanation;
+  const observations = screen.flatMap(({ conceptId, quote }) => {
+    if (!Object.hasOwn(observationFollowup, conceptId) || !source.includes(quote)) return [];
+    const basis = screen.find((entry) => entry.conceptId === conceptId + "-basis" && source.includes(entry.quote));
+    if (!basis) return [];
+    return [{ quote, reason: `${explanations[conceptId]}（依据：“${basis.quote}”）`, action: observationFollowup[conceptId] }];
+  });
+  // 旧签名事实里也可核实的双读数：仅使用同份检查中唯一、带单位的血红蛋白与铁蛋白。
+  if (!observations.some((item) => item.action === observationFollowup["observe-anemia"]) &&
+      (authoritativePatientAgeYears(state) ?? 0) >= 18 && !auxiliaryReportForeignPersons(state).length &&
+      reason.includes("缺铁性贫血")) {
+    for (const report of auxiliaryExamFieldTexts(state)) {
+      const hb = [...report.matchAll(/(?:血红蛋白|Hb)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*g\/L\b/giu)];
+      const ferritin = [...report.matchAll(/铁蛋白\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(?:ng\/mL|μg\/L)\b/giu)];
+      if (hb.length !== 1 || ferritin.length !== 1 || !(+hb[0][1] > 70 && +hb[0][1] < 110 && +ferritin[0][1] < 15)) continue;
+      observations.push({ quote: [hb[0][0], ferritin[0][0]].join("、"), reason: "血红蛋白及铁蛋白均降低，支持缺铁性贫血", action: observationFollowup["observe-anemia"] });
+      break;
+    }
+  }
+  for (const finding of findings) {
+    if (!reason.includes(finding.quote)) continue;
+    observations.push({ quote: finding.quote, reason, action: "记录症状变化，如突然明显加重或伴意识改变须立即就医" });
+  }
+  return [...new Set(observations.map(({ quote, reason, action }) => `观察：“${quote}”——${reason.replace(/[。；;]+$/u, "")}。${action}。`))].slice(0, 3);
+}
+
 export function evaluateSafetyGate(input: CaseState): SafetyGate {
   const state = withoutCodeClearedVitalFindings(input);
   const missingItems: string[] = [];
@@ -8417,9 +8529,14 @@ export function evaluateSafetyGate(input: CaseState): SafetyGate {
     ...semanticTriageAdvisoriesFromFacts(state.clinicalFacts, semanticSourceText),
     ...dispositionAdvisoriesFromFacts(state.clinicalFacts, semanticSourceText),
   ];
+  const dispositionFlags = dispositionEmergencyRedFlagsFromFacts(state.clinicalFacts, semanticSourceText);
+  const ageYears = authoritativePatientAgeYears(state);
+  const ageAlignedDisposition = ageYears != null && ageYears >= 18
+    ? dispositionFlags.map((flag) => flag.replace(/(需排除：|、)(?:婴幼儿|新生儿|婴儿)(?=严重呼吸窘迫|呼吸窘迫)/gu, "$1"))
+    : dispositionFlags;
   const semanticEmergencyFindings = [
     ...additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, []),
-    ...dispositionEmergencyRedFlagsFromFacts(state.clinicalFacts, semanticSourceText),
+    ...ageAlignedDisposition,
   ];
   const semanticEmergencyEvidence = structuredRedFlagEvidenceFromFacts(state.clinicalFacts, semanticSourceText);
   const priorityEvaluationItems = collectPriorityEvaluationEntries(state, semanticSourceText).map((entry) => entry.text);
@@ -8461,7 +8578,9 @@ export function evaluateSafetyGate(input: CaseState): SafetyGate {
   if (clinicalFieldRequiresExplicitPrescriptionState("medication_history") && !isKnownClinicalText(medicationText)) addMissing("medication_unknown", `${clinicalRequiredFieldLabel("medication_history", "当前用药")}（明确有/无及药物清单）`);
   // 写了药名、只缺剂量频次时不说「缺少药名」（2026-10-24 C045：病历写着二甲双胍，评审判复述不准）。
   else if (medicationHistoryNeedsClarification(medicationText)) {
-    addMissing("medication_details", medicationTextNamesDrug(medicationText) ? "已提及当前用药但缺少剂量/频次" : "已提及当前用药但缺少药名/剂量/频次");
+    const priorDailyDose = /[\p{L}]{2,18}\s*\d+(?:\.\d+)?\s*(?:mg|ml|g)\s*[/／]d\b/iu.test(trustedText);
+    addMissing("medication_details", priorDailyDose ? "请核实目前用药是否仍按病历所列药物及每日用量" :
+      medicationTextNamesDrug(medicationText) ? "已提及当前用药但缺少剂量/频次" : "已提及当前用药但缺少药名/剂量/频次");
   }
   if (hasInvalidBp) addMissing("blood_pressure_invalid", "血压数值需复核（收缩压应高于舒张压）");
   const invalidVitalFindings = invalidEnteredVitalFindings(state).filter((finding) => !(finding.name === "血压" && hasInvalidBp));
@@ -8514,11 +8633,17 @@ export function evaluateSafetyGate(input: CaseState): SafetyGate {
     // 备孕无从谈起；否认妊娠时备孕只影响药典孕妇慎用药的逐味标注，哺乳只在病历提到近一年内分娩时才需要问。
     const pregnancyKnown = hasExplicitPregnancyStatus(maternalStateText(state, text));
     const pregnancyNegative = pregnancyKnown && !isPositiveOrPossibleClinicalState(assessPregnancyState(maternalStateText(state, text)));
-    if (!pregnancyKnown) addMissing("pregnancy_unknown", `${reproductiveLabel}（妊娠）`);
+    const reproductiveMissing: string[] = [];
+    if (!pregnancyKnown) { missingItemCodes.push("pregnancy_unknown"); reproductiveMissing.push("妊娠"); }
     if (!hasExplicitLactationStatus(text) && (!pregnancyKnown || (pregnancyNegative && recentChildbirthMentioned(text)))) {
-      addMissing("lactation_unknown", `${reproductiveLabel}（哺乳）`);
+      missingItemCodes.push("lactation_unknown");
+      reproductiveMissing.push("哺乳");
     }
-    if (!hasExplicitConceptionStatus(text) && !pregnancyKnown) addMissing("conception_unknown", `${reproductiveLabel}（备孕）`);
+    if (!hasExplicitConceptionStatus(text) && !pregnancyKnown) {
+      missingItemCodes.push("conception_unknown");
+      reproductiveMissing.push("备孕");
+    }
+    if (reproductiveMissing.length) missingItems.push(reproductiveMissing.length === 3 ? reproductiveLabel : `请确认${reproductiveMissing.join("、")}状态`);
   }
   if (mentalHealthSafetyScreenRequired(trustedText) &&
       !hasExplicitMentalHealthSafetyScreen(trustedText) &&
@@ -8548,7 +8673,7 @@ export function evaluateSafetyGate(input: CaseState): SafetyGate {
   const reviewedSemanticEmergencyFindings = clinicalFactsReviewSettled(state.clinicalFacts?.reviewStatus)
     ? [
         ...additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, programmaticRedFlags),
-        ...dispositionEmergencyRedFlagsFromFacts(state.clinicalFacts, semanticSourceText),
+        ...ageAlignedDisposition,
       ]
     : [];
   const discriminatorRedFlags = discriminatorOutcomeForState(state).redFlags;
@@ -8599,6 +8724,7 @@ export function evaluateSafetyGate(input: CaseState): SafetyGate {
     };
   }
 
+  if (!semanticTriage && priorityEvaluationItems.length === 0) advisories.push(...observationAdvisories(state, semanticSourceText));
   const diagnosisBlockingMissing = missingItems.filter((item) => item === "主诉");
 
   // 没有主诉就没有可分析的临床目标。其余缺口先进入追问，但不再阻断医生显式选择的
@@ -9471,7 +9597,7 @@ export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolea
 /** 就医警示的兜底：模型没有写出本例的急症表现时，至少给出不分病种都成立的几条。 */
 const GENERIC_URGENT_SIGNS = ["高热不退", "胸痛或呼吸困难", "神志不清或抽搐", "呕血、便血或咯血等出血"];
 const PATIENT_EFFICACY_TRIGGER = "服药后主要症状没有好转或反而加重，或出现新的不适";
-const PATIENT_WORSENING_PLAN = "服药后症状没有好转、反而加重，或出现新的不适，请及时回门诊复诊，由医生重新评估并调整治疗；请不要自行加减或更换药物。如出现皮疹、瘙痒、胸闷气短等过敏或明显不适，请暂停服药并及时就医。";
+const PATIENT_WORSENING_PLAN = "服药后症状没有好转、反而加重，或出现新的不适，请及时回门诊复诊，由医生重新评估并调整治疗；请不要自行加减或更换药物。如新出现皮疹或瘙痒、皮损与原有表现不同，或出现胸闷气短等明显不适，请暂停服药并及时就医。";
 const PATIENT_MEDICATION_NOTE = "请不要自行叠加中药或中成药；复诊时请携带正在使用的全部药物（或药盒、药品清单）。";
 
 function patientUrgentCareLine(signs: readonly string[] | undefined): string {
@@ -10088,6 +10214,9 @@ export function sanitizeCaseStateForModel(state: CaseState): CaseState {
     conversation: state.conversation
       .slice(-10)
       .map((item) => ({ ...item, content: limitText(scrub(item.content) || "", 2000) || "" })),
+    unconfirmedFollowupQuestions: state.unconfirmedFollowupQuestions
+      ?.map(sanitizeFreeTextForModel)
+      .filter(Boolean),
     diagnosis: scrub(state.diagnosis, 30000),
     prescription: scrub(state.prescription, 30000),
     riskAssessment: scrub(state.riskAssessment, 30000),

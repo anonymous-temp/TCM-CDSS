@@ -159,7 +159,7 @@ function localCandidateToProposal(candidate: LocalPatentMedicineCandidate): Evid
     correspondingProblem: problem,
     evidenceId: candidate.id,
     evidenceFingerprint: candidate.fingerprint,
-    relationship: "与中药饮片方案不默认联用，由医生结合重复功效、相互作用和治疗目标择一或评估联用。",
+    relationship: "由医生根据病情选择中成药或汤剂，如需合用须由医生或药师审核，请勿自行合用。",
     riskNote: risk,
   };
 }

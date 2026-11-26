@@ -1,4 +1,5 @@
 import "server-only";
+import { stageParallelFinalize } from "./stage-finalize-schedule";
 import { projectDeterministicDecoctionMethod } from "./diagnosis-visible-summary";
 import { authoritativePatientAgeYears } from "./diagnosis-safety";
 import { projectGroundedHerbFunctions } from "./herb-function-display-source";
@@ -92,7 +93,9 @@ export async function finalizeM04Content<T>(reasoning: T, ctx: FinalizeM04Contex
   const regimen = asRecords(asRecord(asRecord(projectDeterministicDecoctionMethod(result, ctx.record, authoritativePatientAgeYears(ctx.caseState) ?? undefined)).formula).candidates);
   candidates.forEach((candidate, index) => { if (regimen[index]?.decoction) candidate.decoction = regimen[index].decoction; });
   if (policy.analysis !== "off") {
-    for (let index = 0; index < candidates.length; index++) {
+    // Each snapshot binds one candidate and the shared final modifications. The
+    // only write is formulaAnalysis at this index, excluded from its fingerprint.
+    const writeAnalysis = async (index: number) => {
       const snapshot = buildFinalM04Snapshot(result, { ...finalContext, candidateIndex: index });
       const authored = await authorFinalFormulaAnalysis(snapshot, io, ctx.signal, remaining(policy.analysisBudgetMs));
       // The IO adapter can retain a reference to a detached payload only. Still rebind to
@@ -103,7 +106,9 @@ export async function finalizeM04Content<T>(reasoning: T, ctx: FinalizeM04Contex
       if (policy.analysis === "on") candidates[index].formulaAnalysis = analysis;
       io.report?.("final_analysis", { candidate: index, degraded: authored.status === "unavailable" || !stable,
         violations: authored.violations, fingerprint: current.fingerprint, missingFunctions: current.herbs.filter((herb) => !herb.functionText).length, shadow: policy.analysis === "shadow" });
-    }
+    };
+    if (stageParallelFinalize(ctx.env)) await Promise.all(candidates.map((_, index) => writeAnalysis(index)));
+    else for (let index = 0; index < candidates.length; index++) await writeAnalysis(index);
   }
   // No call to the old sentence-repair/render/projection chain here.
   return result;

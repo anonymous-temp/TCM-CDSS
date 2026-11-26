@@ -1,6 +1,6 @@
 import { establishedHistoryText } from "./western-encounter-primary";
 import { westernCriteriaEntry } from "./western-criteria-table";
-import { recordCourseDays } from "./western-record-course";
+import { recordCourseBelowThreshold, recordCourseDays } from "./western-record-course";
 import certaintyPolicy from "../data/western-certainty-policy.source.json";
 import testNameGroupsJson from "../data/clinical-test-name-groups.source.json" with { type: "json" };
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
@@ -179,10 +179,25 @@ export function basisSaysNameNotEstablished(basis: string, name: string): boolea
   return new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}|${escaped}(?:的)?可能(?:性)?(?:大|较大)?[，；。]|(?:疑诊|拟诊|疑为|怀疑)${escaped}|${escaped}[^，。；;]{0,12}待(?:查|排)`, "u").test(source);
 }
 
-/** 表内疾病先按要点表定确定度，依据措辞不再参与命名。表外保持现行判据。 */
+/** 儿童反复呼吸道感染标准不适用于成人的推测病名。 */
+export function pediatricOnlyWesternName(name: string): boolean {
+  return /^反复(?:上|下)?呼吸道感染/u.test(name.trim().replace(/待查$/u, ""));
+}
+
+function hypothesisFitsPatient(name: string, recordText: string): boolean {
+  const ageText = /年龄[：:]?\s*(\d+)岁/u.exec(recordText)?.[1];
+  const age = ageText ? Number(ageText) : undefined;
+  if (age !== undefined && age >= 18 && pediatricOnlyWesternName(name)) return false;
+  const days = westernCriteriaEntry(name)?.courseThresholdDays;
+  if (!days) return true;
+  const minimum = age !== undefined && age < 18 ? days.under18 ?? days.adult : days.adult;
+  const course = recordCourseDays(recordText);
+  return !minimum || !course || !recordCourseBelowThreshold(course, minimum) || recordStatesWesternDiagnosis(name, recordText);
+}
+
 const COURSE_GAP_PREFIX = "病程未满";
 
-export function westernCriteriaCertainty(name: string, recordText: string, known = false): { pending: boolean; missing: string[]; courseMet?: boolean; clinicalOnly?: boolean } | undefined {
+export function westernCriteriaCertainty(name: string, recordText: string, known = false): { pending: boolean; missing: string[]; courseMet?: boolean; clinicalOnly?: boolean; regionalImagingRecorded?: boolean } | undefined {
   const entry = westernCriteriaEntry(name);
   if (!entry) return undefined;
   if (known) return { pending: false, missing: [] };
@@ -193,10 +208,16 @@ export function westernCriteriaCertainty(name: string, recordText: string, known
   const missing: string[] = [];
   // 病程门槛按月写（「病程未满6个月」），不写「尚缺病程满180天的记录」——复核员判机械句（第四十八轮 n16）。
   if (threshold && (!course || course.lower < threshold)) missing.push(`${COURSE_GAP_PREFIX}${Math.round(threshold / 30)}个月`);
-  if (!entry.clinicallyDiagnosable) {
+  const imaging = (certaintyPolicy.regionalImaging as Record<string, string[]>)[entry.name];
+  const regionalImagingRecorded = imaging && recordHasResult(recordText, imaging);
+  // 检查存在仅消除“尚缺检查”。要用这条规则支持病名，还须是同一份报告对该病的肯定记载。
+  const imagingSupportsName = !imaging || recordText.split(/[。；;\n]/u).some(report =>
+    recordHasResult(report, imaging) && recordStatesWesternDiagnosis(entry.name, report));
+  if (imaging && !regionalImagingRecorded) missing.push(imaging[0]);
+  if (!imaging && !entry.clinicallyDiagnosable) {
     const groups = (certaintyPolicy.testGroups as Record<string, string[][]>)[entry.name];
     if (groups) {
-      for (const group of groups) if (!group.some((test) => recordHasTestResultFor(test, recordText))) missing.push(group.join("或"));
+      for (const group of groups) if (!group.some((test) => recordHasTestResultFor(test, recordText))) missing.push(group[0]);
     } else {
       // 要点表的 requiredTests 多是整句说明（「已有可靠COPD诊断记录；初次确认需肺功能…」「既往脑梗死明确诊断记录/影像依据…」），
       // 只认其中能按同项写法表精确认出的检查名；一项都认不出时表不下结论，沿用现行判据（第四十八轮：整句当缺项把
@@ -208,7 +229,7 @@ export function westernCriteriaCertainty(name: string, recordText: string, known
       if (!tests.length) {
         if (!threshold) return undefined;
       } else if (!tests.some((test) => recordHasTestResultFor(test, recordText))) {
-        missing.push(tests.join("或"));
+        missing.push(tests[0]);
       }
     }
   }
@@ -216,7 +237,7 @@ export function westernCriteriaCertainty(name: string, recordText: string, known
   if (entry.name === low.name && ![...recordText.normalize("NFKC").matchAll(new RegExp(low.pattern, "giu"))].some((match) => Number(match[1]) < low.below)) missing.push(low.missing);
   // 可凭临床诊断、又没有病程门槛的病：要点表本身不给结论（clinicalOnly），由依据句自己的表态定（见 settleWesternDiagnosisBasis）。
   const clinicalOnly = entry.clinicallyDiagnosable && !threshold && missing.length === 0;
-  return { pending: missing.length > 0, missing, ...(threshold ? { courseMet: Boolean(course && course.lower >= threshold) } : {}), ...(clinicalOnly ? { clinicalOnly } : {}) };
+  return { pending: missing.length > 0 || !imagingSupportsName, missing, regionalImagingRecorded, ...(threshold ? { courseMet: Boolean(course && course.lower >= threshold) } : {}), ...(clinicalOnly ? { clinicalOnly } : {}) };
 }
 
 const PREFERRED_WESTERN_NAMES = (westernNamePreferred as { names: Record<string, string> }).names;
@@ -262,12 +283,29 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
     recordStatesWesternDiagnosis(core, recordText.split(alias).join(core))) &&
     recordText.split(/[。；;\n]/u).some((sentence) => sentence.includes(alias.slice(0, 3)) &&
       /既往|病史|已确诊|确诊为|诊断为|曾诊断|镜示|镜检查示/u.test(sentence)));
-  const known = diagnosedContext || treated || Boolean(establishedHistoryText(core, recordText));
+  // 只凭同一分句里的本人确诊记录恢复表外病名；裸症状、家族史、
+  // 下位分型和旧病的新发并发症均不能用病名的一部分举证。
+  const explicitDiagnosis = [...recordText.matchAll(/[^。；;\n，,]+/gu)].some((match) => {
+    const clause = match[0];
+    const at = clause.indexOf(core);
+    if (at < 0 || UNCERTAIN_NEAR_DIAGNOSIS.test(clause)) return false;
+    const polarity = recordMentionPolarityAt(recordText, match.index + at);
+    if (polarity !== "affirmed" && !(polarity === "negated" && /^(?:确诊为|诊断为|诊为)/u.test(clause) &&
+        /排除[^，,。；;]+[，,]$/u.test(recordText.slice(0, match.index)) && recordMentionPolarityAt(clause, at) === "affirmed")) return false;
+    return (/^既往史[：:]\s*$/u.test(clause.slice(0, at)) && !clause.slice(at + core.length).trim()) ||
+      /^\s*(?:既往|此前|曾|已)?(?:确诊为?|诊断为|诊为)(?:[“"「]?|[^，。；]{1,50}、)$/u.test(clause.slice(0, at)) ||
+      /^["”」』]?病史/u.test(clause.slice(at + core.length));
+  });
+  const known = explicitDiagnosis || diagnosedContext || treated || Boolean(establishedHistoryText(core, recordText));
   const criteria = westernCriteriaCertainty(core, recordText, known);
   // 可凭临床诊断的病（要点表注明、没有必需检查与病程门槛）：依据句里的「X待查」只是病名被改成待查以后带进去的回声
   //（第六十轮，r1077 样张 R046：「据此临床考虑急性上呼吸道感染待查；尚缺血象等检查佐证」，病名于是一直是「急性上呼吸道感染待查」）。
   // 回声不算依据句自己说未确立；依据另有明说未确立的写法（须先排除、诊断尚不能确立、暂按…）时照旧待查。
-  const cleaned = criteria?.clinicalOnly ? cleanedAsWritten.split(`${core}待查`).join(core) : cleanedAsWritten;
+  const subtype = westernCriteriaEntry(core)?.durationLimitedSubtype;
+  const correctlyScoped = subtype ? cleanedAsWritten.replace(
+    new RegExp(`(?:尚未|未)(?:达到|满足)${escapePattern(core)}的病程标准[；;，,]?`, "gu"), "",
+  ) : cleanedAsWritten;
+  const cleaned = criteria?.clinicalOnly ? correctlyScoped.split(`${core}待查`).join(core) : correctlyScoped;
   // 第四十八轮配对盲评：可凭临床诊断的病，要点表把「待查」去掉时依据句却说「需先排除」「需专科检查确立诊断」「暂按此考虑」
   //（痛风伴脓毒症待排、重症肌无力未做抗体、慢性疲劳综合征等排除性诊断），复核员判西医确定程度错。这类病名跟着依据句自己的表态走，
   // 两头一致：依据说未确立就待查，依据说可临床诊断就不待查（上感待查而依据说「临床可以诊断」的另一类错同样消失）。
@@ -278,34 +316,55 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
   const organicStillToExclude = exclusionName && /(?:尚需|仍需|还需|需|尚未|未)[^。；;]{0,24}排除[^。；;]{0,30}器质/u.test(cleaned);
   // 依据句自己说病程未到门槛（「病程1月未达2月门槛」），要点表又没有病程门槛可判（courseMet 未定）：病名跟依据句走（第五十五轮，11.05 病例12）。
   // 表里有门槛且已满足时，这类说法反过来按与病历不符删掉（下面 unmetCoursePattern 那条）。
-  const courseUnmetByBasis = criteria?.courseMet === undefined && new RegExp(certaintyPolicy.unmetCoursePattern, "u").test(cleaned);
+  const courseUnmetByBasis = !subtype && criteria?.courseMet === undefined && new RegExp(certaintyPolicy.unmetCoursePattern, "u").test(cleaned);
   const explicitlyNotEstablished = !known && !treated && (new RegExp(certaintyPolicy.clinicalNotEstablishedPattern, "u").test(cleaned) || organicStillToExclude || courseUnmetByBasis);
-  const pending = criteria && !criteria.clinicalOnly ? criteria.pending || explicitlyNotEstablished
+  const pending = criteria && !criteria.clinicalOnly ? criteria.pending || Boolean(criteria.regionalImagingRecorded && /待[查排]$/u.test(name)) || explicitlyNotEstablished
     : criteria?.clinicalOnly ? explicitlyNotEstablished ||
       (!known && !treated && basisSaysNameNotEstablished(cleaned.split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part)).join("。"), core))
-      : (!treated && (/待[查排]$/u.test(name) || (!known && (basisSaysNameNotEstablished(cleaned, core) || organicStillToExclude))));
+      : (!explicitDiagnosis && !treated && (/待[查排]$/u.test(name) || (!known && (basisSaysNameNotEstablished(cleaned, core) || organicStillToExclude))));
   const escaped = escapePattern(core);
   // 第五十九轮（r1077 R006、P024、P020）：「便秘诊断可临床成立」「诊断寻常痤疮可临床确立」「可临床诊断结节性痒疹」同样是说诊断成立，
   // 病名带「待查」时这几种写法此前没被认出来，名与依据于是一个待查、一个成立。
-  const established = new RegExp(`(?:${escaped})?诊断(?:${escaped})?(?:已|可)?(?:临床)?(?:确立|成立|明确)|据此临床诊断${escaped}|可(?:以)?临床诊断(?:为)?${escaped}`, "u");
+  // 第六十二轮（实链 e1029-c07「中暑待查」，依据「依据高温暴露史与典型症状可临床诊断，尚需与热射病…鉴别」）：「可临床诊断」后面不带病名、
+  // 直接到句读的写法同样是说成立；病名待查时这一小句照第五十九轮口径去掉。
+  const established = new RegExp(`(?:${escaped})?诊断(?:${escaped})?(?:已|可)?(?:临床)?(?:确立|成立|明确)|据此临床诊断${escaped}|可(?:以)?临床诊断(?:为)?(?:${escaped}|(?=[，,。；;]|$))`, "u");
   const speculative = new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}`, "u");
   const oppositeCourse = /^(急性|慢性)/u.exec(core);
   const oppositeName = oppositeCourse ? `${oppositeCourse[1] === "急性" ? "慢性" : "急性"}${core.slice(2)}` : "";
   const possibilities = [...cleaned.matchAll(/(?:考虑|可能为)([\u4e00-\u9fff]{2,24}?)(?:的?可能|[，,；;。])/gu)].map((match) => match[1]);
   const exclusionItems = (clause: string, cue: string) => clause.slice(clause.indexOf(cue) + cue.length).split(/[、及]/u).map((item) => item.replace(/等[^，。；;]*$/u, "").trim()).filter(Boolean);
   const stillToExclude = cleaned.split(/[，,。；;]/u).filter((clause) => /^\s*需排除/u.test(clause)).flatMap((clause) => exclusionItems(clause, "需排除"));
-  const parts = cleaned.split(/([，,。；;])/u);
+  // 再投影旧版依据时只撤本函数合成的整条缺项句；保留医生要求复查、查因的独立分句。
+  const basisForDelivery = criteria?.regionalImagingRecorded
+    ? cleaned.replace(new RegExp(`尚缺([^，。；]{1,30})，需核实后确认${escaped}。`, "gu"), (whole, test: string) =>
+      ((certaintyPolicy.regionalImaging as Record<string, string[]>)[westernCriteriaEntry(core)?.name || ""] || []).some(alias => alias.includes(test)) ? "" : whole)
+    : cleaned;
+  const parts = basisForDelivery.split(/([，,。；;])/u);
   const out: string[] = [];
   for (let index = 0; index < parts.length; index += 2) {
     const clause = parts[index];
     const separator = parts[index + 1] || "";
     if (!clause.trim()) continue;
+    const hypothesis = /^考虑([^，。；]+?)(?:的)?可能$/u.exec(clause);
+    if (hypothesis) {
+      const names = hypothesis[1].split("、");
+      const kept = names.filter(candidate => hypothesisFitsPatient(candidate, recordText));
+      if (kept.length !== names.length) {
+        if (kept.length) out.push(`考虑${kept.join("、")}可能${separator}`);
+        continue;
+      }
+    }
+    if (clause.includes(`${core}待查尚缺`)) {
+      out.push(clause.replace(`${core}待查尚缺`, "尚缺") + separator);
+      continue;
+    }
     const gap = CONFIRMATION_GAP.test(clause) && !SUBLEVEL.test(clause);
     const assertsName = new RegExp(`^\\s*(?:符合|支持)${escaped}\\s*$`, "u").test(clause);
     const excludes = /^\s*需排除/u.test(clause) ? exclusionItems(clause, "需排除") : undefined;
     const keptExcludes = excludes?.filter((disease) => ![core, ...possibilities].includes(disease));
     // 「可排除」与「仍需排除」冲突时不输出排除结论，保留鉴别任务。
     const reversedExclusion = /可排除/u.test(clause) && exclusionItems(clause, "可排除").some((disease) => stillToExclude.includes(disease));
+    if (known && !pending && new RegExp(`^(?:${escaped})?(?:的?诊断)?(?:${certaintyPolicy.clinicalNotEstablishedPattern})$`, "u").test(clause.trim())) continue;
     if (oppositeName && clause.includes(oppositeName) && /按|考虑|诊断|属/u.test(clause)) continue;
     if ((criteria?.courseMet && new RegExp(certaintyPolicy.unmetCoursePattern, "u").test(clause)) || reversedExclusion || (pending && (established.test(clause) || assertsName)) ||
         ((known || criteria) && !pending && (gap || basisSaysNameNotEstablished(clause, core))) || (!pending && speculative.test(clause) && (known || criteria || established.test(cleaned) || CLINICAL_ESTABLISHMENT.test(cleaned)))) continue;
@@ -320,7 +379,7 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
     const tests = criteria.missing.filter((item) => !item.startsWith(COURSE_GAP_PREFIX));
     const missingSentence = [
       ...courseGap.map((item) => `${item}，${core}需随访后确认。`),
-      ...(tests.length ? [`尚缺${tests.join("、")}，需核实后确认${core}。`] : []),
+      ...(tests.length ? [`尚缺${tests.slice(0, 2).join("、")}，需核实后确认${core}。`] : []),
     ].join("");
     // 文字跟着结论走；避免把旧的缺检查断言和确定的缺项并列。
     // 模型已写的「病程未满N个月」一句由定稿的缺项句代替，不并列重复。
@@ -329,7 +388,23 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
       !(courseGap.length && unmetCourse.test(part)));
     out.splice(0, out.length, ...retained.filter(Boolean).map((part) => `${part}。`), missingSentence);
   }
-  return { name: criteria ? (pending ? `${core}待查` : core) : pending && !/待[查排]$/u.test(name) ? `${core}待查` : treated ? core : name,
+  // 病历写明既往已确诊、病名因此不带待查时，依据按甲方 11.18 口径写成「既往已确诊X；…；本次未复查Y」（第六十二轮实链 e05-14：
+  // 病名「膝骨关节炎」，依据却是「但缺乏影像学与关节查体记录，故尚需核实」，没提既往确诊，名与依据确定程度仍不一致）。
+  // 只在病历同一分句明确记载了这个病名本身时改写（「慢性浅表性胃炎」病史不能写成「既往已确诊慢性胃炎」）。
+  if (known && !pending && explicitDiagnosis && !/待[查排]$/u.test(name)) {
+    const settled: string[] = [];
+    for (const piece of out) {
+      const clause = piece.replace(/[，,。；;]$/u, "");
+      const separator = piece.slice(clause.length);
+      // 「故尚需核实」「故置信度中等」这类收尾（后一种在交付面稍后会被换成前一种，这里两种都认）。
+      if (/^(?:故|因此|所以)?(?:诊断)?(?:(?:尚|仍|还)?(?:需|待)(?:进一步)?(?:核实|确认|明确)(?:诊断)?|(?:诊断)?(?:置信度|把握度?|可信度)(?:为)?(?:中等|较低|偏低|不高|低|中))$/u.test(clause.trim())) continue;
+      const lacking = /^但?(?:目前)?(?:缺乏|缺少|尚缺|尚无|未见|缺)(.{2,30}?)(?:的)?(?:记录|结果|依据|资料|证据|支撑|支持|佐证)?$/u.exec(clause.trim());
+      settled.push(lacking ? `本次未复查${lacking[1]}${separator}` : piece);
+    }
+    if (settled.join("") && !/既往|病史|已确诊|曾诊断|确诊为/u.test(settled.join(""))) settled.unshift(`既往已确诊${core}；`);
+    out.splice(0, out.length, ...settled);
+  }
+  return { name: criteria ? (pending ? `${core}待查` : core) : pending && !/待[查排]$/u.test(name) ? `${core}待查` : treated || explicitDiagnosis ? core : name,
     basis: out.join("").replace(/[，,；;]+。/gu, "。").replace(/^[，,。；;]+/u, "").replace(/[，,；;]+$/u, /。\s*$/u.test(basis) ? "。" : "").trim() };
 }
 

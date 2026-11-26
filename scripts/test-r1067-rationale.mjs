@@ -3,6 +3,8 @@ import { createJiti } from "jiti";
 
 process.env.AI_TEXT_PROVIDER = "deepseek";
 process.env.OPENAI_API_KEY = "test-only";
+process.env.BAILIAN_QWEN_API_KEY = "test-only";
+process.env.PRIMARY_STRUCTURED_FALLBACK_MODEL = "qwen3.8-flash";
 process.env.OPENAI_BASE_URL = "https://api.deepseek.com/v1";
 process.env.PRIMARY_DIAGNOSE_MODEL = "deepseek-flash";
 process.env.REASONING_CONTRACT_SIGNING_KEY = "test-only-r1067-rationale-signing-key";
@@ -122,7 +124,7 @@ function assertRejected(reply, ctx, code) {
 
 const parsed = (content) => JSON.parse(content.match(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/u)[1]);
 
-async function wire({ mode = "on", parallel = false, route = false, twoPass = false, gate = "off", author, align, state = input(), candidate = root(), timeout = 8000, claim } = {}) {
+export async function wire({ mode = "on", parallel = false, route = false, twoPass = false, gate = "off", author, align, state = input(), candidate = root(), timeout = 8000, claim } = {}) {
   process.env.CDSS_M03_FINAL_RATIONALE = mode;
   process.env.CDSS_DELIVERY_GATES = gate;
   process.env.M03_PARALLEL_GENERATION = String(parallel);

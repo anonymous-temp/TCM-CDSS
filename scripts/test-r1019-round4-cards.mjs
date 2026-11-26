@@ -245,13 +245,13 @@ check("5.5 目录证型配穴主证先于兼证：脾胃虚寒证兼湿热中阻
   const run = (primary, secondary) => card(compile(signedPrior("胃痛", primary, "脾胃虚寒，胃失温养", "慢性胃炎", {}, secondary), "上腹部隐痛半年",
     "上腹部隐痛，偶有反酸，晨起口苦、口粘，进食生冷加重", [{ projectCode: "acupuncture", targetRef: "P1" }]), "acupuncture");
   const cold = run("脾胃虚寒证", ["湿热中阻证"]);
-  assert.match(cold?.treatmentContent || "", /按脾胃虚寒取穴/, cold?.treatmentContent);
+  assert.match(cold?.treatmentContent || "", /脾胃虚寒配/, cold?.treatmentContent);
   // 食疗卡同样先按主证选方。
   const dietCard = card(compile(signedPrior("胃痛", "脾胃虚寒证", "脾胃虚寒，胃失温养", "慢性胃炎", {}, ["湿热中阻证"]), "上腹部隐痛半年",
     "上腹部隐痛，喜温喜按，泛吐清水，神疲乏力", [{ projectCode: "diet_therapy", targetRef: "P1" }]), "diet_therapy");
   assert.doesNotMatch(dietCard?.treatmentContent || "", /湿热中阻：/, dietCard?.treatmentContent);
   const damp = run("湿热中阻证", ["脾胃虚寒证"]);
-  assert.doesNotMatch(damp?.treatmentContent || "", /按脾胃虚寒/, damp?.treatmentContent);
+  assert.doesNotMatch(damp?.treatmentContent || "", /脾胃虚寒配/, damp?.treatmentContent);
 });
 
 check("5.3 模板写「先排除骨折、感染…」而已签名就是膝关节结核：不给这张骨骼肌肉模板（H-tri-16689）；膝骨关节炎照给（对照）", () => {
@@ -505,7 +505,7 @@ check("11.8 牙痛耳穴「上颌或下颌」按牙位取（甲方病历 7 右�
   assert.match(lower.scheduleSuggestion, /隔日换贴/);
   assert.doesNotMatch(lower.techniqueBoundary, /留置3～7天/, lower.techniqueBoundary);
   const stomach = project("auricular", { diseaseNames: ["呃逆"], signedSyndromeText: "胃气上逆证", currentFacts: "呃逆频作" });
-  assert.match(stomach.techniqueBoundary, /留置3～7天/, "疗程栏没写间隔时照写（对照）");
+  assert.doesNotMatch(stomach.techniqueBoundary, /留置3～7天/, "含毫针操作时不使用贴压的留置时长");
 });
 
 console.log(JSON.stringify({ suite: "r1019-round4-cards", cases, failures: failures.length }));

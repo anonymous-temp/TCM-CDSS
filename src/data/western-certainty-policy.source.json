@@ -1,6 +1,10 @@
 {
   "schemaVersion": 1,
   "basis": "第四十八轮：诊断要点表的必需检查按已有同项检查词表核对。以下只把要点表里明确的且/或关系结构化，不新增诊断标准。每组至少有一项结果、各组均需满足。未列病名沿用要点表中任一确诊检查的口径。",
+  "regionalImaging": {
+    "脑梗死": ["头颅CT", "颅脑CT", "脑CT", "头部CT", "头颅MRI", "颅脑MRI", "脑MRI", "头颅磁共振"]
+  },
+  "regionalImagingSource": "western-diagnostic-criteria.source.json 脑梗死条目的「颅脑CT」「颅脑MRI」。记录影像仅证明已查，诊断需结合影像结论与本次表现。",
   "testGroups": {
     "急性冠脉综合征": [
       [

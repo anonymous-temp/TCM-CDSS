@@ -316,7 +316,7 @@ await check("5.2 经窄核对入口：两个选项同值的模型题被删，互
     globalThis.fetch = savedFetch;
   }
 });
-await check("5.3 开关 CDSS_M02_OPTION_OVERLAP_CHECK=false：发出的重复核对请求与改动前逐字相同（无第二件事、无 optionValues），同值的题照出", async () => {
+await check("5.3 关闭选项同值核对后照常核对重复与题干原话，同值的题照出", async () => {
   process.env.CDSS_M02_OPTION_OVERLAP_CHECK = "false";
   try {
     const bodies = stubModel({ record: () => ({ verdict: "not_answered", quotes: [], reason: "", optionValues: ["得温痛减", "喜温"] }) });
@@ -324,8 +324,8 @@ await check("5.3 开关 CDSS_M02_OPTION_OVERLAP_CHECK=false：发出的重复核
     assert.deepEqual(await redundancy.questionIdsFailingNarrowChecks(envelope(warmQuestion), "胃痛3天。", ""), []);
     const system = bodies.find((body) => body.messages[0].content.includes("追问题与病历的重复核对器")).messages[0].content;
     assert.ok(!system.includes("第二件事") && !system.includes("optionValues"));
-    assert.ok(system.includes("只判断一件事：这道题要问的内容，病历里是不是已经写明了。"), "开关关闭时保留改动前的原句");
-    assert.ok(system.endsWith("只输出 JSON：{\"verdict\":\"answered|partly|not_answered\",\"quotes\":[\"…\"],\"reason\":\"…\"}"));
+    assert.match(system, /病历里是不是已经写明了/);
+    assert.match(system, /"stemClaim":null/);
   } finally {
     delete process.env.CDSS_M02_OPTION_OVERLAP_CHECK;
     globalThis.fetch = savedFetch;
@@ -349,26 +349,27 @@ await check("5.4 单问点提示词：大便气味与肛门感觉、咳嗽力度
 });
 
 // ───── 6 窄核对读的病历文本 ─────
-await check("6.1 m02NarrowCheckRecordText：对话里的「题干 + 回答」按问答体补在病历文本后面；无对话、跳过句、不跟在题干后的 user 消息都不补（对照）", () => {
+await check("6.1 m02NarrowCheckRecordText：问答排在病历前面，免被截掉；无对话、跳过句、主叙述均不补", () => {
   const text = "宝宝发烧，吃鸡蛋可以吗";
   const added = contract.m02NarrowCheckRecordText(text, [
     { role: "assistant", content: "有没有腹泻、咳嗽、流涕？" },
     { role: "user", content: "都没有" },
   ]);
-  assert.equal(added, `${text}\n问：有没有腹泻、咳嗽、流涕？ 答：都没有`);
+  assert.equal(added, `问：有没有腹泻、咳嗽、流涕？ 答：都没有\n${text}`);
   assert.equal(contract.m02NarrowCheckRecordText(text, []), text);
   assert.equal(contract.m02NarrowCheckRecordText(text, undefined), text);
   assert.equal(contract.m02NarrowCheckRecordText(text, [{ role: "assistant", content: "还有别的不适吗？" }, { role: "user", content: followup.FOLLOWUP_SKIP_SENTENCE }]), text, "跳过句");
   assert.equal(contract.m02NarrowCheckRecordText(text, [{ role: "user", content: "我孩子昨晚开始咳嗽" }]), text, "对话里口述的主叙述已在 trustedInputText 里");
 });
-await check("6.2 路由把补全后的文本交给急症筛查核对与窄核对（源码断言：两处都读 narrowCheckRecordText，不再读 sourceText）", () => {
+await check("6.2 急症筛查仍读问答合并文本，模型题和兜底题的窄核对单独传已答与趋势题干", () => {
   const source = fs.readFileSync(path.join(SRC, "app/api/diagnosis/question/route.ts"), "utf8");
   assert.ok(source.includes("const narrowCheckRecordText = m02NarrowCheckRecordText(sourceText, safeCaseState.conversation);"));
   assert.ok(source.includes("riskCategoryRecordStatus(inputCaseState, narrowCheckRecordText, signal)"));
-  assert.ok(source.includes("questionIdsFailingNarrowChecks(split.content, narrowCheckRecordText,"));
-  assert.ok(source.includes("priorityTrendAnsweredByRecord(trend, narrowCheckRecordText, signal)"));
+  assert.ok(source.includes("questionIdsFailingNarrowChecks(split.content, sourceText, \"\", signal, checkContext)"));
+  assert.ok(source.includes("questionIdsFailingNarrowChecks(content, sourceText, raw, signal, checkContext)"));
+  assert.ok(source.includes("const checkContext = { previousAnswers, youngChild, trendQuestion: trend?.question };"));
   assert.ok(!/riskCategoryRecordStatus\(inputCaseState, sourceText/u.test(source));
-  assert.ok(!/questionIdsFailingNarrowChecks\(split\.content, sourceText/u.test(source));
+  assert.ok(!/await priorityTrendAnsweredByRecord/u.test(source), "趋势核对不能挡在出题之前");
 });
 
 // ───── 7 出题提示词 ─────

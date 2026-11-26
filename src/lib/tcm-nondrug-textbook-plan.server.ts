@@ -4,6 +4,7 @@ import strokeRecoveryPolicy from "../data/tcm-stroke-recovery-card-policy.source
 import path from "node:path";
 import webSourcesJson from "../data/tcm-nondrug-web-sources.source.json" with { type: "json" };
 import webSchedulesJson from "../data/tcm-nondrug-web-schedules.source.json" with { type: "json" };
+import { diseaseCareItemsForName, recipeContainsAlcohol } from "./western-disease-care";
 import { textbookOcrFixed } from "./nondrug-text-fixes";
 export { textbookOcrFixed } from "./nondrug-text-fixes";
 import syndromeConceptsJson from "../data/tcm-syndrome-label-concepts.source.json" with { type: "json" };
@@ -1582,7 +1583,7 @@ export function techniqueContraindications(code: string, patientAgeYears?: numbe
   const adult = !(typeof patientAgeYears === "number" && patientAgeYears < 14);
   const text = adult
     ? item.contraindications.split(/(?<=。)/u).filter((segment) => !/^小儿推拿[：:]/u.test(segment.trim())).join("").replace(/。$/u, "")
-    : item.contraindications;
+    : item.contraindications.replace("、严重老年性骨质疏松", "");
   return text ? `禁忌：${text}。` : "";
 }
 
@@ -2030,7 +2031,7 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       : /^取/u.test(meridianSentence) ? `${cutText(meridianSentence, 70)}。` : `取穴：${cutText(meridianSentence, 70)}。`
     : `${projectName}${cutText(operationClausesForAge(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(
       withSyndromeMatchedClauses(projectContent, input), input), base.points), input.patientAgeYears), 240)}`;
-  const rawVariantOperation = textbookOcrFixed(variant?.operation || primary.operation);
+  const rawVariantOperation = textbookOcrFixed(variant?.operation || primary.operation).replace(/病在筋骨可深刺[，,]?/gu, "");
   const variantOperation = recovery
     ? manipulationMatchedToSyndrome(rawVariantOperation, input.signedSyndromeText, input.signedPrinciple, true)
     : rawVariantOperation;
@@ -2077,10 +2078,8 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     : web
       ? `${web.schedule}。${defaultClause}`
       : courseClause
-        ? `${courseClause}${defaultClause ? ` ${defaultClause}` : ""} 具体间隔与疗程按病情和耐受调整。`
-        : defaultClause
-          ? `${defaultClause}间隔与疗程按病情和耐受确定。`
-          : "间隔与疗程按病情和耐受确定。";
+        ? `${courseClause}${defaultClause ? ` ${defaultClause}` : ""}`
+        : `${defaultClause}首次安排一次面诊治疗，治疗后由医生评估局部反应，再约下次时间。`;
   // 针刺卡的操作栏：教材操作原句去掉已作疗程栏的那一句（此前「头痛急性发作时每日治疗1-2次…」在疗程栏、操作栏各印一遍）。
   // 其他项目（耳穴、拔罐、灸法）的操作就是治疗内容栏那段教材原文，操作栏不再逐字重抄，只写技术禁忌（2026-10-19 Claude 评审：
   // X-H-0334、0454、0129 等 10 张耳穴卡「技术边界」与「治疗内容」逐字相同）。
@@ -2103,9 +2102,11 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     ? ageFit(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(withSyndromeMatchedClauses(
       `${withoutCystOnlyClauses(withoutAtrophyOnlyClauses(operationWithoutSchedule(cutText(variantOperation || "毫针常规针刺。", 420)), input.currentFacts), input.currentFacts)}${pointMethodSentence}`, input), input), base.points)) || "毫针常规刺。"
     : "";
+  const modalitySchedule = code === "auricular" && /毫针/u.test(contentHead)
+    ? schedule.replace(/(?:一般)?可留置3～7天/gu, "采用压丸贴压时可留置3～7天") : schedule;
   // 耳穴技术规范的「留置3～7天」说的是压丸贴压；疗程栏已按来源写了换贴间隔或留针时长（「隔日换贴1次」「留针1小时」）时不再并列这一句，
   // 免得两栏互相矛盾（2026-10-19 第五轮甲方病历 7、8）。
-  const contraindications = code === "auricular" && /换贴|更换|留针|留置/u.test(schedule)
+  const contraindications = code === "auricular" && /换贴|更换|留针|留置|毫针/u.test(schedule + contentHead)
     ? techniqueContraindications(code, input.patientAgeYears).replace(/留置3～7天，?/u, "")
     : techniqueContraindications(code, input.patientAgeYears);
 
@@ -2114,7 +2115,8 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     treatmentContent: cutText(`${contentHead}${syndromeClause}`, 1150),
     points: finalPoints,
     items: [],
-    scheduleSuggestion: cutText(schedule, 560),
+    scheduleSuggestion: cutText(code === "auricular" && /每次选(?:用|取)?\s*\d/u.test(contentHead)
+      ? modalitySchedule.replace(/[，,]每次选(?:用|取)?\s*\d+[-~～至]\d+穴/gu, "") : modalitySchedule, 560),
     // 「补泻手法、进针深度」只对用针的项目成立（拔罐、灸法卡上也挂着这句——2026-10-14 复核时发现）。
     // 耳穴卡不写体针的「补泻手法」：写了毫针、埋针、电针的写耳针的刺入深度与刺激强度，只用压丸的不写（第三十一轮，earNeedleBoundary）。
     techniqueBoundary: cutText(`${technique} ${contraindications}${code === "acupuncture" ? "补泻手法、进针深度以现场查体为准。" : code === "auricular" && !childEar ? earNeedleBoundary(contentHead) : ""}`.trim(), 980) ||
@@ -2158,6 +2160,8 @@ function tuinaPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan |
   const picked = pickSyndromes(entry.syndromeModifications.map((item) => ({ ...item, keySymptoms: "" })), input.signedSyndromeText, input.currentFacts);
   const modification = picked[0];
   const tuinaWeb = webScheduleFor("tuina", input.diseaseNames, input);
+  const countedOperation = entry.operation.slice(0, 3).some((step) => /\d+\s*(?:次|遍)/u.test(step));
+  const perPoint = countedOperation ? "" : "每穴约1分钟，每种手法反复3～5遍。";
   // 教材写了逐步操作时，卡片正文给手法与本例取的背俞穴，不再以病种治则开头（第二十七轮：甲方 10.26 病历 5「虚劳只给食疗」——
   // 《推拿学》虚劳节有取穴与操作，卡片却只以一段病种治则开头，被当作「只有治则」的卡不交付）。教材没有操作步骤的病种照旧以治则开头。
   const principle = `治则：${(entry.principle.split("。")[0] || entry.principle).trim().replace(/[“”"]/g, "")}。`;
@@ -2170,9 +2174,7 @@ function tuinaPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan |
     points: sites.slice(0, POINT_LIMIT).map((name) => ({ name, role: "base_point" as const })),
     items: [],
     // 不写「教材按手法逐项给出…未单列每周次数」这种讲资料本身的话（第四十一轮 r1054 回顾：系统用语）；只写教材给了的时长，没给的按耐受定。
-    scheduleSuggestion: tuinaWeb
-      ? `${tuinaWeb.schedule}。每穴约1分钟，每种手法反复3～5遍。`
-      : "每穴约1分钟，每种手法反复3～5遍；疗程与间隔按耐受确定，每次操作完毕观察反应。",
+    scheduleSuggestion: `${tuinaWeb ? tuinaWeb.schedule + "。" : ""}${perPoint}每次操作完毕观察反应。`,
     techniqueBoundary: cutText(textbookOcrFixed(`${entry.operation.slice(0, 3).join(" ")} ${techniqueContraindications("tuina", input.patientAgeYears)}`), 980) || "手法与力度以现场查体为准。",
     protocolSource: cutText(`${bookCitation(data, "tuina", entry.disease, entry.line)}${tuinaWeb ? `；${tuinaWeb.citation}` : ""}`, 980),
     syndromeLabels: modification ? [modification.label] : [],
@@ -2221,6 +2223,8 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
   const entries = matchDiseaseEntries(data.diet, input.diseaseNames, input.westernNames, "", input.patientAgeYears);
   const entry = entries[0];
   if (!entry) return undefined;
+  const avoidAlcohol = input.westernNames.some((name) =>
+    diseaseCareItemsForName(name).some((item) => item.conflictsWith.includes("饮酒")));
   const recordCautionConflict = (recipeText: string) => recipeConflictsWithRecordedCaution(recipeText, input.currentFacts, input.signedSyndromeText);
   const prescribedScope: PrescribedHerbScope | undefined = input.herbAlreadyPrescribed && input.prescribedHerbNames?.length
     ? { names: input.prescribedHerbNames, has: input.herbAlreadyPrescribed }
@@ -2228,6 +2232,7 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
   // 教材里有些食疗方只写「见‘血证’节」这类互见，没有配料与做法，不能当方案给出。
   const safeRecipes = (syndrome: DietSyndrome) => syndrome.recipes.filter((recipe) =>
     recipe.text.length >= 20 && !recipe.text.startsWith("见") && recipeUsesOnlyFoodSafeIngredients(recipe.text) &&
+    !(avoidAlcohol && recipeContainsAlcohol(recipe.text)) &&
     !recipeExceedsHighRiskHerbDose(recipe.text) && !recipeContradictsDietPrinciple(recipe.text, syndrome.method) &&
     !(input.avoidRichFood && recipeHasRichIngredient(recipe.text)) &&
     !(input.recordedDiabetes && recipeUnsuitableForDiabetes(recipe.text)) &&
@@ -2275,12 +2280,15 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
   // 疗程栏从说频次的那一小句起（第六十轮，r1077 样张 R046 食疗卡两栏各印一遍做法）。
   const usage = usageFromFrequencyClause(frequencySentence(first.text)) || first.text.split("。").find((part) => part.includes("每日") || part.includes("每天")) ||
     recipeUsageClause(first.text);
+  const batchExplanation = usage && /(?:每日|每天|一日).{0,3}(?:两|二|[2-9])次/u.test(usage) &&
+    /\d+\s*(?:g|克)/iu.test(first.text) && !/每次|分服/u.test(first.text)
+    ? "所列克数为制作一份食谱的配料量，每次食用量请由医生结合食量确定。" : "";
   const dietHead = matched.method ? `食疗原则：${matched.method.replace(/[。]+$/, "")}。` : "";
   return {
     kind: "diet",
     // 食疗方进 treatmentContent（无穴项目的 suggestedSitesOrPoints 保持为空，与目录口径一致；
     // 「取穴」「穴位/部位」这类栏目对食疗没有意义，2026-09-29 甲方测评点名）。整条放不下就整条不放，绝不截断食谱。
-    treatmentContent: contentWithItems(dietHead, items),
+    treatmentContent: contentWithItems(dietHead, items) + batchExplanation,
     points: [],
     items,
     scheduleSuggestion: cutText(usage ? `${usage.replace(/[。]+$/, "")}。` : "按方中做法食用，复诊时按症状变化调整。", 560),

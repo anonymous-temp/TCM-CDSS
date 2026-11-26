@@ -85,3 +85,24 @@ export function organsNamedBySyndromeMissingFrom(syndromeNames: string, existing
   const names = String(syndromeNames || "").normalize("NFKC");
   return (policy.classification.syndromeNameOrgans as string[]).filter((organ) => names.includes(organ) && !existing.some((item) => item.includes(organ)));
 }
+
+/** Resolve a bare temperature label only when the authored mechanism qualifies it and no named syndrome requires an independent pathogen. */
+export function qualifyDeficiencyTemperature(nature: Record<string, unknown>, syndrome: string, mechanism: string): void {
+  const roots = Array.isArray(nature.rootDeficiency) ? nature.rootDeficiency : [];
+  const branches = Array.isArray(nature.branchExcess) ? nature.branchExcess : [];
+  for (const row of policy.classification.syndromeNameNatureElements) {
+    if (!row.deficiencyLabel || !row.deficiencyContextPattern || !roots.length) continue;
+    const virtual = row.deficiencyLabel;
+    const qualifier = new RegExp(row.deficiencyContextPattern, "u");
+    const forms = policy.nonExcessForms.filter(form => row.chars.some(char => form.includes(char)) && qualifier.test(form));
+    const explains = [mechanism, ...roots.filter((label): label is string => typeof label === "string")].some(source => source.split(/[。；，、]/u).some(clause =>
+      !new RegExp(policy.assertionModalityPattern, "u").test(clause) && forms.some(form => clause.includes(form))));
+    const otherNamed = syndrome.split("、").some(name => row.chars.some(char => name.includes(char)) && !qualifier.test(name));
+    if (!explains || otherNamed) continue;
+    const generic = branches.filter(label => typeof label === "string" && [...label].every(char => row.chars.includes(char)));
+    if (!generic.length) continue;
+    nature.branchExcess = (nature.branchExcess as unknown[]).filter(label => !generic.includes(label));
+    nature.items = [...new Set([...(Array.isArray(nature.items) ? nature.items : []).filter(label => !generic.includes(label)), virtual])];
+    classifyNatureColumns(nature);
+  }
+}

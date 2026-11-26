@@ -2,7 +2,7 @@ import "server-only";
 
 import source from "../data/redflag-discriminators.source.json";
 import { quoteHasCurrentOccurrence } from "./clinical-facts";
-import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
+import { clauseLocalMentionPolarityAt, currentMedicationQuoteName } from "./diagnosis-safety";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { DISCRIMINATOR_WEAK_ANCHORS, discriminatorTextConceptsForPatient, isFatigueFramed, type DiscriminatorPatient, type DiscriminatorScreen } from "./redflag-discriminators";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
@@ -31,7 +31,7 @@ export function redflagDiscriminatorScreenEnabled(): boolean {
 type ConceptDefinition = { conceptId: string; labelZh: string; definitionZh: string; notCountZh?: string };
 const DEFINITIONS = (() => {
   const map = new Map<string, ConceptDefinition>();
-  for (const item of (source as { contextConcepts: ConceptDefinition[] }).contextConcepts) map.set(item.conceptId, item);
+  for (const item of [...source.contextConcepts, ...source.observationConcepts]) map.set(item.conceptId, item);
   for (const row of (source as { discriminators: Array<ConceptDefinition & { kind: string }> }).discriminators) {
     if (row.kind !== "text" || map.has(row.conceptId)) continue;
     map.set(row.conceptId, { conceptId: row.conceptId, labelZh: row.labelZh, definitionZh: row.definitionZh, notCountZh: row.notCountZh });
@@ -76,6 +76,7 @@ export function buildRedflagDiscriminatorRequest(recordText: string, patient: Di
         "2. 舌象、脉象是中医四诊记录：舌有瘀斑、舌边瘀点、舌质紫暗不算皮肤的瘀斑瘀点或发绀。",
         "3. 「算」「不算」按清单里写的定义判；病历没写到或写得不足以判断的，不要列出。",
         "4. 列出的每一项都给 quote：从病历里逐字复制最短的一段连续原文，能单独说明这一项。",
+        "5. observe- 项另给 basisQuote，逐字引用支持非急性解释的用药、查体或检查依据，与异常表现分别引用。缺少独立依据不列。",
         "只输出 JSON：{\"present\":[{\"id\":\"清单里的 id\",\"quote\":\"病历原文\"}]}；一项都没有时 present 为空数组。不要解释。",
       ].join("\n"),
     },
@@ -110,6 +111,7 @@ export function parseRedflagDiscriminatorScreen(content: unknown, concepts: read
     const absenceFinding = NEGATION_INTRINSIC.has(conceptId);
     const aligned = alignQuoteToSource(quote, recordText);
     if (!aligned) continue;
+    if (conceptId.startsWith("medication-") && !currentMedicationQuoteName(recordText, aligned.span, conceptId)) continue;
     // 界限能落在字面上的判别项（源表 quoteAnchors）：引文须出现规定字样之一。
     const anchors = QUOTE_ANCHORS.get(conceptId);
     if (anchors && !anchors.some((anchor) => aligned.span.includes(anchor))) continue;
@@ -124,7 +126,15 @@ export function parseRedflagDiscriminatorScreen(content: unknown, concepts: read
     const polarity = clauseLocalMentionPolarityAt(recordText, Math.max(aligned.start, aligned.end - 1));
     if (polarity === "excluded" || (polarity === "negated" && !absenceFinding)) continue;
     if (!absenceFinding && !quoteHasCurrentOccurrence(recordText, aligned.span)) continue;
-    if (!out.some((existing) => existing.conceptId === conceptId)) out.push({ conceptId, quote: aligned.span });
+    if (out.some((existing) => existing.conceptId === conceptId)) continue;
+    if (conceptId.startsWith("observe-")) {
+      const basis = (raw as { basisQuote?: unknown }).basisQuote;
+      if (typeof basis !== "string" || basis.length < 2 || basis.length > 120 || quote.includes(basis) || basis.includes(quote)) continue;
+      const supported = alignQuoteToSource(basis, recordText);
+      if (!supported || clauseLocalMentionPolarityAt(recordText, supported.end - 1) === "excluded") continue;
+      out.push({ conceptId: conceptId + "-basis", quote: supported.span });
+    }
+    out.push({ conceptId, quote: aligned.span });
   }
   return out;
 }

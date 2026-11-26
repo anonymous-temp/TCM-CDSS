@@ -149,10 +149,10 @@ await check("4.1 外用药的关系栏按给药途径写，不说「服用」、
     { type: "中成药", name: "复方珍珠口疮颗粒", route: "口服，开水溶解后分次含于口中、漱口后缓慢咽下", positioning: "短期对症", relationship: "" },
   ] } }));
   const [ointment, oil, oral, rinse] = out.formula.patentAndWestern;
-  assert.equal(ointment.relationship, "症状明显时短期外用，症状缓解即停");
+  assert.equal(ointment.relationship, "是否短期外用由医生根据症状决定，与汤剂合用前须经医生或药师审核");
   assert.doesNotMatch(oil.relationship, /服用|间隔/);
-  assert.equal(oral.relationship, "可与本方汤剂同期服用，两者间隔约1小时");
-  assert.equal(rinse.relationship, "症状明显时短期服用，症状缓解即停", "说明书写口服的按内服写，含漱是服法的一步");
+  assert.equal(oral.relationship, "由医生根据病情选择，如需与汤剂合用，须经医生或药师审核，请勿自行合用");
+  assert.equal(rinse.relationship, "是否短期服用由医生根据症状决定，与汤剂合用前须经医生或药师审核", "说明书写口服的按内服写，含漱是服法的一步");
 });
 await check("4.2 含乙醇的药酒不给服降糖药的糖尿病患者（C045）；对照：无此记录、或不含乙醇的不排", () => {
   const wine = { name: "三两半药酒", usage: "口服。一次30～60毫升，一日3次。", precaution: "本品含乙醇（酒精）20％～25％" };

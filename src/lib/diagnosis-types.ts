@@ -220,6 +220,8 @@ export interface CaseState {
 
   // 对话历史（最多 10 条）
   conversation: { role: "user" | "assistant"; content: string }[];
+  /** 服务端内部，从对话重建，不接受传入，不对外承诺。 */
+  unconfirmedFollowupQuestions?: string[];
 
   // M03-M05 结果
   diagnosis?: string;
@@ -2538,6 +2540,7 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
       ? input.questionOutcome
       : inferredQuestionOutcome,
     conversation: followup.conversation,
+    ...(followup.unconfirmedFollowupQuestions.length ? { unconfirmedFollowupQuestions: followup.unconfirmedFollowupQuestions } : {}),
     diagnosis: stringValue(input.diagnosis, MAX_MODEL_OUTPUT_CHARS),
     prescription: stringValue(input.prescription, MAX_MODEL_OUTPUT_CHARS),
     riskAssessment: stringValue(input.riskAssessment, MAX_MODEL_OUTPUT_CHARS),

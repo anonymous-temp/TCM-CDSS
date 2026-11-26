@@ -5,6 +5,8 @@ import {
   enforceM02UnansweredAxes,
   ensureQuestionStructuredEnvelope,
   m02ClinicalFactsFootprint,
+  m02FallbackYoungChildBand,
+  m02PriorityEvaluationQuestion,
   m02NarrowCheckRecordText,
   m02PossibleRiskQuestion,
   m02PriorityTrendQuestion,
@@ -12,12 +14,14 @@ import {
   m02ProceedWhenSettled,
   parseM02PlanFromContent,
   redFlagDispositionQuestion,
+  removeM02PlanQuestions,
   splitTonguePulseQuestions,
   withM02Completeness,
 } from "@/lib/m02-question-contract";
 import { riskCategoryRecordStatus } from "@/lib/m02-risk-question-answerability.server";
-import { priorityTrendAnsweredByRecord, questionIdsFailingNarrowChecks } from "@/lib/m02-question-redundancy.server";
+import { questionIdsFailingNarrowChecks } from "@/lib/m02-question-redundancy.server";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
+import { followupConversationView } from "@/lib/followup-conversation";
 import type { CaseState } from "@/lib/diagnosis-types";
 import { deriveOperationalCompleteness, markdownNdjsonResponse, sanitizeCaseStateForModel, trustedInputText, evaluateSafetyGate } from "@/lib/diagnosis-safety";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
@@ -38,6 +42,17 @@ async function handlePost(req: Request) {
     return Response.json({ error: "当前流程不在追问阶段，请从现有阶段继续。" }, { status: 409 });
   }
   if (parsed.caseState.questionRounds >= parsed.caseState.maxQuestionRounds) {
+    const completed = followupConversationView(parsed.caseState.conversation).answers.length > 0 ||
+      parsed.caseState.questionOutcome === "skipped";
+    if (completed && m02ProceedWhenSettled()) {
+      const urgent = evaluateSafetyGate(parsed.caseState).status === "red_flag";
+      return markdownNdjsonResponse(withM02Completeness(
+        ensureQuestionStructuredEnvelope(m02ProceedPlanContent(urgent
+          ? "已识别急危重情况，应先按急症处置，本轮不再追问。"
+          : "本轮追问已结束，请按已提供信息进入辨病辨证。")),
+        deriveOperationalCompleteness(parsed.caseState),
+      ));
+    }
     return Response.json({ error: "本轮追问已结束，请按已提供信息进入辨病辨证。" }, { status: 409 });
   }
   // 预取 M03 两半开跑前的四样输入（EviMed 检索、方名召回改写、否定增补、证候重排；见
@@ -140,116 +155,151 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
   // 安全闸门已判急危重：不再生成追问。急症已由病历本身成立，问别的类目的筛查题、辨证题或基本问诊都不合时宜
   //（2026-10-13/14 独立评审：疑似脑膜炎问卒中表现、脱水休克问大便性状、失血性休克问怕冷怕热）。
   // 调用方的流程仍要一道题时，问是否已安排急诊评估或转诊（redFlagDispositionQuestion）；允许如实返回「无需追问」时直接 proceed。
+  const previousAnswers = followupConversationView(safeCaseState.conversation).answers;
+  const youngChild = m02FallbackYoungChildBand(safeCaseState);
+  const proceed = ensureQuestionStructuredEnvelope(m02ProceedPlanContent("已有资料可供下一步评估，本轮暂无需再追问的事项。"));
   const gate = evaluateSafetyGate(inputCaseState);
   if (gate.status === "red_flag") {
-    const envelope = ensureQuestionStructuredEnvelope(
-      m02ProceedWhenSettled()
-        ? m02ProceedPlanContent("已识别急危重情况，应先按急症处置，本轮不再追问。")
-        : redFlagDispositionQuestion(gate.redFlags || []),
-      sourceText,
-    );
-    return markdownNdjsonResponse(withCompleteness(envelope));
+    if (m02ProceedWhenSettled()) {
+      return markdownNdjsonResponse(withCompleteness(ensureQuestionStructuredEnvelope(
+        m02ProceedPlanContent("已识别急危重情况，应先按急症处置，本轮不再追问。"),
+      )));
+    }
+    const disposition = ensureQuestionStructuredEnvelope(redFlagDispositionQuestion(gate.redFlags || []), sourceText);
+    const removed = await questionIdsFailingNarrowChecks(disposition, sourceText, disposition, signal, { previousAnswers, youngChild });
+    const content = removed.length ? removeM02PlanQuestions(disposition, removed, "应先按急症处置。") : disposition;
+    return markdownNdjsonResponse(withCompleteness(content));
   }
-  // 事实层判为需要澄清的急症线索，出筛查题之前先核对病历是否已经回答：已回答的类目不再出题；病历已写明正在发生的
-  // 不再问「是否确实出现」（交模型问严重度）；已逐项否认其中几项的由模型只问其余几项（m02-risk-question-answerability）。
-  // 窄核对读的病历文本带上对话里的「题干 + 回答」：只看回答（「没有」「都没有」）读不出问诊里已经答过什么（m02NarrowCheckRecordText）。
+
   const narrowCheckRecordText = m02NarrowCheckRecordText(sourceText, safeCaseState.conversation);
   const riskStatus = await riskCategoryRecordStatus(inputCaseState, narrowCheckRecordText, signal);
-  const answeredRiskCategories = riskStatus.answered;
-  const riskCaseState: QuestionCaseState = riskStatus.answered.length + riskStatus.affirmed.length + riskStatus.partly.length > 0
-    ? {
-        ...inputCaseState,
-        m02SuppressedRiskCategories: riskStatus.answered,
-        m02AffirmedRiskCategories: riskStatus.affirmed,
-        m02ModelOwnedRiskCategories: riskStatus.partly,
-      }
-    : inputCaseState;
-  // 优先评估线索若落在服务端的「近来有没有加重」题（没有 urgent 线索的筛查题在前），先核对病历是否已经写出这一情况的变化（逐次读数、
-  // 一直到现在）；已写出就不出这道题，走后面的兜底顺序。只有这一支才调用，其余病例不多一次调用。
-  const trend = m02PossibleRiskQuestion(riskCaseState) ? undefined : m02PriorityTrendQuestion(riskCaseState);
-  const trendAnswered = trend
-    ? await priorityTrendAnsweredByRecord(trend, narrowCheckRecordText, signal)
-    : false;
-  const caseState: QuestionCaseState = trendAnswered ? { ...riskCaseState, m02PriorityTrendAnswered: true } : riskCaseState;
-  const fallbackQuestions = buildCaseAwareQuestionFallback(caseState);
-  // 模型判断「不需要再问」时用的那道题：先问病历没写到的基本问诊项（见 buildCaseAwareQuestionFallback 的 settled）。
-  // 模型输出不可用（解析失败、上游失败）时仍用上面的安全兜底。
-  const settledQuestions = buildCaseAwareQuestionFallback(caseState, { settled: true });
-  const fallback = withCompleteness(enforceM02UnansweredAxes(
-    ensureQuestionStructuredEnvelope(fallbackQuestions, sourceText),
-    sourceText,
-  ));
-  const prompt = buildQuestionPrompt(safeCaseState, answeredRiskCategories, { affirmed: riskStatus.affirmed, partly: riskStatus.partly });
-  const outputTransform = (content: string) => withCompleteness(enforceM02UnansweredAxes(
-    ensureQuestionStructuredEnvelope(content, sourceText, fallbackQuestions),
-    sourceText,
-    settledQuestions,
-    caseState,
-  ));
-  // 上游故障兜底的两种正文（流层兜底经 outputTransform、非 2xx 兜底不经）：最终正文与之相同即不入复用（见 POST）。
-  if (degradedContents) {
-    degradedContents.add(fallback.trim());
-    try { degradedContents.add(outputTransform(fallbackQuestions).trim()); } catch { /* 兜底本身已安全可答 */ }
-  }
-  type ReviewedQuestionPlan = { reviewed: string; modelOwned: boolean; telemetry: Record<string, unknown> };
-  // 一份出题计划走完整套核对：舌脉并问拆开、窄核对（病历已写明 / 一题两问 / 选项同值）、确定性删题与收口。
-  // modelOwned：收口后留下的题是模型自己写的（不是服务端的基本问诊兜底题或 proceed）。
-  const reviewQuestionPlan = async (content: string): Promise<ReviewedQuestionPlan> => {
-    // 舌象与脉象并在一问的题先拆成只问一项（拆不开的删掉），再做窄核对（splitTonguePulseQuestions）。
-    const split = splitTonguePulseQuestions(content, sourceText, caseState);
-    // 模型写的题若病历已经写明（全部或其中一件），或题干并问两件事，与确定性删题同一条路删掉（m02-question-redundancy.server.ts）。
-    const repeated = await questionIdsFailingNarrowChecks(split.content, narrowCheckRecordText, `${fallbackQuestions}\n${settledQuestions}`, signal);
-    const reviewed = reviewM02QuestionPlan(split.content, sourceText, settledQuestions, [...split.removeIds, ...repeated]);
-    const modelPlan = parseM02PlanFromContent(content);
-    const splitPlan = parseM02PlanFromContent(split.content);
-    const finalPlan = parseM02PlanFromContent(reviewed);
-    const modelOwned = finalPlan?.decision === "ask" &&
-      finalPlan.questions.some((question) => splitPlan?.questions.some((own) => own.question === question.question));
-    return {
-      reviewed,
-      modelOwned,
-      telemetry: {
-        modelDecision: modelPlan?.decision ?? "unparsed",
-        modelQuestions: modelPlan?.questions.length ?? 0,
-        splitRemoved: split.removeIds.length,
-        narrowRemoved: repeated.length,
-        primaryModelOwned: modelOwned,
-      },
-    };
+  const caseState: QuestionCaseState = {
+    ...inputCaseState,
+    m02SuppressedRiskCategories: riskStatus.answered,
+    m02AffirmedRiskCategories: riskStatus.affirmed,
+    m02ModelOwnedRiskCategories: riskStatus.partly,
   };
-  // 第二份独立采样与首轮流同时发出（diagnosis-api.sampleQuestionPlanOnce）；CDSS_M02_QUESTION_CONSENSUS=false 关闭。
-  const secondSample = process.env.CDSS_M02_QUESTION_CONSENSUS === "false" ? undefined : sampleQuestionPlanOnce(prompt, signal);
-  secondSample?.catch(() => undefined);
+  const urgent = m02PossibleRiskQuestion(caseState);
+  const priority = !urgent && m02PriorityEvaluationQuestion(caseState);
+  const trend = !urgent ? m02PriorityTrendQuestion(caseState) : undefined;
+  const checkContext = { previousAnswers, youngChild, trendQuestion: trend?.question };
+  const afterAnswer = previousAnswers.length > 0;
+  const settled = m02ProceedWhenSettled(afterAnswer ? undefined : sourceText);
+
+  // 服务端题也过重复和原话核对。在出题同时预核，只有最终需要兜底才等待它。
+  const failureFallback = buildCaseAwareQuestionFallback(caseState);
+  const settledFallback = buildCaseAwareQuestionFallback(caseState, { settled: true });
+  const afterTrend = trend ? { ...caseState, m02PriorityTrendAnswered: true } : undefined;
+  const serverPlans = [...new Set([
+    ...(urgent || priority || !afterAnswer ? [failureFallback] : []),
+    ...(urgent || priority || (!afterAnswer && !settled) ? [settledFallback] : []),
+    ...(afterTrend && !afterAnswer ? [
+      buildCaseAwareQuestionFallback(afterTrend),
+      buildCaseAwareQuestionFallback(afterTrend, { settled: true }),
+    ] : []),
+  ])];
+  const reviewedFallbacks = new Map(serverPlans.map((raw) => [raw, (async () => {
+    const content = ensureQuestionStructuredEnvelope(raw, sourceText);
+    const failed = await questionIdsFailingNarrowChecks(content, sourceText, raw, signal, checkContext);
+    const usable = failed.length ? removeM02PlanQuestions(content, failed, "病历已有答案或题目需要改问。") : content;
+    const finalized = enforceM02UnansweredAxes(usable, sourceText, "", caseState);
+    return parseM02PlanFromContent(finalized)?.decision === "ask" ? finalized : undefined;
+  })().catch(() => undefined)]));
+  const selectFallback = async (forFailure: boolean): Promise<string> => {
+    const raw = forFailure ? failureFallback : settledFallback;
+    const preferred = await reviewedFallbacks.get(raw);
+    if (preferred) return preferred;
+    const alternate = afterTrend && buildCaseAwareQuestionFallback(afterTrend, { settled: !forFailure });
+    return (alternate && await reviewedFallbacks.get(alternate)) || proceed;
+  };
+  const deliverFailureFallback = async (): Promise<string> => {
+    const content = withCompleteness(await selectFallback(true));
+    degradedContents?.add(content.trim());
+    return content;
+  };
+
+  const answeredRiskCategories = riskStatus.answered;
+  const prompt = buildQuestionPrompt(safeCaseState, answeredRiskCategories, { affirmed: riskStatus.affirmed, partly: riskStatus.partly });
+  const outputTransform = (content: string) => ensureQuestionStructuredEnvelope(content, sourceText, proceed);
+  type ReviewedQuestionPlan = { reviewed: string; modelOwned: boolean; providerInvalid: boolean; narrowRemoved: number };
+  const reviewQuestionPlan = async (content: string): Promise<ReviewedQuestionPlan> => {
+    const parsed = parseM02PlanFromContent(content);
+    const providerInvalid = !parsed || parsed.rationale.startsWith("模型结构化追问计划不可用");
+    // 分拆舌脉后再核题；切脉目标栏位是闭集，婴幼儿不能回填该栏。
+    const split = splitTonguePulseQuestions(content, sourceText, caseState);
+    const unobservable = youngChild
+      ? parseM02PlanFromContent(split.content)?.questions.filter((q) => q.targetField === "tcmPulse").map((q) => q.id) ?? []
+      : [];
+    const repeated = await questionIdsFailingNarrowChecks(split.content, sourceText, "", signal, checkContext);
+    const guarded = reviewM02QuestionPlan(split.content, sourceText, "", [...split.removeIds, ...unobservable, ...repeated]);
+    // 此处的 proceed 信封仅用于开启分支排序，不会添回任何已删题。
+    const reviewed = enforceM02UnansweredAxes(guarded, sourceText, proceed, caseState);
+    return { reviewed, modelOwned: !providerInvalid && parseM02PlanFromContent(reviewed)?.decision === "ask", providerInvalid, narrowRemoved: repeated.length };
+  };
+
+  // 两路采样和各自的核对独立推进。首路流结束后优先交付最早通过核对的题。
+  const secondSample = process.env.CDSS_M02_QUESTION_CONSENSUS === "false" ? undefined
+    : sampleQuestionPlanOnce(prompt, signal)
+      .then((raw) => raw ? reviewQuestionPlan(outputTransform(raw)) : undefined)
+      .catch(() => undefined);
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "question", {
     requestSignal: signal,
-    streamErrorFallback: fallbackQuestions,
+    streamErrorFallback: deliverFailureFallback,
     outputTransform,
     finalOutputTransform: async (content) => {
-      const primary = await reviewQuestionPlan(content);
-      // 两份计划取共识（第二十六轮）：首轮留下了模型自己的题就用它；否则第二份留下了模型自己的题就用第二份的题；
-      // 两份都没有（都判无需追问、或题都被核对删掉）才按原来的收口（病历已足够时 proceed，不够时基本问诊题）。
-      let chosen = primary;
-      let consensus: "primary" | "second" | "none" | "unavailable" = secondSample ? "none" : "unavailable";
-      if (primary.modelOwned) consensus = "primary";
-      else if (secondSample) {
-        const raw = await Promise.race([secondSample, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), M02_CONSENSUS_WAIT_MS))]);
-        let second: ReviewedQuestionPlan | undefined;
-        if (raw) {
-          try { second = await reviewQuestionPlan(outputTransform(raw)); } catch { second = undefined; }
-        } else consensus = "unavailable";
-        if (second?.modelOwned) {
-          chosen = second;
-          consensus = "second";
-        }
+      const primary = reviewQuestionPlan(content).then((plan) => ({ source: "primary" as const, plan }));
+      const second = secondSample?.then((plan) => ({ source: "second" as const, plan }));
+      let selected = await Promise.race(second ? [primary, second] : [primary]);
+      if (!selected.plan?.modelOwned && selected.source === "second") selected = await primary;
+      if (!selected.plan?.modelOwned && selected.source === "primary" && second) {
+        const alternative = await waitForSecond(second);
+        if (alternative?.plan?.modelOwned) selected = alternative;
       }
-      // 出题与否的来由。只记判定码与题数，不记题干。
-      console.info("[tcm-cdss:telemetry] m02_plan_outcome", { ...primary.telemetry, consensus, finalDecision: parseM02PlanFromContent(chosen.reviewed)?.decision ?? "unparsed" });
-      return withCompleteness(chosen.reviewed);
+      const plan = selected.plan;
+      let reviewed = plan?.reviewed || proceed;
+      if (plan?.modelOwned) {
+        // 已接地且核对通过的优先处置题在辨证题之前。急症类目的固定题及其可接受的细问沿用原有收口口径。
+        const priorityFallback = (urgent || priority) && await reviewedFallbacks.get(settledFallback);
+        if (priorityFallback) {
+          if (urgent) reviewed = enforceM02UnansweredAxes(reviewed, sourceText, priorityFallback, caseState);
+          else if (!parseM02PlanFromContent(reviewed)?.questions.some((question) => question.decisionBranch === "triage" || question.decisionBranch === "treatment_safety")) reviewed = priorityFallback;
+        }
+        // 已有一轮作答之后（第六十二轮，甲方「刚答过又问」）：只为处置或用药安全再问一题；辨证、鉴别方向的题不再问，
+        // 直接进入辨证。换词重问靠模型核对拦不干净（实链回放 90 份里仍有 4 份换了说法重问同一件事），这里按题目分支收口。
+        if (afterAnswer && !urgent && !priority && process.env.CDSS_M02_SECOND_ROUND_SAFETY_ONLY !== "false" &&
+            !parseM02PlanFromContent(reviewed)?.questions.some((question) => question.decisionBranch === "triage" || question.decisionBranch === "treatment_safety")) {
+          reviewed = proceed;
+        }
+      } else if (plan?.providerInvalid) {
+        reviewed = await deliverFailureFallback();
+      } else if (urgent || priority || (!settled && !afterAnswer)) {
+        reviewed = await selectFallback(false);
+      } else {
+        reviewed = proceed;
+      }
+      // 遥测只记判定码与题数。
+      console.info("[tcm-cdss:telemetry] m02_plan_outcome", {
+        narrowRemoved: plan?.narrowRemoved ?? 0,
+        consensus: plan?.modelOwned ? selected.source : secondSample ? "none" : "unavailable",
+        finalDecision: parseM02PlanFromContent(reviewed)?.decision ?? "unparsed",
+      });
+      return withCompleteness(reviewed);
     },
   });
   if (response.ok || signal.aborted) return response;
   await response.body?.cancel().catch(() => undefined);
-  return markdownNdjsonResponse(fallback);
+  return markdownNdjsonResponse(await deliverFailureFallback());
+}
+
+async function waitForSecond<T>(sample: Promise<T>): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([sample, new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), M02_CONSENSUS_WAIT_MS);
+    })]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** 首轮已收口、只差第二份采样时最多再等多久；等不到按首轮结果交付。 */

@@ -1,3 +1,5 @@
+import { followupSignOutsidePopulation } from "./candidate-boundary-text";
+import { reviewedTreatmentCard, type TreatmentReview } from "./tcm-treatment-card-review";
 import rxtextPolicy from "../data/rxtext-content-policy.source.json";
 import bleedingPolicy from "../data/tcm-treatment-bleeding-policy.source.json";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -271,6 +273,7 @@ function annotateGovernedTemplatePoint(
   // 否则会印成「太阳或率谷（按疼痛部位复核）（EX-HN5·…）」两组括号。
   const existingNote = site.match(/（([^）]*)）\s*$/)?.[1] || "";
   const bareSite = existingNote ? site.slice(0, site.lastIndexOf("（")) : site;
+  if (bareSite.includes("或")) return bareSite; // 二选一未确定前不能共用首穴编码。
   const wrap = (parts: readonly string[]) => {
     const inner = [existingNote, ...parts].filter(Boolean).join("；");
     return inner ? `${bareSite}（${inner}）` : bareSite;
@@ -392,7 +395,7 @@ function controlledTreatmentPlan(
 
   /** 教材方案 → 卡片字段（tcm-nondrug-textbook-plan.server.ts）。证型相符 = 已按本例证型选穴/选方；配穴出自十三五规划教材，并经联网权威来源核对（2026-09-29）。 */
   const fromTextbook = (plan: TextbookPlan) => {
-    const caseTerms = acupointCaseTerms(currentFacts, [...(textbookContext?.diseaseNames || []), ...(textbookContext?.westernNames || [])]);
+    const caseTerms = acupointCaseTerms(currentFacts, [...(textbookContext?.diseaseNames || []), ...(textbookContext?.westernNames || [])]).filter((term) => patientAgeYears == null || patientAgeYears >= 12 || !followupSignOutsidePopulation(term, { reproductive: false, ageYears: patientAgeYears }));
     const bodySystem = projectCode !== "auricular";
     const points = plan.kind === "acupoint"
       ? plan.points.map((point) => (bodySystem
@@ -490,7 +493,7 @@ function controlledTreatmentPlan(
       : undefined;
     const refinementApproved = refinementAdjudication?.adjudicationStatus === "approved";
     const refinement = refinementApproved ? matchedRefinement : undefined;
-    const caseTerms = acupointCaseTerms(currentFacts, [...(textbookContext?.diseaseNames || []), ...(textbookContext?.westernNames || [])]);
+    const caseTerms = acupointCaseTerms(currentFacts, [...(textbookContext?.diseaseNames || []), ...(textbookContext?.westernNames || [])]).filter((term) => patientAgeYears == null || patientAgeYears >= 12 || !followupSignOutsidePopulation(term, { reproductive: false, ageYears: patientAgeYears }));
     // 剔除按**命中的**那条走，不按终审后的那条走——这是上面第二条的落点。
     const removed = new Set(matchedRefinement?.removePoints || []);
     const basePoints = governedTemplate.sitesOrPoints.filter((site) => !removed.has(site));
@@ -533,7 +536,7 @@ function controlledTreatmentPlan(
     // 「本例已签名证候未匹配到受治理的证型加减方案，请按寒热虚实增减」——
     // 而它恰恰是目录里最贴本例证型的一条。这句话会让医生以为系统没认出证型。
     const syndromeGatedTemplate = preciseFitsNode && Boolean(precise.template?.preciseSyndromeGate);
-    const gateLabel = (preciseFitsNode ? precise.template?.preciseSyndromeGate?.indicationLabel : "") || "";
+
     const syndromeTailored = Boolean(refinement) || syndromeGatedTemplate;
     // 目录里只有病种类目模板、没按本例证型加减时，教材方案（按证型配穴/选方）更贴本例：
     // 证型相符 → 用教材；穴位型项目教材也未按证型时保持目录原状（有已治理来源的频次）。
@@ -629,7 +632,7 @@ function controlledTreatmentPlan(
     // 产后癃闭给腹胀取穴、痿证给头痛取穴）。按本例证型加减过的模板仍照用——那是按证型选的，不是按顺带症状。
     if (!(templateOffDisease && !textbookPlan)) {
     // 「取穴」只对取穴类项目成立；食疗/导引/意疗说「取穴」是甲方 9.24/9.27 测评点名的错误（食疗还需要取穴针刺吗）。
-    const templateNoun = projectCode === "diet_therapy" ? "食疗" : projectCode === "qigong_daoyin" ? "功法" : projectCode === "mind_therapy" ? "情志调摄" : "取穴";
+    const sites = basePoints.map((point) => point.split("（")[0]).join("、");
     const evidenceTerms = indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts);
     // 「针对本例X」的 X 只能是病历里写到的、或已签名的中医病名（2026-10-19 晚，验收集 M-TCM-RobustSDT-single_0442：积证的卡写「针对本例功能性消化不良」——
     // 模板是按西医主诊断对上的，clinicalText 里有西医诊断名和模型写的病机，词在那里不等于本例有这个表现）。
@@ -649,14 +652,11 @@ function controlledTreatmentPlan(
       // 治疗内容只写医生要读的东西（2026-10-13，甲方 10.12 测评）：按什么证取穴、针对本例哪些表现、随症加了哪些穴。
       // 「本例命中该病种标准取穴模板」「双重条件准入」「本轮不予应用」是系统在讲自己怎么选的，不是治疗内容。
       treatmentContent: [
-        refinement
-          ? `按${refinement.syndromeLabel}${templateNoun === "取穴" ? "取穴" : `选用${templateNoun}`}`
-          : syndromeGatedTemplate
-            ? `按${gateLabel}${templateNoun === "取穴" ? "取穴" : `选用${templateNoun}`}`
-            : `按本病常规${templateNoun === "取穴" ? "取穴" : `选用${templateNoun}`}`,
-        groundedTerms.length > 0 ? `针对本例${groundedTerms.join("、")}` : "",
+        groundedTerms.length ? `本例见${groundedTerms.join("、")}` : "",
+        points.length && sites ? `取${sites}` : governedTemplate.techniqueBoundary,
+        refinement?.addPoints.length && pointsGoverned ? `${refinement.syndromeLabel}配${refinement.addPoints.join("、")}` : "",
         conditionalPoints.length > 0 ? `随症加${conditionalPoints.map((item) => item.point).join("、")}` : "",
-      ].filter(Boolean).join("，") + "。",
+      ].filter(Boolean).join("，").replace(/([^。])$/u, "$1。"),
       suggestedSitesOrPoints: points,
       scheduleSuggestion: governedTemplate.scheduleSuggestion,
       techniqueBoundary: pointsGoverned
@@ -1468,7 +1468,10 @@ export function compileTcmTreatmentRecommendations(
     if ((lesionPointAvoided || breastMassAvoided) && Array.isArray(plannedTreatment.suggestedSitesOrPoints) && plannedTreatment.suggestedSitesOrPoints.length > 0 &&
       (sitesWithoutLesion || []).length === 0) return [];
     const lesionText = (value: string) => {
-      const withoutLesion = lesionPointAvoided ? withoutLesionPointMention(value) : value;
+      const siteText = BROKEN_SKIN_RECORDED.test(currentFacts) ? value
+        .replace(/皮损局部(?:先用毫针|阿是穴用)围刺法?/gu, "仅在皮损周围完整皮肤围刺")
+        .replace(/取皮损局部和/gu, "取") : value;
+      const withoutLesion = lesionPointAvoided ? withoutLesionPointMention(siteText) : siteText;
       return breastMassAvoided ? withoutBreastRegionPointSentences(withoutLesion) : withoutLesion;
     };
     const treatmentPlan = {
@@ -1879,7 +1882,7 @@ export function applyTcmTreatmentCapabilityPriority(
   content: string,
   caseState?: Partial<TreatmentCaseContext>,
   prior?: ClinicalReasoningResultV2 | null,
-  options?: { authoredHomeAcupoint?: AuthoredHomeAcupoint },
+  options?: { authoredHomeAcupoint?: AuthoredHomeAcupoint; cardReview?: TreatmentReview },
 ): string {
   const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
   const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
@@ -1901,7 +1904,14 @@ export function applyTcmTreatmentCapabilityPriority(
     const precautionText = Array.isArray(existingNonPharma?.precautions)
       ? existingNonPharma!.precautions.filter((line): line is string => typeof line === "string").join("；")
       : "";
-    const recommendations = compileTcmTreatmentRecommendations(proposals, prior, caseState, String(existingNonPharma?.diet || ""), prescribedHerbNames, precautionText);
+    const compiled = compileTcmTreatmentRecommendations(proposals, prior, caseState, String(existingNonPharma?.diet || ""), prescribedHerbNames, precautionText);
+    const omitted: string[] = [];
+    const recommendations = compiled.flatMap((card) => {
+      const reviewed = reviewedTreatmentCard(card, options?.cardReview);
+      if (reviewed) return [reviewed];
+      omitted.push(card.projectName);
+      return [];
+    });
     if (!existingNonPharma && recommendations.length === 0) return content;
     reasoning.nonPharma = existingNonPharma || {
       diet: "",
@@ -1927,6 +1937,7 @@ export function applyTcmTreatmentCapabilityPriority(
       reasoning.nonPharma.precautions = reasoning.nonPharma.precautions
         .filter((line) => !precautionMentionsUndeliveredTreatment(line, delivered));
     }
+    if (omitted.length) reasoning.nonPharma.precautions.push(`${omitted.join("、")}的适用条件有待面诊确认，暂缓安排。`);
     return `${content.slice(0, start + startMarker.length)}\n${JSON.stringify(reasoning)}\n${content.slice(end)}`;
   } catch {
     return content;

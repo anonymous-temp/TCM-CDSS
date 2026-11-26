@@ -13,7 +13,7 @@ import {
   carriesListPredicate,
 } from "./clinical-polarity";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
-import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
+import { createTextModelClient, getControlledTerminologyModelConfig, textModelConfigForModel, textModelFamily, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { maskNonNegatingWuWords, recordedFindingReading, recordMentionPolarityAt } from "./diagnosis-safety";
 import { recordAffirmsDeniedFinding } from "./diagnosis-visible-summary";
@@ -99,8 +99,21 @@ function fieldSlots(root: Json, half: PatientClaimHalf): FieldSlot[] {
     const overview = record(root.overview);
     stringSlot("tcmDiseaseRationale", overview, "tcmDiseaseRationale");
     stringSlot("tcmDiagnosticRationale", overview, "tcmDiagnosticRationale");
-    list(overview?.tcmDiseaseDifferentials).forEach((item, index) => stringSlot(`tcmDiseaseDifferentials[${index}].distinguishingPoints`, item, "distinguishingPoints"));
-    list(overview?.tcmDifferentials).forEach((item, index) => stringSlot(`tcmDifferentials[${index}].distinguishingPoints`, item, "distinguishingPoints"));
+    const path = record(root.pathogenesis);
+    if (overview && path && text(overview.overallPathogenesis) && overview.overallPathogenesis === path.summary) {
+      slots.push({ id: "overallPathogenesis", text: text(overview.overallPathogenesis),
+        read: () => text(overview.overallPathogenesis), write: value => { overview.overallPathogenesis = path.summary = value; } });
+    } else {
+      stringSlot("overallPathogenesis", overview, "overallPathogenesis");
+      stringSlot("pathogenesis.summary", path, "summary");
+    }
+    for (const group of ["tcmDiseaseDifferentials", "tcmDifferentials"]) {
+      list(overview?.[group]).forEach((item, index) => {
+        for (const key of ["reason", "distinguishingPoints", "typicalManifestation", "nextCheck"]) {
+          stringSlot(`${group}[${index}].${key}`, item, key);
+        }
+      });
+    }
     return slots;
   }
   const western = record(root.westernDiagnosis);
@@ -196,6 +209,7 @@ export function buildPatientClaimMessages(recordText: string, fields: readonly P
         "典型的错误：病历只写“咳嗽”，文字写“本例干咳无痰”；病历只写“起水疱”，文字写“水疱破溃渗液”“疱液浑浊”；病历写“皮肤瘙痒”，文字写“瘙痒夜间加重”；病历没写部位，文字写“本例右侧疼痛”；病历只有胸闷，文字写“胸痛”；病历写“2个月来出现”，文字写“2月龄起病”；病历没写口渴与否，文字写“口不渴”。",
         "同一类错误还有三种写法：写某项“正常、如常、清楚”（如“神志清楚”“四肢活动自如”“饮食如常”）而病历没写这一项；写症状“不在某处”“与某事无关”（如“痛不在胁下”“与进食无关”）而病历没写部位或这层关系；把病历里笼统的“不适”写成具体性质（病历只写“腹部不适”，文字写“腹部痞满”“腹部胀痛”）。",
         "还有一种容易漏的：病历写了这个症状或体征，文字在它前后加上病历没有的限定——程度（病历“发热”，文字“壮热”）、颜色或性状（病历“身黄”，文字“黄色鲜明”）、固定与否或范围（病历“刺痛”，文字“痛有定处”“肿势散漫”）。这类限定词要逐个对照病历，病历没写的那个限定词就是错误，span 取该限定词连同它修饰的症状（如“壮热”“黄色鲜明”）；病历用另一种说法写了同样的意思（“针刺样痛”与“刺痛如针扎”）不算。",
+        "查体或检查报告只支持实际记录的项目；报告对另一征象沉默不能写为阴性。鉴别与总体病机里也逐项核对，拟检查的事项不算已有发现。",
         "辨证依据常把体征和病机写在同一句里（如“痛剧、XX属热毒”“皮损为XX，与之不同”）：病机部分不用管，但句中每个体征、性状词都要逐个对照病历——病历没写的那个词就是错误。",
         "辨病依据 tcmDiseaseRationale 中引用本病的教材定义或诊断要点来说明为何定此病，也是在断言本例符合这些表现，即使未写“本例”也须核对。不能把“反复发作性哮鸣”“胃内容物自口而出”“痛位在胃脘以下耻骨毛际以上”当作通则而豁免；仅说明待核实的缺项、或明确在介绍另一个鉴别病的通则时才豁免。",
         "以下不算错误，不要列出：",
@@ -688,7 +702,9 @@ async function patientClaimVerification(
   signal?: AbortSignal,
   onNetworkAttempt?: () => void,
 ): Promise<Set<number> | undefined> {
-  const config = getControlledTerminologyModelConfig();
+  const primary = getControlledTerminologyModelConfig();
+  const config = task.startsWith("m03_patient_claim_tcm") ? textModelConfigForModel(process.env.PRIMARY_STRUCTURED_FALLBACK_MODEL?.trim() || "qwen3.8-flash") : primary;
+  if (!config.configured || (task.startsWith("m03_patient_claim_tcm") && textModelFamily(config.model) === textModelFamily(primary.model))) return undefined;
   const ids = await memoizedSmallTask<number[] | undefined>(task, smallTaskMemoKey([config.model, messages]), async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

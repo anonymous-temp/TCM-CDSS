@@ -550,6 +550,9 @@ export const M04ProposalSchema = z.object({
        * KB 对齐串、或修复耗尽后的受控角色兜底句。反而是今天在交付一句服务端自造、零证据的话。
        */
       function: z.string().min(2).max(300).optional(),
+      // Internal proposal evidence only. Public herb rows are constructed explicitly below.
+      symptomScope: z.enum(["main", "independent", "secondary"]).optional().catch(undefined),
+      symptomQuote: z.string().max(100).optional().catch(undefined),
       decoctionRequirement: z.preprocess(
         normalizeModelNullableText,
         z.string().max(200).nullable().optional(),
@@ -1577,7 +1580,7 @@ export function modificationConditionOutsidePopulation(trigger: string, caseStat
  * 去掉后方义里讲这味药的小句由方义核对按「方外之药」删去；剩不到三味时原样保留。
  */
 export function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2, recordText = "", chiefComplaint = "", presentHistory = ""): M04Proposal["candidate"]["herbs"] {
-  if (signedScopeInvolvesMind(prior) || mindSymptomsProminentInRecord(recordText, chiefComplaint, presentHistory)) return candidate.herbs;
+  const fallbackKeep = signedScopeInvolvesMind(prior) || mindSymptomsProminentInRecord(recordText, chiefComplaint, presentHistory);
   const baseName = String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   // 合方（「菟丝子散合桑螵蛸散加减」）按每一张组成方的组成算，辨证阶段推荐的方向与教材这一行的组成也算
   //（2026-11-08 第三十七轮，甲方 11.05 病历13：整名查不到目录，桑螵蛸散的远志、煅龙骨被当成顺带安神药去掉，方名随后只剩「菟丝子散加减」）。
@@ -1591,7 +1594,10 @@ export function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], 
   const kept = candidate.herbs.filter((herb) => !(
     (herb.role === "佐" || herb.role === "使") &&
     SEDATIVE_CATEGORY.test(getTcmHerbFunctionText(herb.name)) &&
-    !base.has(compositionIdentityName(herb.name))
+    !base.has(compositionIdentityName(herb.name)) &&
+    // 确定性底线不放宽（甲方 10.12 点名：顺带的睡眠差不加安神药）：模型说「独立表现」不能让底线拦下的药留在方里，
+    // 模型说「继发于主病」（有病历原句）则在底线之外再去掉一味（第六十二轮；实链回放标准病历 3 因放宽又出现酸枣仁）。
+    (!fallbackKeep || (herb.symptomScope === "secondary" && Boolean(herb.symptomQuote) && recordText.includes(herb.symptomQuote!)))
   ));
   return kept.length >= 3 ? kept : candidate.herbs;
 }
@@ -2947,7 +2953,7 @@ export function topUpModificationRow(
   row: { trigger: string; herbName: string; dose: string; reason: string; symptomPathogenesis?: string },
   context: { prior: ClinicalReasoningResultV2; caseState?: CaseState; candidateHerbNames: readonly string[]; existingTriggers: readonly string[]; allowTextbookMain?: boolean; textbookFill?: boolean; baseHerbNames?: readonly string[]; priorityEvaluation?: unknown;
     // 第五十二轮：定稿后由模型专写、另一厂商复核过的行（m04-modification-authoring）。主症补强行不按「主诉本身」拦（甲方 10.26 病历2：主法药力不足时加减要补强）；onReject 记下拦掉的判据供实测。
-    authored?: boolean; onReject?: (code: string) => void },
+    reviewedIndependentFinding?: boolean; authored?: boolean; onReject?: (code: string) => void },
 ): Record<string, unknown> | undefined {
   const { prior, caseState, candidateHerbNames } = context;
   const reject = (code: string): undefined => { context.onReject?.(code); return undefined; };
@@ -3265,8 +3271,12 @@ export function compileM04Proposal(
         ...verification.verificationReasons,
       ].slice(0, 8);
     }
+    // 模型的内部判断字段不进交付载荷。
+    const publicHerb: Omit<typeof herb, "symptomScope" | "symptomQuote"> & { symptomScope?: unknown; symptomQuote?: unknown } = { ...herb };
+    delete publicHerb.symptomScope;
+    delete publicHerb.symptomQuote;
     return {
-      ...herb,
+      ...publicHerb,
       dose,
       ...verification,
       isToxic: herb.isToxic === true || verification.isToxic,

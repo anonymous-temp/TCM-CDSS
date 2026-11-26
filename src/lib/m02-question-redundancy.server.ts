@@ -1,6 +1,8 @@
 import "server-only";
 
-import { parseM02PlanFromContent } from "./m02-question-contract";
+import { parseM02PlanFromContent, type M02YoungChildBand } from "./m02-question-contract";
+import { previouslyAnsweredFollowupQuestion, type FollowupAnswer } from "./followup-conversation";
+import { alignQuoteToSource } from "./source-quote-alignment";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
@@ -17,7 +19,7 @@ import { observeModelTask } from "./cdss-model-task-telemetry";
  * 不够，要在出题后过滤）：让小模型只判这一件事，并交出病历原文，服务端逐字核对。
  *
  * 边界：
- *  · 只核模型写的题；服务端自有的兜底题、基本问诊题、急症筛查题不经这里（急症筛查题另有 m02-risk-question-answerability）；
+ *  · 模型与兜底题均核重复、题干原话及低龄患儿能否作答；急症类目仍先经 m02-risk-question-answerability；
  *  · 判 answered（病历已写明）或 partly（题干问了几件事、其中一件病历已写明）且每条引文都逐字在病历里，才删这道题，
  *    之后与确定性删题同一条路：计划删空时按「不需要再问」处理（允许 proceed 时直接 proceed，否则出服务端的基本问诊题）；
  *  · 超时、未配置、输出非法都当没有重复（照常出题），失败结果不缓存。
@@ -36,8 +38,8 @@ function enabled(): boolean {
 const compact = (value: string) => value.normalize("NFKC").replace(/\s+/g, "");
 
 const SYSTEM_RULES = [
-  "你是追问题与病历的重复核对器，不负责评价这道题问得好不好。",
-  "给你一份门诊病历和一道准备让医生问患者的追问题（题干与各选项）。只判断一件事：这道题要问的内容，病历里是不是已经写明了。",
+  "你是追问题与病历的重复核对器。",
+  "给你一份门诊病历和一道准备让医生问患者的追问题（题干与各选项）。先判断这道题要问的内容，病历里是不是已经写明了。",
   "- answered：题干要问的内容病历已经写明（包括写明没有、写明相反情况）；或某个选项基本就是病历已经写过的话，医生照病历就能直接选出答案。",
   "- partly：题干同时问了两件以上的事，其中至少一件病历已经写明，另一件没有。",
   "- not_answered：题干要问的内容病历没有写，或只写了与之无关的内容。",
@@ -59,9 +61,11 @@ const SYSTEM_RULES = [
   "前提已被否认也算 answered：题干问某个表现的颜色、性状、量、程度、时间或诱因，而病历已写明没有这个表现、或它没有出现过（如问“痰的颜色和质地”，病历写着“咳嗽时候没有痰”或“痰没吐出来过”）——病历已经回答了这一问；quotes 给写明没有的原文。",
   "拿不准时判 not_answered。",
   "answered 或 partly 时给出 quotes：病历里写明该内容的原文片段（逐字复制，每条不超过40字，1–3条）和 reason（≤30字）。",
+  "previousAnswers 是医生已经作答的问答。根据旧题与答案的对应关系理解‘没有’等简短回答；quotes 只复制医生的回答或病历原文，旧题题干本身不是事实。新问题换一种说法重问了已答的一项，也按 answered 或 partly 判；若问的是不同时间或不同特征，按实际是否已答判断。",
 ];
-const FORMAT_LINE = "只输出 JSON：{\"verdict\":\"answered|partly|not_answered\",\"quotes\":[\"…\"],\"reason\":\"…\"}";
-const SYSTEM = [...SYSTEM_RULES, FORMAT_LINE].join("\n");
+const ANCHOR_RULE = "另核对题干中当成病历既有事实来描述的表现。普通指代、正在询问的新表现都不算。若题干把已记录的表现改成改变性质、部位、程度、时间等含义的说法，或凭空当成已发生，stemClaim 逐字复制题干中有问题的最小完整片段（含临床特征，不只写对象名）；否则为 null。拿不准时为 null。";
+const PEDIATRIC_RULE = "若提供 youngChild，判断题干是否要求患儿自己表达家长或医生无法观察的感受；neonate 或 infant 时也判断是否要求患儿咳出痰给家长查看。若有，unobservablePoint 逐字复制题干里问到的不可观察内容；否则为 null。家长能观察到的行为、医生可查的体征和危险征象不算。";
+const FORMAT_FIELDS = '"verdict":"answered|partly|not_answered","quotes":["…"],"reason":"…","stemClaim":null,"unobservablePoint":null';
 
 /**
  * 第二件事：两个选项在题干所问维度上是否取同一个值（2026-10-19 第八轮，B 集 Claude 评审：「两个选项都写喜热饮」「得温痛减对喜温喜按」
@@ -70,7 +74,7 @@ const SYSTEM = [...SYSTEM_RULES, FORMAT_LINE].join("\n");
  * 为什么放在这一次调用里：这次调用本来就拿到题干和各选项（单问点核对只给题干，选项一变它的结论就变，见下面 SINGLE_POINT_SYSTEM 上方说明与
  * test-r1019-safety-m02 Q3.1），不新增调用。两件事互不相干，提示词写明分别作答；服务端对第二件事的核对是构词式的：
  * 两段原文必须逐字出自对应的选项，且不能一边带否定/转折字而另一边不带（“得温痛减”对“得温不减”是相反，不是同向）。
- * 开关：CDSS_M02_OPTION_OVERLAP_CHECK=false 时发出的请求与改动前逐字相同。
+ * 开关：CDSS_M02_OPTION_OVERLAP_CHECK=false 时只跳过选项同值，重复与题干来源照常核对。
  */
 const OPTION_OVERLAP_RULES = [
   "另外还有第二件事，与上面的 verdict 无关，单独作答：看两个选项在题干所问的那个维度上的取值。options 的第一项是选项 A，第二项是选项 B。",
@@ -78,20 +82,12 @@ const OPTION_OVERLAP_RULES = [
   "- 不算：两个选项在该维度上取相反或互不相容的值（“得温痛减”对“得温不减、遇热加重”，“恶寒重、无汗”对“发热重、有汗”）；选项各自还带了题干没问的别的特征也不算，只看题干所问的那一个维度。",
   "- 拿不准时 optionValues 给空数组。",
 ];
-const FORMAT_LINE_WITH_OPTIONS = "只输出 JSON：{\"verdict\":\"answered|partly|not_answered\",\"quotes\":[\"…\"],\"reason\":\"…\",\"optionValues\":[]}";
-const SYSTEM_WITH_OPTION_CHECK = [
-  ...SYSTEM_RULES.map((line) => line.replace("只判断一件事：", "先判断第一件事：")),
-  ...OPTION_OVERLAP_RULES,
-  FORMAT_LINE_WITH_OPTIONS,
-].join("\n");
-
 function optionOverlapCheckEnabled(): boolean {
   return process.env.CDSS_M02_OPTION_OVERLAP_CHECK !== "false";
 }
 
 /** 近来有没有加重题的核对：只在本题（服务端的兜底题）要出之前用，规则与上面同源，另加一条趋势题的判法。 */
 const TREND_RULE = "趋势题：题干问某一情况近来有没有加重（选项为“近来加重”“没有加重”）。病历已经写出该情况随时间的变化或走势——逐次的体温或其他读数（先后读数不同、退了又起）、“一直…到现在”、“比之前重/轻”、“反复”、“又…了”——医生照病历就能回答，判 answered，quotes 给写出变化或走势的原文；病历只写了该情况出现过一次或此刻的一个读数、没有先后变化的描述，判 not_answered。";
-const SYSTEM_TREND = [...SYSTEM_RULES.slice(0, -2), TREND_RULE, ...SYSTEM_RULES.slice(-2), FORMAT_LINE].join("\n");
 
 /** 模型输出 → 这道题是否复述了病历。只有 answered / partly、1–3 条引文且每条都逐字在病历里时为 true。 */
 export function recordRepeatsQuestion(content: unknown, recordText: string): boolean {
@@ -128,23 +124,56 @@ export function optionsTakeSameValue(content: unknown, options: readonly string[
   return OPPOSITION_CHARS.test(first) === OPPOSITION_CHARS.test(second);
 }
 
-type RecordCheck = { repeats: boolean; optionsOverlap: boolean };
-const NO_RECORD_ISSUE: RecordCheck = { repeats: false, optionsOverlap: false };
+type RecordCheck = { repeats: boolean; optionsOverlap: boolean; unsuitableStem: boolean };
+const NO_RECORD_ISSUE: RecordCheck = { repeats: false, optionsOverlap: false, unsuitableStem: false };
+
+type NarrowCheckContext = {
+  previousAnswers?: readonly FollowupAnswer[];
+  youngChild?: M02YoungChildBand;
+  trendQuestion?: string;
+};
+
+export function questionStemFailsGrounding(output: string, stem: string, recordText: string, youngChild?: M02YoungChildBand): boolean {
+  let result: { stemClaim?: unknown; unobservablePoint?: unknown } | null;
+  try { result = JSON.parse(output); } catch { return false; }
+  if (!result || typeof result !== "object") return false;
+  const stemSpan = (value: unknown): value is string =>
+    typeof value === "string" && value.length >= 2 && value.length <= 80 && stem.includes(value);
+  return (stemSpan(result.stemClaim) && !alignQuoteToSource(result.stemClaim, recordText, { minNormalizedChars: 2 })) ||
+    (Boolean(youngChild) && stemSpan(result.unobservablePoint));
+}
 
 async function questionRecordCheck(
-  input: { recordText: string; question: string; options: string[] },
+  input: { recordText: string; question: string; options: string[]; context?: NarrowCheckContext; serverOwned?: boolean },
   signal?: AbortSignal,
-  /** 趋势题核对用 SYSTEM_TREND；不带选项重叠的第二件事。 */
   mode: "question" | "trend" = "question",
 ): Promise<RecordCheck> {
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return NO_RECORD_ISSUE;
   const recordText = input.recordText.slice(0, MAX_RECORD_CHARS);
   if (!recordText.trim() || !input.question.trim()) return NO_RECORD_ISSUE;
-  const withOptionCheck = mode === "question" && optionOverlapCheckEnabled() && input.options.length === 2;
+  // 问答单独传递，避免被长病历截断。答复可以作逐字证据，旧题本身不可以。
+  const previousAnswers = (input.context?.previousAnswers || []).slice(-5)
+    .map(({ question, answer }) => ({ question: question.slice(0, 240), answer: answer.slice(0, 480) }));
+  const youngChild = input.context?.youngChild;
+  const evidenceText = [recordText, ...previousAnswers.map(({ answer }) => answer)].join("\n");
+  const withOptionCheck = mode === "question" && !input.serverOwned && optionOverlapCheckEnabled() && input.options.length === 2;
   const messages = [
-    { role: "system" as const, content: mode === "trend" ? SYSTEM_TREND : withOptionCheck ? SYSTEM_WITH_OPTION_CHECK : SYSTEM },
-    { role: "user" as const, content: JSON.stringify({ record: recordText, question: input.question, options: input.options }) },
+    { role: "system" as const, content: [
+      ...SYSTEM_RULES,
+      ...(mode === "trend" ? [TREND_RULE] : []),
+      ...(withOptionCheck ? OPTION_OVERLAP_RULES : []),
+      ANCHOR_RULE,
+      ...(youngChild ? [PEDIATRIC_RULE] : []),
+      `只输出 JSON：{${FORMAT_FIELDS}${withOptionCheck ? ',"optionValues":[]' : ""}}`,
+    ].join("\n") },
+    { role: "user" as const, content: JSON.stringify({
+      record: recordText,
+      ...(previousAnswers.length ? { previousAnswers } : {}),
+      youngChild,
+      question: input.question,
+      options: input.options,
+    }) },
   ];
   return memoizedSmallTask<RecordCheck>(mode === "trend" ? "m02_priority_trend" : "m02_question_redundancy", smallTaskMemoKey([config.model, messages]), async () => {
     const controller = new AbortController();
@@ -153,7 +182,7 @@ async function questionRecordCheck(
       const response = await observeModelTask({ task: mode === "trend" ? "m02_priority_trend" : "m02_question_redundancy", stage: "question", model: config.model }, () => createTextModelClient(config).chat.completions.create({
         model: config.model,
         temperature: 0,
-        max_tokens: withOptionCheck ? 260 : 200,
+        max_tokens: withOptionCheck ? 340 : 280,
         stream: false,
         response_format: { type: "json_object" },
         ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
@@ -162,7 +191,8 @@ async function questionRecordCheck(
       const content = response.choices[0]?.message?.content;
       return {
         value: {
-          repeats: recordRepeatsQuestion(content, recordText),
+          repeats: recordRepeatsQuestion(content, evidenceText),
+          unsuitableStem: typeof content === "string" && questionStemFailsGrounding(content, input.question, evidenceText, youngChild),
           optionsOverlap: withOptionCheck && optionsTakeSameValue(content, input.options),
         },
         cacheable: typeof content === "string" && content.trim().length > 0,
@@ -188,32 +218,35 @@ export async function priorityTrendAnsweredByRecord(
   return (await questionRecordCheck({ recordText, question: trend.question, options: [...trend.options] }, signal, "trend")).repeats;
 }
 
-/**
- * 计划里复述病历的模型题的 id，以及两个选项在所问维度上同值的模型题的 id（同一次调用得出）。serverOwnedText 是本轮服务端自有题的全文
- *（兜底题、基本问诊题），题干出现在其中的不核。
- */
+/** 服务端题同样核对重复与题干来源，预置选项免做同值核对。 */
 export async function questionIdsFailingRecordCheck(
   content: string,
   recordText: string,
   serverOwnedText: string,
   signal?: AbortSignal,
-): Promise<{ repeating: string[]; overlapping: string[] }> {
-  const none = { repeating: [] as string[], overlapping: [] as string[] };
-  if (!enabled() || signal?.aborted) return none;
+  context?: NarrowCheckContext,
+): Promise<{ repeating: string[]; overlapping: string[]; unsuitable: string[] }> {
+  const none = { repeating: [] as string[], overlapping: [] as string[], unsuitable: [] as string[] };
+  if (signal?.aborted) return none;
   const plan = parseM02PlanFromContent(content);
   if (!plan || plan.decision !== "ask") return none;
   const owned = compact(serverOwnedText);
-  const repeating: string[] = [];
-  const overlapping: string[] = [];
-  for (const question of plan.questions.slice(0, 2)) {
-    const stem = compact(question.question);
-    if (!stem || owned.includes(stem)) continue;
+  const checks = await Promise.all(plan.questions.slice(0, 2).map(async (question) => {
+    if (previouslyAnsweredFollowupQuestion(question.question, context?.previousAnswers || [])) {
+      return { id: question.id, ...NO_RECORD_ISSUE, repeats: true };
+    }
+    if (!enabled()) return { id: question.id, ...NO_RECORD_ISSUE };
     const options = question.options.filter((option) => option.kind === "clinical_fact").map((option) => option.answer);
-    const check = await questionRecordCheck({ recordText, question: question.question, options }, signal);
-    if (check.repeats) repeating.push(question.id);
-    else if (check.optionsOverlap) overlapping.push(question.id);
-  }
-  return { repeating, overlapping };
+    const check = await questionRecordCheck({
+      recordText, question: question.question, options, context, serverOwned: owned.includes(compact(question.question)),
+    }, signal, question.question === context?.trendQuestion ? "trend" : "question");
+    return { id: question.id, ...check };
+  }));
+  return {
+    repeating: checks.filter((check) => check.repeats).map((check) => check.id),
+    overlapping: checks.filter((check) => check.optionsOverlap).map((check) => check.id),
+    unsuitable: checks.filter((check) => check.unsuitableStem).map((check) => check.id),
+  };
 }
 
 /** 兼容旧调用：只要复述病历的题号。 */
@@ -312,14 +345,15 @@ async function questionStemAsksTwoThings(
 }
 
 /**
- * 出题前要删的模型题：复述病历的（上面的重复核对）与并问两件事的，两项核对并行跑。
- * serverOwnedText 是本轮服务端自有题的全文，题干出现在其中的不核。
+ * 出题前要删的题：复述病历、改写已有表现或问了患儿无法报告的感受，以及并问两件事，两项核对并行跑。
+ * serverOwnedText 是服务端自有题的全文，只免单问点与选项同值核对。
  */
 export async function questionIdsFailingNarrowChecks(
   content: string,
   recordText: string,
   serverOwnedText: string,
   signal?: AbortSignal,
+  context?: NarrowCheckContext,
 ): Promise<string[]> {
   if (signal?.aborted) return [];
   const plan = parseM02PlanFromContent(content);
@@ -328,13 +362,13 @@ export async function questionIdsFailingNarrowChecks(
   const compoundIds = singlePointCheckEnabled()
     ? Promise.all(plan.questions.slice(0, 2).map(async (question) => {
       const stem = compact(question.question);
-      if (!stem || owned.includes(stem)) return undefined;
+      if (!stem || owned.includes(stem) || previouslyAnsweredFollowupQuestion(question.question, context?.previousAnswers || [])) return undefined;
       return await questionStemAsksTwoThings({ question: question.question }, signal) ? question.id : undefined;
     }))
     : Promise.resolve([]);
   const [recordCheck, compound] = await Promise.all([
-    questionIdsFailingRecordCheck(content, recordText, serverOwnedText, signal),
+    questionIdsFailingRecordCheck(content, recordText, serverOwnedText, signal, context),
     compoundIds,
   ]);
-  return [...new Set([...recordCheck.repeating, ...recordCheck.overlapping, ...compound.filter((id): id is string => typeof id === "string")])];
+  return [...new Set([...recordCheck.repeating, ...recordCheck.overlapping, ...recordCheck.unsuitable, ...compound.filter((id): id is string => typeof id === "string")])];
 }

@@ -436,7 +436,15 @@
     "test:r1075-same-source-herbs": "node --max-old-space-size=2000 scripts/test-r1075-same-source-herbs.mjs",
     "test:r1076-main": "node --max-old-space-size=2000 scripts/test-r1076-main.mjs",
     "test:r1078-main": "node --max-old-space-size=2000 scripts/test-r1078-main.mjs",
+    "test:r1081-main": "node --max-old-space-size=2000 scripts/test-r1081-main.mjs",
+    "test:r1081-care": "node --max-old-space-size=2000 scripts/test-r1081-care.mjs",
+    "test:r1081-latency": "node --max-old-space-size=2000 scripts/test-r1081-latency.mjs",
     "test:r1079-main": "node --max-old-space-size=2000 scripts/test-r1079-main.mjs",
+    "test:r1081-safety": "node scripts/test-r1081-safety.mjs",
+    "test:r1081-m03": "node --max-old-space-size=2000 scripts/test-r1081-m03.mjs",
+    "test:r1081-m02": "node scripts/test-r1081-m02.mjs",
+    "test:r1081-rx": "node scripts/test-r1081-rx.mjs",
+    "test:r1081-western": "node scripts/test-r1081-western.mjs",
     "test:r1067-rationale3": "node --max-old-space-size=1280 scripts/test-r1067-rationale3.mjs"
   },
   "dependencies": {

@@ -9,13 +9,14 @@
  *   1) **只删不加**。处理只有这几种：去掉那味药/那条加减、补上规则要求的特殊煎法、
  *      记账字段（药味指向哪个病机节点、君臣标签、服法算术、方名身份、M03 归属字段）由服务端按已签名的 M03 重算。不新增药味、不放宽剂量。
  *   2) 每处理一步都完整重跑调用方给的那道检查（issueOf）；处理不了的原因、处理后没有变化、或步数用完，一律返回 undefined，调用方照旧不给剂量。
- *   3) **唯一君药出问题时**，方中有可接任的臣药才去掉它（臣药升君、写明），否则不动——君药决定全方走向，没有臣药可接时交还原有路径。
+ *   3) **唯一君药出问题时**，先由臣药接任，或升任原已针对 P1 且满足君药方向要求的佐药，否则不动——君药决定全方走向，没有合适药味可接时交还原有路径。
  *      删后不足 3 味不删。
  *
  * 原因 → 处理方式是一张登记表（M04_SALVAGE_RULES）。scripts/test-r1075-salvage.mjs 逐个扫开方安全合同的返回码，
  * 没有登记的原因测试不通过——新增检查时必须同时写明「这一项不合格时去掉什么」，不会再默认整页作废。
  */
-import { canonicalTcmHerbIdentity, m04GenerationSpecialPopulationIssue } from "./diagnosis-stage-contract";
+import { selectGroundedHerbFunction } from "./herb-function-display-source";
+import { canonicalTcmHerbIdentity, herbShortlistDirectionEligible, m04GenerationSpecialPopulationIssue } from "./diagnosis-stage-contract";
 import { enforceM04PriorStageOwnership } from "./diagnosis-structured-repair";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
 import { appendCaseSafetyNote } from "./candidate-boundary-text";
@@ -35,6 +36,7 @@ const ROLE_RANK: Readonly<Record<string, number>> = { 君: 0, 臣: 1, 佐: 2, �
 
 export type M04SalvageAction =
   | "repoint_target"
+  | "repair_function"
   | "remove_herb"
   | "fill_decoction_requirement"
   | "remove_lower_of_pair"
@@ -61,6 +63,7 @@ export const M04_SALVAGE_RULES: ReadonlyArray<{ pattern: RegExp; action: M04Salv
     action: "repoint_target",
     why: "药味指向哪个病机节点是记账字段：按已签名 M03 的节点重算（君药指 P1，其余按功效与节点文字最接近者）",
   },
+  { pattern: /^candidate_\d+_herb_\d+_function(?:_ungrounded)?$/, action: "repair_function", why: "按该规格的功效原文订正功效说明，保留剂量，重新核对整方" },
   // ── 单味药不合格：去掉这一味 ──
   // 合同只在「编译器压不了」时才按剂量驳回（普通药味超上沿由 ordinaryHistoricalDoseDeviation 放行、编译器压到上沿）：
   // 走到这里的是有毒、医师定量或缺少可核对上限的药味，系统不自动减量，去掉这一味。
@@ -85,7 +88,7 @@ export const M04_SALVAGE_RULES: ReadonlyArray<{ pattern: RegExp; action: M04Salv
   // ── 归属 M03 的字段被改写：逐字回绑 ──
   { pattern: /^(?:primary_syndrome_drift|pathogenesis_drift|therapy_drift)$/, action: "rebind_prior", why: "证候、病机、治则归 M03 所有，按已签名 M03 逐字回绑" },
   // ── 方名身份：剥离为自拟方，组成照留 ──
-  { pattern: /^(?:named_formula_positive_sufficiency_missing.*|formula_(?:reference_missing|reference_display_mismatch|direction_drift|reference_contract_missing|reference_ambiguous|reference_selection_drift|compilation_composition_drift|compilation_contract_missing|reference_declassified|name_requires_modified_suffix|component_.+_unverified))$/, action: "declassify_identity", why: "方名对不上组成或证候：剥离方名按自拟方交付，药味照留" },
+  { pattern: /^(?:named_formula_positive_sufficiency_missing.*|formula_(?:selection_missed_lockable|reference_missing|reference_display_mismatch|direction_drift|reference_contract_missing|reference_ambiguous|reference_selection_drift|compilation_composition_drift|compilation_contract_missing|reference_declassified|name_requires_modified_suffix|component_.+_unverified))$/, action: "declassify_identity", why: "方名对不上组成或证候：剥离方名按自拟方交付，药味照留" },
   { pattern: /^candidate_count$/, action: "keep_first_candidate", why: "只交付第一个候选方" },
   // ── 登记过的不保底 ──
   { pattern: /^(?:candidates_empty|candidate_\d+_herbs_empty)$/, action: "none", why: "没有药味可保" },
@@ -221,13 +224,24 @@ function promoteToEmperor(herb: Json, nodes: PriorNode[]): void {
 }
 
 /** 唯一君药被去掉时接任的臣药：先取指向第一节点的臣药，其次第一味臣药；跳过自身就与本例安全边界冲突或须医生单独定量的。 */
-function emperorHeir(herbs: unknown[], removedIndex: number, clinicalContext: string, nodes: PriorNode[]): Json | undefined {
+function emperorHeir(herbs: unknown[], removedIndex: number, clinicalContext: string, nodes: PriorNode[], prior: ClinicalReasoningResultV2): Json | undefined {
   const eligible = herbs
     .map((value, index) => ({ herb: record(value), index }))
-    .filter((item): item is { herb: Json; index: number } => Boolean(item.herb) && item.index !== removedIndex && roleOf(item.herb) === "臣")
+    .filter((item): item is { herb: Json; index: number } => Boolean(item.herb) && item.index !== removedIndex)
     .filter(({ herb }) => !clinicianDoseHerbClass(nameOf(herb)) && !m04GenerationSpecialPopulationIssue([{ name: nameOf(herb), role: "君" }], clinicalContext));
   const first = nodes[0]?.id;
-  return (eligible.find(({ herb }) => herb.targetRef === first) || eligible[0])?.herb;
+  const ministers = eligible.filter(({ herb }) => roleOf(herb) === "臣");
+  return (ministers.find(({ herb }) => herb.targetRef === first) || ministers[0] ||
+    eligible.find(({ herb }) => roleOf(herb) === "佐" && first && herb.targetRef === first && herbShortlistDirectionEligible(nameOf(herb), prior)))?.herb;
+}
+
+/** Used in the existing candidate repair draw, before deterministic salvage. */
+export function uniqueEmperorRepairHint(herbs: readonly unknown[], reason: string): string | undefined {
+  const code = normalizeM04SalvageCode(reason);
+  const index = herbIndexOf(code);
+  if (index === undefined || !/_special_population_high_risk_/u.test(code) || roleOf(herbs[index]) !== "君" ||
+      herbs.filter((herb) => roleOf(herb) === "君").length !== 1) return undefined;
+  return `原定君药${nameOf(herbs[index])}不适合本例（${specialPopulationConflictLabel(code)}）。重拟处方时去掉此药，也避开因同一原因不宜使用的药。在本例可任君药的候选中，选有教材功效、可核用量并能承担主要治法的药接任。若由方中臣佐药接任，说明其为何适合；每味药均须重新过剂量和配伍核对。`;
 }
 
 function removalReason(code: string, herbName: string): string {
@@ -257,7 +271,7 @@ function removeHerb(reasoning: Json, index: number, reason: string, ctx: M04Salv
   const removedName = nameOf(target);
   let heirNote = "";
   if (roleOf(target) === "君" && herbs.filter((value) => roleOf(value) === "君").length <= 1) {
-    const heir = emperorHeir(herbs, index, ctx.clinicalContext, nodes);
+    const heir = emperorHeir(herbs, index, ctx.clinicalContext, nodes, ctx.prior);
     if (!heir) return undefined;
     promoteToEmperor(heir, nodes);
     heirNote = `，${nameOf(heir)}改作君药`;
@@ -300,6 +314,29 @@ function applyRule(content: string, code: string, action: M04SalvageAction, ctx:
         return true;
       });
       return next ? { content: next, herb: herbName } : undefined;
+    }
+    case "repair_function": {
+      if (herbIndex == null) return undefined;
+      const next = withParsed(content, (reasoning) => {
+        const herbs = firstCandidate(reasoning)?.herbs;
+        const herb = record(Array.isArray(herbs) ? herbs[herbIndex] : undefined);
+        if (!herb) return false;
+        const selected = selectGroundedHerbFunction({ name: nameOf(herb), role: roleOf(herb),
+          target: String(herb.targetPathogenesis || ""), therapy: String(ctx.prior.therapy?.overallMethod || ""),
+          patient: { recordText: ctx.clinicalContext } });
+        const source = selected.sources.find((row) => !/^有(?:大|小)?毒$/u.test(row.text));
+        if (!source || !selected.text || selected.text === herb.function) return false;
+        herb.function = selected.text;
+        const note = `${nameOf(herb)}在本方取${source.text}之用（${source.sourceRef}）。`;
+        const reasons = Array.isArray(herb.verificationReasons) ? herb.verificationReasons : [];
+        if (reasons.length < 8) herb.verificationReasons = [...new Set([...reasons, note])];
+        else {
+          const candidate = firstCandidate(reasoning)!;
+          candidate.notApplicable = appendCaseSafetyNote(String(candidate.notApplicable || ""), note);
+        }
+        return true;
+      });
+      return next ? { content: next } : undefined;
     }
     case "remove_herb": {
       if (herbIndex == null) return undefined;
@@ -448,7 +485,7 @@ function applyRule(content: string, code: string, action: M04SalvageAction, ctx:
       const next = withParsed(content, (reasoning) => {
         const herbs = firstCandidate(reasoning)?.herbs;
         if (!Array.isArray(herbs) || herbs.some((value) => roleOf(value) === "君")) return false;
-        const heir = emperorHeir(herbs, -1, ctx.clinicalContext, nodes);
+        const heir = emperorHeir(herbs, -1, ctx.clinicalContext, nodes, ctx.prior);
         if (!heir) return false;
         promoteToEmperor(heir, nodes);
         herbName = nameOf(heir);
@@ -457,9 +494,13 @@ function applyRule(content: string, code: string, action: M04SalvageAction, ctx:
       return next ? { content: next, herb: herbName } : undefined;
     }
     case "declassify_identity": {
-      if (!ctx.declassify) return undefined;
-      const next = ctx.declassify(content);
-      return next !== content ? { content: next } : undefined;
+      // 先按调用方的剥离方式（能记成「X加减」的记成加减）。它没有改动、或改完同一个原因还在时，直接剥成自拟方、组成与剂量照留
+      //（第六十二轮实链 f23：月经过少·肾阳虚证开出归肾丸原方，「方名与本证的正向依据不足」，调用方的剥离认为组成与目录相符不必改，
+      // 于是这一步没有任何动作，整页退成不给剂量）。
+      const first = ctx.declassify ? ctx.declassify(content) : content;
+      if (first !== content && normalizeM04SalvageCode(ctx.issueOf(first) || "") !== code) return { content: first };
+      const stripped = deliveredFormDeclassification(content, ctx.prior);
+      return stripped !== content ? { content: stripped } : undefined;
     }
     case "keep_first_candidate": {
       const next = withParsed(content, (reasoning) => {
@@ -511,10 +552,10 @@ export function deliveredFormDeclassification(content: string, prior?: ClinicalR
   const next = withParsed(content, (reasoning) => {
     const candidate = firstCandidate(reasoning);
     if (!candidate) return false;
-    if (candidate.identityDeclassified === true) return false;
+    if (candidate.identityDeclassified === true && (candidate.name === "自拟方" || candidate.name === "本例辨证组方")) return false;
     // 交付面已经把它呈现为不沿用方名身份的方（自拟、方名表为空）、方名栏写的是「X加减」这类给医生看的写法：只补服务端剥离标记，方名照留
     //（第五十七轮回放 C012：「茵陈蒿汤加减」被改成「自拟方」，医生少了「以茵陈蒿汤为基础」这一信息）。
-    if (candidate.constructionType === "self_devised" && Array.isArray(candidate.formulaNames) && candidate.formulaNames.length === 0) {
+    if (candidate.identityDeclassified !== true && candidate.constructionType === "self_devised" && Array.isArray(candidate.formulaNames) && candidate.formulaNames.length === 0) {
       candidate.identityDeclassified = true;
       return true;
     }
@@ -534,3 +575,24 @@ export function deliveredFormDeclassification(content: string, prior?: ClinicalR
   return next || content;
 }
 
+
+/** Recover only a retained rejection which the current checkpoint contract reproduces.
+ * A new checkpoint has to pass the route transform and the entire continuity contract. */
+export function repairRetainedM04<T extends { content: string; contractIssues?: readonly string[] }>(
+  previous: T, ctx: Omit<M04SalvageContext, "issueOf">, inspect: (content: string) => T | undefined,
+  transform: (content: string) => string,
+): T | undefined {
+  const originalIssues = previous.contractIssues || [];
+  if (!originalIssues.length || originalIssues.some((code) => !m04SalvageRuleFor(code) || m04SalvageRuleFor(code)?.action === "none")) return undefined;
+  try {
+    const reproduced = inspect(previous.content)?.contractIssues || [];
+    if (!originalIssues.every((code) => reproduced.includes(code))) return undefined;
+    const repaired = salvageM04Content(previous.content, { ...ctx, issueOf(content) {
+      const checked = inspect(content);
+      return checked ? checked.contractIssues?.[0] : "stage";
+    } });
+    if (!repaired?.steps.length) return undefined;
+    const checked = inspect(transform(repaired.content));
+    return checked && !checked.contractIssues?.length ? checked : undefined;
+  } catch { return undefined; }
+}

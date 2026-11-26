@@ -9,7 +9,7 @@
  * 孕周、抗凝药照常给出带剂量处方，性别/舌/脉/过敏史全变成未提供（生产 12/12 例）。
  *
  * 本模块是「一条 user 消息是什么」的唯一口径：
- *   · 跳过句不是病历内容，在请求入口就剔除（连同它前面那道没人回答的题）；
+ *   · 跳过句不是病历内容，在请求入口剔除；紧邻的未答题干另存为未确认事项；
  *   · 紧跟在 assistant 题干后面的 user 消息是「追问回答」，是对病历的补充，不能顶替病历；
  *   · 其余 user 消息才是「对话里口述的主叙述」（旧式对话调用方），沿用原口径。
  * 跳过句是有限闭集，按整句匹配；不做开放语言判断。
@@ -20,6 +20,8 @@ export const FOLLOWUP_SKIP_SENTENCE = "本次未能确认，请继续现场评�
 const FOLLOWUP_SKIP_SENTENCES = new Set(
   [
     FOLLOWUP_SKIP_SENTENCE,
+    "本次未取得",
+    "本次未取得该信息",
     "本次未能确认",
     "跳过",
     "跳过追问",
@@ -48,6 +50,11 @@ export interface FollowupAnswer {
   answer: string;
 }
 
+function followupQuestionStem(content: string): string {
+  const firstLine = content.trim().split("\n", 1)[0];
+  return firstLine.replace(/^\*\*问题\d+[：:]\*\*\s*/u, "").trim();
+}
+
 export interface FollowupConversationView {
   /** 不跟在题干后面的 user 消息：对话里口述的主叙述。 */
   primaryNarrative: string[];
@@ -71,7 +78,7 @@ export function followupConversationView(conversation: readonly ConversationMess
     }
     const previous = index > 0 ? messages[index - 1] : undefined;
     if (previous?.role === "assistant" && previous.content.trim()) {
-      view.answers.push({ question: previous.content.trim(), answer: content });
+      view.answers.push({ question: followupQuestionStem(previous.content), answer: content });
     } else {
       view.primaryNarrative.push(content);
     }
@@ -107,19 +114,41 @@ export function answeredFollowupTonguePulse(view: FollowupConversationView): { t
   return out;
 }
 
-/** 请求入口用：剔除跳过句，以及紧挨在它前面、因此没有回答的那道题。 */
-export function stripFollowupSkipMessages<T extends ConversationMessageLike>(conversation: readonly T[]): { conversation: T[]; skipped: boolean } {
+/** 请求入口用：病历对话只保留有效回答，跳过的题干另留作未确认事项。 */
+export function stripFollowupSkipMessages<T extends ConversationMessageLike>(
+  conversation: readonly T[],
+): { conversation: T[]; skipped: boolean; unconfirmedFollowupQuestions: string[] } {
   const kept: T[] = [];
+  const unconfirmed = new Map<string, string>();
   let skipped = false;
+  let pending: T | undefined;
   for (const message of conversation) {
     if (message.role === "user" && isFollowupSkipMessage(message.content)) {
       skipped = true;
-      if (kept.length > 0 && kept[kept.length - 1].role === "assistant") kept.pop();
+      if (pending) {
+        kept.pop();
+        const stem = followupQuestionStem(pending.content);
+        if (stem) unconfirmed.set(compactFollowupText(stem), stem);
+      }
+      pending = undefined;
       continue;
     }
+    if (message.role === "user" && pending && message.content.trim()) {
+      unconfirmed.delete(compactFollowupText(followupQuestionStem(pending.content)));
+    }
     kept.push(message);
+    pending = message.role === "assistant" ? message : undefined;
   }
-  return { conversation: kept, skipped };
+  return {
+    conversation: kept,
+    skipped,
+    unconfirmedFollowupQuestions: [...unconfirmed.values()].slice(-3).map((stem) => stem.slice(0, 120)),
+  };
+}
+
+export function previouslyAnsweredFollowupQuestion(question: string, answers: readonly FollowupAnswer[]): boolean {
+  const stem = compactFollowupText(question);
+  return Boolean(stem) && answers.some((item) => compactFollowupText(item.question) === stem);
 }
 
 /**
