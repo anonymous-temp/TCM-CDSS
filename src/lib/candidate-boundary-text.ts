@@ -7,6 +7,7 @@
  * 「；；；；。命中相应人群或状态时…复核。」再追加一遍新的，残段逐轮累积（瘦身前后都是约四分之一病例）。
  * 生成与剥离放在同一个文件里：尾段长什么样只有这里知道，编译器与出处富化都调同一个剥离函数。
  */
+import labelPopulationSubjects from "../data/label-population-subjects.source.json" with { type: "json" };
 import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { getTcmHerbFunctionCategories } from "./tcm-knowledge";
@@ -66,6 +67,25 @@ export function withoutIrrelevantPopulationCautions(text: string, audience?: Her
     return kept.length > 0 ? `${herb}（${kept.join("、")}${verb}）${separator}` : "";
   });
   return result === text ? text : result.replace(/[；;，,、]\s*$/u, "").trim();
+}
+
+/**
+ * 说明书注意事项里以人群开头、句首人群本例一个都不可能属于的句子去掉（「哺乳期妇女慎用。」「儿童、年老体弱者应在医师指导下服用。」对 39 岁男性）。
+ * 人群写法与对应标签在 label-population-subjects.source.json；判据与逐味人群提示同一个。句首还有别的病情类人群的（「糖尿病…等慢性病患者」）不动。
+ */
+export function withoutIrrelevantPopulationSentences(text: string, audience?: HerbBoundaryAudience): string {
+  if (!audience || !text) return text;
+  const subjects = labelPopulationSubjects.subjects as Record<string, string>;
+  const names = Object.keys(subjects).sort((a, b) => b.length - a.length);
+  const head = new RegExp(`^((?:${names.join("|")})(?:[、及和与或](?:${names.join("|")}))*)(?=${(labelPopulationSubjects.predicates as string[]).join("|")})`, "u");
+  const sentences = text.split(/(?<=[。；;])/u);
+  const kept = sentences.filter((sentence) => {
+    const match = sentence.trim().match(head);
+    if (!match) return true;
+    const populations = match[1].split(/[、及和与或]/u).filter(Boolean).map((name) => subjects[name]).filter(Boolean);
+    return populations.some((population) => herbBoundaryPopulationRelevant(population, audience));
+  });
+  return kept.length === sentences.length ? text : kept.join("").trim();
 }
 
 /** 文本里有本文件写出的尾段（新写法）。 */

@@ -73,7 +73,7 @@ import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-
 import { diseaseNeutralCategoryName } from "./m03-disease-neutral-policy";
 import { diseaseRecordContext, textbookDiseaseRefinementMatches, withDiseaseDefiningFindingCaveat } from "./tcm-disease-defining-findings";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
-import { migrateDeliveredHerbCautions, withoutIrrelevantPopulationCautions, boundaryRuleShown, followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
+import { migrateDeliveredHerbCautions, withoutIrrelevantPopulationCautions, withoutIrrelevantPopulationSentences, boundaryRuleShown, followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, herbFunctionKnowledgeForDisplay, isExternalUseEfficacyClause, isKnownTcmHerbName } from "./tcm-knowledge";
 import { herbFunctionClaimUnsupportedPhrases, herbFunctionPhraseRecognized, herbFunctionPhraseSupported } from "./diagnosis-stage-contract";
 import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment, treatmentCardUndeliverable } from "./tcm-treatment-capabilities.server";
@@ -2811,6 +2811,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     // 说明书原文里的「商品名＋通用名」写回「本品」，两栏各自的条目编号去掉，重复句只留一句（第六十轮，tidiedMedicineLabelNote）。
     if (typeof medicine.riskNote === "string" && typeof medicine.name === "string") {
       medicine.riskNote = tidiedMedicineLabelNote(medicine.riskNote, medicine.name, (name) => Boolean(findLocalPatentMedicineLabel(name))) || medicine.riskNote;
+    }
+    if (typeof medicine.riskNote === "string" && options?.herbBoundaryAudience) {
+      medicine.riskNote = withoutIrrelevantPopulationSentences(medicine.riskNote, options.herbBoundaryAudience);
     }
     // 「说明书用法字段已与本候选的说明书条目及指纹绑定」「与中药饮片方案不默认联用…」是系统说明，不是用药信息。
     // 第四十四轮（甲方 11/14：中成药按接口原始数据核对）起不再交付空串：使用边界取说明书里「服药N天/周…无缓解…就诊」那一句，

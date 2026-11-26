@@ -399,4 +399,16 @@ check("10.18", "逐味人群提示里模型照写的括注：本例不可能属�
   assert.equal(boundary.withoutIrrelevantPopulationCautions("枳壳（孕期/妊娠慎用）", woman), "枳壳（孕期/妊娠慎用）");
   assert.equal(boundary.withoutIrrelevantPopulationCautions("按本例情况已去除：附子（孕期不宜）", male), "按本例情况已去除：附子（孕期不宜）", "去除说明不动");
 });
+
+check("10.19", "中成药说明书里句首人群本例都不可能属于的句子不交付（39 岁男性不写「哺乳期妇女慎用」「儿童、年老体弱者…」）；病情类人群、可能属于的人群照留", () => {
+  const label = "忌烟、酒及辛辣食物。糖尿病、高血压等慢性病患者应在医师指导下服用。哺乳期妇女慎用。儿童、年老体弱者应在医师指导下服用。孕妇禁用。";
+  const male = { sex: "男", ageYears: 39, pregnancy: false, lactation: false, reproductive: false };
+  assert.equal(boundary.withoutIrrelevantPopulationSentences(label, male), "忌烟、酒及辛辣食物。糖尿病、高血压等慢性病患者应在医师指导下服用。");
+  const elderly = boundary.withoutIrrelevantPopulationSentences(label, { sex: "男", ageYears: 72, pregnancy: false, lactation: false, reproductive: false });
+  assert.match(elderly, /儿童、年老体弱者应在医师指导下服用/u, "句首有一个本例可能属于的人群就整句保留");
+  assert.doesNotMatch(elderly, /孕妇禁用/u);
+  const woman = boundary.withoutIrrelevantPopulationSentences(label, { sex: "女", ageYears: 30, pregnancy: true, lactation: true, reproductive: true });
+  assert.match(woman, /哺乳期妇女慎用。.*孕妇禁用/u);
+  assert.equal(boundary.withoutIrrelevantPopulationSentences(label, undefined), label, "不知道人群时不动");
+});
 console.log(`r1081 main: ${n} checks passed`);
