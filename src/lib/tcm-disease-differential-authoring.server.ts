@@ -4,6 +4,8 @@ import { canonicalTcmSyndromeTerm } from "./clinical-governance-tables";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { crossVendorJsonTask } from "./cross-model-small-task.server";
+import { quoteGroundedInText } from "./verbatim-quote";
 import { MIN_TCM_DIFFERENTIALS, WESTERN_DISEASE_FORM, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesAffirmedFinding, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, tcmDifferentialSelfDeclaredUnrelated } from "./tcm-textbook-syndromes";
 
@@ -207,7 +209,9 @@ const OUTPUT_FORMAT_SYNDROME = "只输出 JSON：{\"differentials\":[{\"syndrome
  *  · 候选不够（含没有）：优先取候选，其余由模型另提中医病名，名字过 resolveTcmDiseaseDifferentialName。
  */
 export async function authorTcmDiseaseDifferentials(
-  input: SmallTaskInput & { candidates: ReadonlyArray<{ name: string; text: string }>; existing?: readonly string[]; need?: number; nameList?: readonly string[] },
+  input: SmallTaskInput & { candidates: ReadonlyArray<{ name: string; text: string }>; existing?: readonly string[]; need?: number; nameList?: readonly string[];
+    /** 测试注入：替代另一家模型的核对。 */
+    sharedFeatureConfirm?: (request: { recordText: string; diseaseName: string; differential: string; reason: string }, signal?: AbortSignal) => Promise<SharedFeatureVerdict | undefined> },
   signal?: AbortSignal,
 ): Promise<AuthoredTcmDiseaseDifferential[]> {
   if (!enabled() || signal?.aborted) return [];
@@ -278,8 +282,80 @@ export async function authorTcmDiseaseDifferentials(
       }),
     },
   ];
-  return runAuthoringTask("tcm_disease_differential_authoring", messages, (content) => parseAuthoredTcmDiseaseDifferentials(content, acceptName, need, input.recordText), need > 1 ? 420 : 260, signal);
+  // 模型另提的规范中医病名（归一判据认得、不是西医构词）而教材里没有它的定义、本地核不了「与本例有无相似处」的：
+  // 不直接丢，请另一家模型核一次——要它逐字摘出病历里两病都可见的那一项表现，摘句对得上病历才收（第六十二轮回归：
+  // 带下过多、口疮、胬肉攀睛这类教材鉴别少的病，模型提的白淫、舌岩、赤脉传睛全被本地判据挡掉，病名鉴别不足两项）。
+  const deferred = new Set<string>();
+  const acceptOrDefer = (name: string) => {
+    const accepted = acceptName(name);
+    if (accepted || closed || !differentialCrossCheckEnabled()) return accepted;
+    const resolved = resolveTcmDiseaseDifferentialName(name, input.diseaseName);
+    if (resolved.action === "drop" || taken.has(resolved.name) || WESTERN_DISEASE_FORM.test(resolved.name)) return undefined;
+    deferred.add(resolved.name);
+    return resolved.name;
+  };
+  const authored = await runAuthoringTask("tcm_disease_differential_authoring", messages, (content) => parseAuthoredTcmDiseaseDifferentials(content, acceptOrDefer, need, input.recordText), need > 1 ? 420 : 260, signal);
+  return crossVerifiedDifferentials(authored, deferred, { recordText: input.recordText, diseaseName: input.diseaseName }, input.sharedFeatureConfirm || confirmSharedFeature, signal);
 }
+
+/**
+ * 留下的鉴别里，模型自提、本地核不了的那几项（deferred）逐项请另一家核：判成立、且摘出的共有表现逐字对得上病历才收；
+ * 相近之处写成摘出的那项（模型原来写的相近之处里没有病历原话时）。其余原样保留。
+ */
+export async function crossVerifiedDifferentials<T extends { diseaseName: string; reason: string }>(
+  authored: readonly T[],
+  deferred: ReadonlySet<string>,
+  context: { recordText: string; diseaseName: string },
+  confirm: (request: { recordText: string; diseaseName: string; differential: string; reason: string }, signal?: AbortSignal) => Promise<SharedFeatureVerdict | undefined>,
+  signal?: AbortSignal,
+): Promise<T[]> {
+  if (!authored.some((item) => deferred.has(item.diseaseName))) return [...authored];
+  const verdicts = await Promise.all(authored.map((item) => deferred.has(item.diseaseName)
+    ? confirm({ recordText: context.recordText.slice(0, MAX_RECORD_CHARS), diseaseName: context.diseaseName, differential: item.diseaseName, reason: item.reason }, signal).catch(() => undefined)
+    : Promise.resolve(null)));
+  const kept = authored.flatMap((item, index) => {
+    const verdict = verdicts[index];
+    if (verdict === null) return [item];
+    if (!verdict?.confirmed || !verdict.shared || !quoteGroundedInText(verdict.shared, context.recordText, { minChars: 2 })) return [];
+    return [{ ...item, reason: item.reason && context.recordText.includes(item.reason) ? item.reason : `均可见${verdict.shared}`.slice(0, 24) }];
+  });
+  console.info("[tcm-cdss:telemetry] tcm_disease_differential_cross_check", { deferred: deferred.size, confirmed: kept.filter((item) => deferred.has(item.diseaseName)).length });
+  return kept;
+}
+
+function differentialCrossCheckEnabled(): boolean {
+  return process.env.CDSS_TCM_DIFFERENTIAL_CROSS_CHECK !== "false";
+}
+
+export type SharedFeatureVerdict = { shared: string; confirmed: boolean };
+/** 另一家模型核一条模型自提的中医病名鉴别：两病都可见、本例病历也记录了的一项表现（逐字摘自病历）。失败、超时返回 undefined。 */
+function confirmSharedFeature(
+  request: { recordText: string; diseaseName: string; differential: string; reason: string },
+  signal?: AbortSignal,
+): Promise<SharedFeatureVerdict | undefined> {
+  const messages = [
+    {
+      role: "system" as const,
+      content: [
+        "你核对一条中医病名鉴别是否成立，不改变本例诊断。",
+        "成立的条件：differential 是规范的中医病名，临床上确实可能与本病（tcmDisease）混淆，并且本例病历里记录了一项它本身也会出现的表现。",
+        "先写 shared：逐字摘自病历的那一项表现（只摘病历原文，不改写；病历里没有就写空串）；再写 confirmed。",
+        "只输出 JSON：{\"shared\":\"…\",\"confirmed\":true|false}。",
+      ].join("\n"),
+    },
+    { role: "user" as const, content: JSON.stringify({ tcmDisease: request.diseaseName, differential: request.differential, proposedReason: request.reason, record: request.recordText }) },
+  ];
+  return crossVendorJsonTask("tcm_disease_differential_shared_feature", "diagnose", messages, { maxTokens: 160, timeoutMs: CROSS_CHECK_TIMEOUT_MS }, (content) => {
+    if (typeof content !== "string") return undefined;
+    try {
+      const value = JSON.parse(content) as { shared?: unknown; confirmed?: unknown };
+      return typeof value.confirmed === "boolean" ? { shared: typeof value.shared === "string" ? value.shared.trim() : "", confirmed: value.confirmed } : undefined;
+    } catch {
+      return undefined;
+    }
+  }, signal);
+}
+const CROSS_CHECK_TIMEOUT_MS = 3_000;
 
 /**
  * 补写证候鉴别。候选取教材该病下的其他证型（名字逐字取用）；教材没有或不够时由模型另提，名字要过受治理证候词表。

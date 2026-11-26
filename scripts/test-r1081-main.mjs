@@ -373,4 +373,20 @@ check("10.16", "附子等久煎药的煎法只写时长，不让病人口尝药�
   assert.doesNotMatch(phrase, /口尝/u);
 });
 
+const authoring = await jiti.import("../src/lib/tcm-disease-differential-authoring.server.ts");
+// 模型自提、教材里没有定义的中医病名鉴别：另一家模型摘出病历里两病都可见的表现（逐字）才收；判不成立、摘句对不上病历的不收。
+{
+  const record = "患者男，45岁。舌部溃疡伴红肿、疼痛2天，进食时加重。舌红，苔黄，脉数。";
+  const rows = [{ diseaseName: "牙宣", reason: "口腔疼痛" }, { diseaseName: "舌岩", reason: "口腔局部病变" }];
+  const ctx = { recordText: record, diseaseName: "口疮" };
+  const deferred = new Set(["舌岩"]);
+  const yes = await authoring.crossVerifiedDifferentials(rows, deferred, ctx, async () => ({ shared: "舌部溃疡伴红肿、疼痛", confirmed: true }));
+  assert.deepEqual(yes.map((item) => item.diseaseName), ["牙宣", "舌岩"]);
+  assert.match(yes[1].reason, /舌部溃疡伴红肿、疼痛/u, "相近之处写成病历原话");
+  assert.equal(yes[0].reason, "口腔疼痛", "不需核的照原样");
+  assert.deepEqual((await authoring.crossVerifiedDifferentials(rows, deferred, ctx, async () => ({ shared: "舌部溃疡", confirmed: false }))).map((item) => item.diseaseName), ["牙宣"], "另一家判不成立不收");
+  assert.deepEqual((await authoring.crossVerifiedDifferentials(rows, deferred, ctx, async () => ({ shared: "舌体肿物质硬", confirmed: true }))).map((item) => item.diseaseName), ["牙宣"], "摘句对不上病历不收");
+  assert.deepEqual((await authoring.crossVerifiedDifferentials(rows, deferred, ctx, async () => undefined)).map((item) => item.diseaseName), ["牙宣"], "核对失败不收");
+  n += 1; console.log("✓ 10.17 模型自提、教材没有定义的鉴别病名：另一家摘出病历里两病共有的表现才收（带下过多、口疮、胬肉攀睛这类教材鉴别少的病）");
+}
 console.log(`r1081 main: ${n} checks passed`);

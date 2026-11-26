@@ -58,7 +58,10 @@ await check("1.4 教材候选鉴别也按相同主诉判据过滤，病名定义
  // 第四十七轮总指挥订正：教材为本病列出的鉴别（textbookListed）不够两项时可补足；模型另提的名字仍须与主诉主症有交集。
  // 第四十七轮终测后：教材列出、与主症相交之外，同科规范病名清单（交集的不够补足时才整张给出）里的病名也收（test:r1064-fin 6.1）。
  assert.match(source, /resolved && \(textbookListed\.has\(resolved\) \|\| governedNames\.has\(resolved\) \|\| textbookDifferentialSharesChiefComplaint\(resolved, input\.recordText\)\)/);
- assert.match(source, /parseAuthoredTcmDiseaseDifferentials\(content, acceptName, need, input.recordText\)/);
+ // 第六十二轮：模型另提、本地核不了的名字先暂留（acceptOrDefer），交另一家逐字摘出共有表现才收（crossVerifiedDifferentials，test:r1081-main 10.17）；
+ // 收名的本地判据（上一行）不变，暂留的不经核对不交付。
+ assert.match(source, /parseAuthoredTcmDiseaseDifferentials\(content, acceptOrDefer, need, input.recordText\)/);
+ assert.match(source, /return crossVerifiedDifferentials\(authored, deferred,/);
  const authored = name => JSON.stringify({ differentials: [{ ...differential(name), reason: "主症相近", distinguishingPoints: "本例表现尚需进一步核实" }] });
  assert.deepEqual(authoring.parseAuthoredTcmDiseaseDifferentials(authored("郁证"), ["郁证"], 2, chief("咽痛半年")), []);
  assert.equal(authoring.parseAuthoredTcmDiseaseDifferentials(authored("乳癖"), ["乳癖"], 2, chief("乳房肿块3月"))[0]?.typicalManifestation, tb.textbookDiseaseTypicalManifestation("乳癖"));
