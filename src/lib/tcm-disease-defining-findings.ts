@@ -19,9 +19,28 @@ const rules: readonly FindingRule[] = source.entries;
 const core = (name: string) => name.trim().replace(/类病$/u, "").split(/[（(]/u)[0];
 
 /** 有限教材表现闭集；极性、他人/未问及语境均复用现有读法，不新增开放语言分类器。 */
+/**
+ * 「部位＋痛」这一类定义性表现，病历在部位和痛字之间写了一到三个修饰字（「胃脘拘急作痛」「上腹部隐隐作痛」「腰部酸痛」）也算写到：
+ * 此前只认表里逐字列的写法，胃痛·寒邪客胃证的病历被记了一条「上腹胃脘部疼痛——病历尚未记明该表现」（第六十二轮 d027）。
+ * 构词式守卫：部位取表里这个词去掉痛字后的部分（至少两个字），中间不许有标点、否定词或并列连词；否认、未评估、他人的读法
+ * 交给共用的病历读法（部位处须是本人当前肯定）——不另按小句前半有没有「不」字判，「不慎受凉后胃脘拘急作痛」是肯定。
+ */
+const SITE_PAIN_TERM = /^([\u4e00-\u9fff]{2,4}?)部?(?:疼痛|痛|疼)$/u;
+function affirmedSitePainWithModifier(recordText: string, term: string): boolean {
+  const site = term.match(SITE_PAIN_TERM)?.[1];
+  if (!site) return false;
+  for (let at = recordText.indexOf(site); at >= 0; at = recordText.indexOf(site, at + 1)) {
+    const after = recordText.slice(at + site.length).replace(/^部/u, "");
+    const gap = after.match(/^([^，,。；;、：:\s]{1,3}?)(?:疼痛|痛|疼)/u)?.[1];
+    if (!gap || /[不无未没非否和与及或]/u.test(gap)) continue;
+    if (recordMentionPolarityAt(recordText, at) === "affirmed") return true;
+  }
+  return false;
+}
+
 export function affirmedDefiningFinding(recordText: string, term: string, exclusions: readonly string[] = []): boolean {
   const reading = recordedFindingReading(recordText, term);
-  if (reading !== "affirmed" && reading !== "conflicting") return false;
+  if (reading !== "affirmed" && reading !== "conflicting") return exclusions.length === 0 && !recordText.includes(term) && affirmedSitePainWithModifier(recordText, term);
   let at = recordText.indexOf(term);
   while (at >= 0) {
     const embedded = exclusions.some((word) => {

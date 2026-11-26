@@ -121,7 +121,7 @@ await check("2.1 金礞石「先煎、包煎」在煎服行先煎、包煎两组
 });
 await check("2.2 对照：只要一种煎法的照旧一组（附子先煎45–60、车前子包煎、大黄后下、砂仁后下）；普通药为空", () => {
   assert.deepEqual(rules.specialDecoctionOrderIndexes("附子"), [0]);
-  assert.equal(rules.specialDecoctionPhrase("附子"), "附子先煎45–60分钟（至口尝无麻辣感）");
+  assert.equal(rules.specialDecoctionPhrase("附子"), "附子先煎45–60分钟");
   assert.equal(rules.specialDecoctionPhrase("车前子"), "车前子包煎");
   // r1081《方剂学》煎药方法：大黄取攻下作用时后下煎10～15分钟；几选一仍以声明为准。
   assert.equal(rules.specialDecoctionPhrase("大黄"), "大黄后下（第一煎结束前10～15分钟放入），第二煎用原药渣加水再煎，不另加一剂");

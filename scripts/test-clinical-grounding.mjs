@@ -442,13 +442,13 @@ const insomniaWithoutOsaScreen = stateFromRecord("失眠半年，入睡困难。
   zhushu: "失眠半年", sex: "男", tcmTongue: "舌淡红苔薄白", tcmPulse: "脉弦细",
   guomin: "否认药物过敏", yongyaoshi: "否认当前用药",
 });
-assert.match(evaluateSafetyGate(insomniaWithoutOsaScreen).missingItems.join("、"), /OSA风险筛查/);
+assert.match(evaluateSafetyGate(insomniaWithoutOsaScreen).missingItems.join("、"), /睡眠呼吸暂停风险筛查/);
 assert.equal(canForceProceedPastSafetyGate(evaluateSafetyGate(insomniaWithoutOsaScreen)), true, "non-critical screening gaps may continue as a visibly limited candidate");
 const insomniaWithOsaScreen = stateFromRecord("失眠半年；否认明显打鼾、目击呼吸暂停及日间嗜睡，无高血压病史。", {
   zhushu: "失眠半年", sex: "男", tcmTongue: "舌淡红苔薄白", tcmPulse: "脉弦细",
   guomin: "否认药物过敏", yongyaoshi: "否认当前用药",
 });
-assert.doesNotMatch(evaluateSafetyGate(insomniaWithOsaScreen).missingItems.join("、"), /OSA风险筛查/);
+assert.doesNotMatch(evaluateSafetyGate(insomniaWithOsaScreen).missingItems.join("、"), /睡眠呼吸暂停风险筛查/);
 const thyroidClues = stateFromRecord("心悸伴消瘦、多汗手抖。", {
   zhushu: "心悸", sex: "男", tcmTongue: "舌红苔薄", tcmPulse: "脉数",
   guomin: "否认药物过敏", yongyaoshi: "否认当前用药",

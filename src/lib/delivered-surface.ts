@@ -18,7 +18,7 @@ import { settleWesternRecurrenceQualifier } from "./western-recurrence-qualifier
 import { lineageWordingMatchingDirection } from "./lineage-formula-wording";
 import { populationMatchedPrecautions } from "./population-matched-precautions";
 import { currentMedicationPrecautions } from "./current-medication-precautions";
-import { redFlagRuleIdForMessage, clinicalGroundingText, medicationPopulationAudience, currentAntithromboticTherapyRecorded } from "./diagnosis-safety";
+import { redFlagRuleIdForMessage, clinicalGroundingText, medicationPopulationAudience, currentAntithromboticTherapyRecorded, activeBleedingInGroundingText } from "./diagnosis-safety";
 import { antithromboticHerbAvoid } from "./antithrombotic-herb-policy";
 import { m04FinalContentPolicy, modificationAuthoringEnabled } from "./m04-final-content-policy";
 import { projectM04FinalFacts } from "./m04-final-projection";
@@ -198,6 +198,7 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
   if (item.kind === "herpes_zoster_antiviral") return lines.some((line) => /抗病毒/u.test(line));
   if (item.kind === "gout_diet") return lines.some((line) => /嘌呤/u.test(line));
   if (item.kind === "trigger_foods") return item.foods.every((food) => lines.some((line) => line.includes(food) && /避免|忌|不要|勿|少/u.test(line)));
+  if (item.kind === "bleeding_stop_drug") return item.names.every((name) => lines.some((line) => line.includes(name) && /停用|停服|停止服用|不要再服|勿再服/u.test(line)));
   if (item.kind === "severe_hypertension_followup") return lines.some((line) => /血压/u.test(line) && /复测|测量|监测/u.test(line) && /就诊|就医|调整/u.test(line));
   if (item.kind === "administration_and_diet") return (!item.administration || administrationCovered(lines)) && dietCovered(lines) && (!item.alcohol || alcoholCovered(lines));
   if (item.kind === "reproductive_status_unknown") return lines.some((line) => /孕|哺乳/u.test(line));
@@ -368,6 +369,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
   }
   if (item.kind === "gout_diet") return "痛风需低嘌呤饮食：少吃海鲜、动物内脏和浓肉汤，戒酒（尤其啤酒），每天多饮水。";
   if (item.kind === "trigger_foods") return `进食${item.foods.join("、")}后曾有不适，服药期间及以后请避免${item.foods.join("、")}。`;
+  if (item.kind === "bleeding_stop_drug") return `目前有出血，${item.names.join("、")}会加重出血，请立即停用，并在就医时告诉医生用过这些药。`;
   if (item.kind === "severe_hypertension_followup") {
     return `本次血压${item.reading}明显偏高，请今天复测血压，并在当日或数日内到心内科或全科就诊调整降压药；如出现胸痛、气短、剧烈头痛、视物模糊、肢体无力或言语不清，请立即就医。`;
   }
@@ -555,7 +557,7 @@ const PRECAUTION_CAP = 5;
 const GENERIC_MEDICATION_DISCLOSURE = /^(?:如|若)(?:正在|同时|另外|还在)?(?:服用|使用|服)(?:其他|其它)(?:药物|药品|药)[^。；;]*?(?:告知|告诉|咨询)医生/u;
 const PREGNANCY_TOPIC_LINE = /怀孕|妊娠|孕期|孕妇|备孕/u;
 const SAFETY_PRECAUTION_KINDS = new Set<string>(["drug_condition_caution", "high_risk_condition", "allergy", "drug_allergy", "antithrombotic_bleeding",
-  "warfarin_herbal", "toxic_self_preparation", "severe_hypertension_followup", "postpartum_lactation", "self_discontinued_medication", "menses_overdue_pregnancy_check"]);
+  "warfarin_herbal", "toxic_self_preparation", "severe_hypertension_followup", "bleeding_stop_drug", "postpartum_lactation", "self_discontinued_medication", "menses_overdue_pregnancy_check"]);
 const PRECAUTION_SCHEMA_LIMIT = 6;
 function precautionBigrams(line: string): Set<string> {
   const han = line.replace(/[^\u4e00-\u9fff]/gu, "");
@@ -648,8 +650,22 @@ function withoutRepeatedTopicLines(lines: readonly unknown[]): unknown[] {
  * 本例病历里写的药（required-precautions 算出的病历药名、现用药、自服药、自行停用的药）与本页推荐的成药西药，全名。
  * 两处用：注意事项去掉病历与推荐里都没有的药名（取基础名比对），药味表改写药名时不改这些药名里的字（2026-10-29「广藿香正气水」）。
  */
-function knownMedicineNames(requiredPrecautions: readonly RequiredPrecaution[] | undefined, formula: Record<string, unknown> | undefined): string[] {
+/**
+ * 病历里写着的药名（第六十二轮：甲方 10.29 点名的「广藿香正气水」又出现）：引号括起的药名，以及以剂型结尾的药名。
+ * 注意事项里按药味表改药名时，这些名字整体不动——此前只有规则读出的自用药受保护，模型自己写的那句里病历原名
+ * 「藿香正气水」「复方甘草口服溶液」被改成「广藿香正气水」「复方炙甘草口服溶液」。
+ */
+const RECORD_MEDICINE_FORM = /[\u4e00-\u9fffA-Za-z0-9]{2,16}?(?:口服溶液|口服液|合剂|糖浆|颗粒|胶囊|软胶囊|缓释胶囊|缓释片|肠溶片|分散片|片|丸|散|水|膏|贴|喷雾剂|滴丸|冲剂|酊|露|油)/gu;
+export function recordMedicineNames(recordText: string | undefined): string[] {
+  const source = String(recordText || "").normalize("NFKC");
+  const quoted = [...source.matchAll(/[“"「]([^”"」]{2,24})[”"」]/gu)].map((match) => match[1].trim());
+  const formed = [...source.matchAll(RECORD_MEDICINE_FORM)].map((match) => match[0].replace(/^(?:自服|口服|服用|自行|现服|长期服|长期|外用|曾服|予|[另又并加改再]服|[另又并加改再]用)+/u, ""));
+  return [...new Set([...quoted, ...formed].filter((name) => name.length >= 3))];
+}
+
+function knownMedicineNames(requiredPrecautions: readonly RequiredPrecaution[] | undefined, formula: Record<string, unknown> | undefined, recordText?: string): string[] {
   return [
+    ...recordMedicineNames(recordText),
     ...(requiredPrecautions || []).flatMap((item) => item.kind === "recorded_drug_names" || item.kind === "current_medications" ? item.names
       : item.kind === "self_medication" ? [item.name] : item.kind === "self_discontinued_medication" ? item.names : []),
     ...records(formula?.patentAndWestern).map((item) => String(item.name || "")),
@@ -1365,6 +1381,21 @@ export function tidiedWesternBasis(basis: string, recordText?: string): string {
   return text;
 }
 
+/**
+ * 方义里紧挨着重复的一句：与上一句相同，或就是上一句的最后一小句（开头改写成「本方以X为基础，加A、B、C。」之后，
+ * 模型原来的「加A、B、C。」还在；第六十二轮 d008）。只比整句，四个字以上。
+ */
+export function withoutRepeatedAnalysisSentence(text: string): string {
+  const out: string[] = [];
+  for (const part of text.split(/(?<=。)/u)) {
+    const clean = part.replace(/。$/u, "").trim();
+    const previous = out.length > 0 ? out[out.length - 1].replace(/。$/u, "").trim() : "";
+    if (clean.length >= 4 && previous && (previous === clean || previous.endsWith(`，${clean}`) || previous.endsWith(`,${clean}`))) continue;
+    out.push(part);
+  }
+  return out.join("");
+}
+
 /** 症状依据栏里只有交付面放的那一句诊断依据（开方阶段读回时据此判定「没有病历事实」）。 */
 export function isDeliveredWesternBasisOnly(supportingFacts: readonly unknown[], western: unknown): boolean {
   const basis = deliveredWesternBasis(western);
@@ -2057,6 +2088,24 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
       else if (!originalPrepared && !originalRaw) byPurpose(herb, name, "", ownFunction(herb));
     }
   }
+  // 活动性出血（与开方合同同一个判据 activeBleedingInGroundingText）时不交付酒制品：酒制增强活血（第六十二轮实链 d098：
+  // 呕血黑便伴休克前期，十灰散的丹皮交付成「酒牡丹皮」，而十灰散原方丹皮烧灰存性）。改用该药的炭品（知识库有这个品规时），否则用生品。
+  if (recordText && activeBleedingInGroundingText(recordText)) {
+    for (const candidate of records(formula?.candidates)) {
+      for (const herb of records(candidate.herbs)) {
+        const current = typeof herb.name === "string" ? herb.name.trim() : "";
+        const processing = typeof herb.processing === "string" ? herb.processing.trim() : "";
+        const base = current.startsWith("酒") ? current.slice(1) : processing === "酒" || processing === "酒炙" ? current : "";
+        if (!base || !isKnownTcmHerbName(base)) continue;
+        const charred = `${base}炭`;
+        const next = isKnownTcmHerbName(charred) ? charred : base;
+        for (const written of [current, `酒${base}`, `酒炙${base}`]) if (written !== next) writtenForms.set(written, next);
+        if (current !== next) renames.set(current, next);
+        herb.name = next;
+        herb.processing = next === charred ? "炭" : null;
+      }
+    }
+  }
   for (const row of records(formula?.modifications)) {
     if (row.action !== "加" || typeof row.herbName !== "string" || !row.herbName.trim()) continue;
     const name = row.herbName.trim();
@@ -2704,7 +2753,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     // 模型把提示词里的「本例辨证组方」抄进方义（「故去辰砂，改以本例辨证组方」，第三十五轮甲方 100 例 C035）。
     if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = candidate.formulaAnalysis.replace(/本例辨证组方/gu, "自拟方");
     // 顿号并列里同一味药的两种写法（「去桃仁、燀桃仁」，第四十六轮 p100c-C065）：只留第一个。
-    if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = withoutSameDrugRepeatsInLists(candidate.formulaAnalysis);
+    if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = withoutRepeatedAnalysisSentence(withoutSameDrugRepeatsInLists(candidate.formulaAnalysis));
     // 「适用于与本例锁定证候…及病机链一致的情况」是每例相同的模板句，不带内容。
     if (typeof candidate.applicable === "string") candidate.applicable = "";
     // 逐味人群提示只列本例可能属于的人群：按候选药味从同一份知识库重写尾段（尾段的写法只在 candidate-boundary-text 一处）。
@@ -3188,7 +3237,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     // 与方义同一个取法（withMentionsAlignedToTableNames，2026-10-19 甲方标准病历 6 第三轮复测）。先改名，下面的煎法核对才对得上药味表。
     const tableHerbNames = records(records(formula?.candidates)[0]?.herbs).map((herb) => String(herb.name || "")).filter(Boolean);
     if (tableHerbNames.length > 0) {
-      const medicineNames = knownMedicineNames(options?.requiredPrecautions, formula);
+      const medicineNames = knownMedicineNames(options?.requiredPrecautions, formula, options?.recordText);
       precautions = precautions.map((line) => typeof line === "string"
         ? withMentionsAlignedToTableNames(line, tableHerbNames, [...medicineNames, ...labelledMedicineNamesIn(line)]).text : line);
     }
@@ -4303,8 +4352,10 @@ function writtenProcessingOf(name: string): string | undefined {
 }
 
 const TRIGGER_COURSE_TAIL = /[，,、\s]*(?:反复|持续|间断|间歇)?(?:发作)?\s*(?:\d+(?:\.\d+)?|[一二三四五六七八九十两半]+|X{2,})\s*(?:余|多)?\s*(?:个)?(?:天|日|周|星期|月|年)(?:余|多|来|以来)?$/u;
-function triggerWithoutCourse(trigger: string): string {
+export function triggerWithoutCourse(trigger: string): string {
   const stripped = trigger.replace(TRIGGER_COURSE_TAIL, "");
+  // 数字区间的后一半（「每次7-8天」只剩「每次7-」，第六十二轮 d025）和「每次/经期N天」这类写本身属性的时长不是病程，整条保留。
+  if (stripped !== trigger && /(?:[-－—～~至到]|每次|每回|经期|周期|行经)\s*$/u.test(stripped)) return trigger;
   const core = stripped.replace(/^本例已见/u, "");
   return core.length >= 2 ? stripped : trigger;
 }

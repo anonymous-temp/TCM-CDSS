@@ -4,7 +4,7 @@
  "rules": {
   "pulseAdvisoryFrom": "心率≥此值且<红旗线：提示尽快复测（取各年龄段心动过速界值+1）",
   "pulseRedFlagFrom": "心率≥此值：红旗（婴儿 220、儿童 180 为窦性心动过速上限，再高按室上速风险）",
-  "respirationAdvisoryFrom": "呼吸≥此值且<红旗线：提示尽快复测（取各年龄段正常上限+1，5 岁以上取 WHO 快速呼吸线 30+1）",
+  "respirationAdvisoryFrom": "呼吸≥此值且<红旗线：提示尽快复测（取各年龄段正常上限+1，5 岁以上取 WHO 快速呼吸线 30+1）；2026-11-26 第六十二轮：1 月龄～3 岁改取 AHA-PALS 2020 正常范围上限+1（婴儿 30–53、幼儿 22–37；不超过 WHO 红旗线，等于红旗线即不另提示复测）。原取的教材表 6–12 月龄 20–30 把 8 月龄婴儿呼吸 32 次/分提示为需复测。",
   "respirationRedFlagFrom": "呼吸≥此值：红旗（WHO 快速呼吸线：<2月≥60、2～12月≥50、1～5岁≥40；5 岁以上成人线 35 已高于 WHO 线，不动）",
   "systolicHypotensionBelow": "收缩压<base+perYear×年龄（岁）：低血压危急（PALS：新生儿<60、1～12月<70、1～10岁<70+2×岁）；该字段存在时不再用成人的收缩压≤80/舒张压≤45"
  },
@@ -38,6 +38,12 @@
    "claim": "儿童低血压定义",
    "quote": "0-1 month <60 mmHg; 1–12 months <70 mmHg; 1–10 years <70 + (age in years × 2) mmHg; >10 years <90 mmHg",
    "basis": "Wikipedia「Hypotension」「Pediatric advanced life support」，引 University of Iowa Stead Family Children's Hospital；联网核对 2026-09-30"
+  },
+  {
+   "id": "pals-2020-rr",
+   "claim": "婴幼儿呼吸正常范围（PALS 2020）",
+   "quote": "Infant (<1 yr) 30-53; Toddler (1-2 yr) 22-37; Preschool (3-5 yr) 20-28",
+   "basis": "San Francisco EMSA Protocol 14.1 Pediatric Vital Signs (Final 10.1.25)，引 AHA-PALS Guidelines 2020；PedsCases Vital Signs Chart 同值（引 PALS 2015）；联网核对 2026-11-26"
   }
  ],
  "bands": [
@@ -73,7 +79,7 @@
    "label": "1～2 月龄",
    "pulseAdvisoryFrom": 180,
    "pulseRedFlagFrom": 220,
-   "respirationAdvisoryFrom": 41,
+   "respirationAdvisoryFrom": 54,
    "respirationRedFlagFrom": 60,
    "systolicHypotensionBelow": {
     "base": 70,
@@ -86,7 +92,7 @@
    "label": "2～6 月龄",
    "pulseAdvisoryFrom": 187,
    "pulseRedFlagFrom": 220,
-   "respirationAdvisoryFrom": 41,
+   "respirationAdvisoryFrom": 50,
    "respirationRedFlagFrom": 50,
    "systolicHypotensionBelow": {
     "base": 70,
@@ -99,7 +105,7 @@
    "label": "6～12 月龄",
    "pulseAdvisoryFrom": 170,
    "pulseRedFlagFrom": 220,
-   "respirationAdvisoryFrom": 31,
+   "respirationAdvisoryFrom": 50,
    "respirationRedFlagFrom": 50,
    "systolicHypotensionBelow": {
     "base": 70,
@@ -112,7 +118,7 @@
    "label": "1～3 岁",
    "pulseAdvisoryFrom": 152,
    "pulseRedFlagFrom": 180,
-   "respirationAdvisoryFrom": 31,
+   "respirationAdvisoryFrom": 38,
    "respirationRedFlagFrom": 40,
    "systolicHypotensionBelow": {
     "base": 70,

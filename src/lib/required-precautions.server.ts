@@ -5,7 +5,7 @@ import medicationPolicy from "../data/current-medication-claim-policy.source.jso
 import drugConditionJson from "../data/western-drug-condition-cautions.source.json";
 import drugConditionContraindications from "../data/drug-condition-contraindications.json";
 import { antithromboticAntagonistHerbNames } from "./antithrombotic-herb-policy";
-import { withoutFamilyHistoryFields, authoritativePatientAgeYears, currentAntithromboticTherapyRecorded, recordedSerumPotassium, sourceDocumentsNegation, clauseLocalMentionPolarityAt, highRiskConditionsForPrecautions, recordedMedicationHistoryList, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, withoutFamilyHistoryFields, authoritativePatientAgeYears, currentAntithromboticTherapyRecorded, recordedSerumPotassium, sourceDocumentsNegation, clauseLocalMentionPolarityAt, highRiskConditionsForPrecautions, recordedMedicationHistoryList, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
@@ -20,7 +20,7 @@ import { catalogSharedComposition } from "./tcm-formula-provenance";
 import { getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
 import { dietRestrictionForSyndromeText, recordedTriggerFoods } from "./tcm-therapy-phrasing";
 import { discontinuedMedicationLabel, highRiskConditionPromptText, type RequiredPrecaution } from "./required-precautions";
-import { westernDrugNameIn } from "./western-drug-lexicon.server";
+import { westernDrugIsSystemicNsaid, westernDrugNameIn } from "./western-drug-lexicon.server";
 import { allergenAvoidPhrase, allergenStatedInRecord, allergensFromScreen, mergeRecordedAllergens, recordedAllergensInText } from "./allergen-profile";
 
 export type { RequiredPrecaution } from "./required-precautions";
@@ -219,7 +219,16 @@ export function requiredPrecautionsForCase(
   // 自行配制的有毒药（乌头类泡酒最常见）排在最前：这一条关乎眼下的安全。
   const toxicSelfPrepared = toxicSelfPreparedHerbs(clinicalGroundingText(state));
   if (toxicSelfPrepared.length > 0) items.push({ kind: "toxic_self_preparation", herbs: toxicSelfPrepared });
+  // 病历写明是长期、规律、现在在服的药（「长期服“盐酸二甲双胍片”」「现服盐酸二甲双胍片0.5g每日3次」）不是自服药，归到下面的在用药
+  //（第六十二轮实链 d047：写成「曾自服盐酸二甲双胍片，如仍在服用请告知医生」，把明确的现用降糖药写成了用没用不清楚）。
+  const groundingForUse = clinicalGroundingText(state).normalize("NFKC");
+  const regularlyTaken = (name: string) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    return new RegExp(`(?:长期|规律|现|目前|一直|坚持|正在|每日)(?:口服|服用|服)[“"「]?${escaped}`, "u").test(groundingForUse) ||
+      new RegExp(`(?:现服|正在服用|长期口服|规律口服)[^。；;\n]{0,40}${escaped}`, "u").test(groundingForUse);
+  };
   for (const name of selfTakenMedicationMentions(presentIllnessText(state))) {
+    if (regularlyTaken(name)) continue;
     // 名字得像药名：带剂型（丸、片、胶囊…），或与说明书目录里的药名一字不差。只靠去剂型的基础名对上的不算——
     //「吃山楂后」的山楂会对上山楂丸。
     const label = findLocalPatentMedicineLabel(name);
@@ -405,6 +414,22 @@ export function requiredPrecautionsForCase(
     ? [...shown, ...items.flatMap((item) => item.kind === "self_medication" ? [item.name] : [])].find((name) => WARFARIN_HERBAL.drugTerms.some((term) => name.includes(term)))
     : undefined;
   if (warfarin) items.push({ kind: "warfarin_herbal", drug: warfarin, decreaseHerbs: [...WARFARIN_HERBAL.decreaseHerbs] });
+  // 活动性出血（与开方剔除活血药同一判据）时在用或自服的全身用非甾体抗炎药：写明立即停用、就医时告诉医生（第六十二轮实链 d098：
+  // 呕血黑便时自服布洛芬，注意事项只写「如仍在使用请告知医生」）。这条替代该药的自服药一条。抗凝、抗血小板药是否暂停由医生定
+  //（支架术后、房颤自行停药有血栓风险），仍只走上面的出血观察一条；外用剂型不算。
+  if (activeBleedingInGroundingText(grounding)) {
+    // 外用的按在用药读法自己标的外用清单认（「布洛芬乳膏涂膝关节」剂型不在末尾），再按剂型兜底。
+    const topicalNames = new Set(items.flatMap((item) => item.kind === "current_medications" ? item.topical || [] : []));
+    const stopNames = [...new Set([...shown, ...items.flatMap((item) => item.kind === "self_medication" ? [item.name] : [])]
+      .filter((name) => !ANTITHROMBOTIC_MEDICATION.test(name) && !topicalNames.has(name) && !TOPICAL_MEDICATION_FORM.test(name) && westernDrugIsSystemicNsaid(name)))];
+    if (stopNames.length > 0) {
+      for (let index = items.length - 1; index >= 0; index -= 1) {
+        const item = items[index];
+        if (item.kind === "self_medication" && stopNames.includes(item.name)) items.splice(index, 1);
+      }
+      items.push({ kind: "bleeding_stop_drug", names: stopNames });
+    }
+  }
   // 肾功能不全、心衰、血钾偏高、地高辛、免疫抑制：各写一条给患者的话（2026-11-14 第四十五轮 C100、C036），红旗页也写。
   const highRisk = highRiskConditionsForPrecautions(state);
   // 血钾偏高时另加一句饮食限钾（第四十六轮 new45-n40）。
@@ -489,6 +514,7 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
       : `${order}写一条忌口（本例${item.diet}）${item.alcohol ? "；病历记录患者饮酒，写明戒酒" : ""}；本例暂不给剂量，不写怎么服。`;
     if (item.kind === "menses_overdue_pregnancy_check") return `${order}写一条（育龄女性，病历写着本次月经逾期未至）：服药前先验孕，确认怀孕告知医生；不用逐味点名哪些药慎用（药表里已逐味标注）。`;
     if (item.kind === "reproductive_status_unknown") return `${order}写一条：如已怀孕、可能怀孕或正在哺乳，须服药前告知医生（患者是育龄女性；不要写「未记录」这类话，也不用逐味点名哪些药慎用——药表里已逐味标注）。`;
+    if (item.kind === "bleeding_stop_drug") return `${order}本例有活动性出血，病历记录患者在用或自服${item.names.join("、")}（会加重出血）：写明立即停用，并在就医时告诉医生用过这些药。`;
     if (item.kind === "severe_hypertension_followup") return `${order}本次血压${item.reading}明显偏高：写一条请患者今天复测血压，并当日或数日内到心内科或全科就诊调整降压药；出现胸痛、气短、剧烈头痛、视物模糊、肢体无力或言语不清须立即就医。`;
     if (item.kind === "gout_diet") return `${order}痛风：写明低嘌呤饮食（少吃海鲜、动物内脏、浓肉汤），戒酒尤其啤酒，多饮水。`;
     if (item.kind === "trigger_foods") return `${order}病历提到进食${item.foods.join("、")}后出现不适或原有症状加重：写明服药期间及以后避免${item.foods.join("、")}。`;

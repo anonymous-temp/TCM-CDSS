@@ -78,6 +78,8 @@ export type RequiredPrecaution =
   | { kind: "menses_overdue_pregnancy_check" }
   /** 重度高血压（≥180/120）而无急性靶器官表现（2026-10-19 起不按急症收回剂量）：写给患者的复测与就诊提示。 */
   | { kind: "severe_hypertension_followup"; reading: string }
+  /** 活动性出血时病历写着在用或自服的、会加重出血的西药（非甾体抗炎药、抗血栓药）：写明立即停用、告诉急诊医生（第六十二轮实链 d098：呕血黑便时自服布洛芬只写「如仍在使用请告知医生」）。 */
+  | { kind: "bleeding_stop_drug"; names: string[] }
   /** 病历写的发病诱因食物（海鲜、啤酒…）：服药期间及以后避开（留出集 S128）。 */
   | { kind: "trigger_foods"; foods: string[] }
   /** 痛风：低嘌呤饮食、限酒（尤其啤酒）、多饮水（《中国高尿酸血症与痛风诊疗指南》2019）。留出集 S145。 */

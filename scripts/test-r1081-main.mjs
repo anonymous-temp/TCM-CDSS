@@ -199,4 +199,179 @@ check("9.2", "栝楼、栝蒌、瓜蒌三种写法是同一首方的身份（d08
   assert.match(readFileSync(root + "/src/lib/tcm-formula-indications.ts", "utf8"), /allowedNames\.some\(\(other\) => sameFormulaNameSpelling\(other, normalizedFormulaIdentity\(name\)\)\)/);
 });
 
+
+// —— 第六十二轮第二批：本机 100 份交付病历逐字阅卷后服务端那几类（每条反证见 ~/runlogs/r1018/work/r1081/cp/）。——
+const rp = await jiti.import("../src/lib/required-precautions.server.ts");
+const { requiredPrecautionLineForTest, withoutRepeatedAnalysisSentence, triggerWithoutCourse, recordMedicineNames } = await jiti.import("../src/lib/delivered-surface.ts");
+const decoction = await jiti.import("../src/lib/herb-decoction-rules.ts");
+const { textbookOcrFixed } = await jiti.import("../src/lib/nondrug-text-fixes.ts");
+const { withoutBareMenstrualAttributeTerms } = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
+const { withoutDerivedRootItems, classifyNatureColumns } = await jiti.import("../src/lib/nature-column-classification.ts");
+const { diseaseDefiningFindingStatus } = await jiti.import("../src/lib/tcm-disease-defining-findings.ts");
+const { reconcileAnalysisUncertainties } = await jiti.import("../src/lib/pathogenesis-columns.ts");
+const { textbookTreatmentPlan } = await jiti.import("../src/lib/tcm-nondrug-textbook-plan.server.ts");
+const caseOf = (chief, present, extra = {}) => normalizeCaseStateInput({ chiefComplaint: chief, patient: { sex: "男", age: 50 }, symptoms: { 现病史: present }, ...extra });
+
+check("10.1", "活动性出血时病历里自服的非甾体抗炎药写立即停用；没出血、阿司匹林、外用剂型不写", () => {
+  const items = rp.requiredPrecautionsForCase(caseOf("呕血黑便1天", "1天前饮酒后呕吐咖啡色液体2次，排黑便3次，自服布洛芬缓释胶囊止痛。"), undefined);
+  const stop = items.find((item) => item.kind === "bleeding_stop_drug");
+  assert.deepEqual(stop?.names, ["布洛芬缓释胶囊"]);
+  assert.ok(!items.some((item) => item.kind === "self_medication" && item.name === "布洛芬缓释胶囊"), "同一味药不再另写自服一条");
+  assert.match(requiredPrecautionLineForTest(stop), /布洛芬缓释胶囊会加重出血，请立即停用/u);
+  assert.ok(!rp.requiredPrecautionsForCase(caseOf("腰痛3天", "腰痛3天，自服布洛芬缓释胶囊止痛，无呕血黑便。"), undefined).some((item) => item.kind === "bleeding_stop_drug"));
+  const bleedingWith = (drugClause) => rp.requiredPrecautionsForCase(caseOf("呕血黑便1天", `1天前饮酒后呕吐咖啡色液体2次，排黑便3次，${drugClause}`), undefined);
+  assert.ok(safety.activeBleedingInGroundingText(safety.clinicalGroundingText(caseOf("呕血黑便1天", "1天前饮酒后呕吐咖啡色液体2次，排黑便3次。"))), "夹具本身是活动性出血");
+  assert.ok(!bleedingWith("膝关节外用双氯芬酸二乙胺乳胶剂。").some((item) => item.kind === "bleeding_stop_drug"), "外用剂型不算");
+  assert.ok(!bleedingWith("自行外用布洛芬乳膏涂膝关节。").some((item) => item.kind === "bleeding_stop_drug"), "剂型不在末尾的外用写法也不算");
+  assert.ok(!bleedingWith("长期口服阿司匹林肠溶片100mg每日1次。").some((item) => item.kind === "bleeding_stop_drug"), "抗血小板药是否暂停由医生定，不在此列");
+  assert.deepEqual(bleedingWith("自服布洛芬缓释胶囊，并外涂双氯芬酸钠凝胶。").find((item) => item.kind === "bleeding_stop_drug")?.names, ["布洛芬缓释胶囊"]);
+});
+
+check("10.2", "服药后过敏观察：病历有皮损才问「皮损与原有表现不同」，没有的只写新出现皮疹瘙痒", () => {
+  const cough = safety.buildForcedIncompleteRiskFollowup(caseOf("咳嗽3天", "3天前受凉后咳嗽，咯白痰，无发热。"));
+  assert.doesNotMatch(cough, /皮损与原有表现不同/u);
+  assert.match(cough, /如服药后新出现皮疹或瘙痒/u);
+  const eczema = safety.buildForcedIncompleteRiskFollowup(caseOf("双手皮疹瘙痒3月", "3个月前双手背出现丘疹、红斑，瘙痒，搔抓后渗液。"));
+  assert.match(eczema, /皮损与原有表现不同/u);
+});
+
+check("10.3", "随访复诊重点只取病历原话：交付的一整句西医依据不当症状", () => {
+  const state = { ...caseOf("呕血黑便1天", "1天前饮酒后呕吐暗红色血液2次，解柏油样便1次。"),
+    reasoningDiagnose: { westernDiagnosis: { primary: { supportingFacts: ["既往胃镜确诊溃疡，本次呕血黑便符合其出血表现，考虑十二指肠球部溃疡伴出血"] } },
+      overview: { primarySyndromeBasis: ["呕吐暗红色血液2次"] } } };
+  const facts = safety.structuredFollowupInputs(state).coreFacts;
+  assert.ok(!facts.some((fact) => fact.includes("符合其出血表现")), facts.join("|"));
+  assert.ok(facts.includes("呕吐暗红色血液2次"));
+  const quoted = { ...caseOf("咳嗽3天", "咳嗽3天，咯白痰。"), reasoningDiagnose: { westernDiagnosis: { primary: { supportingFacts: ["咯白痰"] } } } };
+  assert.ok(safety.structuredFollowupInputs(quoted).coreFacts.includes("咯白痰"), "病历原话照收");
+});
+
+check("10.4", "玄明粉按药典写溶入煎好的药液，写作溶化、冲服也算交代了", () => {
+  const rule = decoction.decoctionRuleForHerb("玄明粉");
+  assert.deepEqual(rule?.oneOf, [["溶入", "溶化", "冲服"]]);
+  assert.equal(decoction.decoctionRuleSatisfied("玄明粉", "溶化"), true);
+  assert.equal(decoction.decoctionRuleSatisfied("玄明粉", ""), false);
+  const index = decoction.specialDecoctionOrderIndex("玄明粉");
+  assert.match(decoction.SPECIAL_DECOCTION_ORDER[index].phrase("玄明粉"), /玄明粉溶入煎好的药液中服/u);
+});
+
+check("10.5", "耳穴、拔罐卡没有本节频次时写教材总论的次数，不写「首次安排一次面诊治疗」", () => {
+  const plan = textbookTreatmentPlan({ projectCode: "auricular", diseaseNames: ["感冒"], westernNames: [], signedSyndromeText: "风寒束表证", currentFacts: "恶寒发热，鼻塞流清涕，咳嗽", patientAgeYears: 40 });
+  assert.ok(plan, "感冒有耳穴卡");
+  assert.doesNotMatch(String(plan.scheduleSuggestion), /首次安排一次面诊治疗/u);
+  assert.match(String(plan.scheduleSuggestion), /压丸：可留置2～4天，期间可嘱患者每日自行按压2～3次/u);
+  const cupping = textbookTreatmentPlan({ projectCode: "cupping", diseaseNames: ["咳嗽"], westernNames: [], signedSyndromeText: "风寒袭肺证", currentFacts: "咳嗽，咯白痰，恶寒", patientAgeYears: 40 });
+  assert.ok(cupping, "咳嗽有拔罐卡");
+  assert.doesNotMatch(String(cupping.scheduleSuggestion), /首次安排一次面诊治疗/u);
+  assert.match(String(cupping.scheduleSuggestion), /可每日1次或隔日1次/u);
+  assert.equal(textbookOcrFixed("篇蓄粥：篇蓄30g"), "萹蓄粥：萹蓄30g");
+});
+
+check("10.6", "月经属性名（经期、经量、月经）不单独当本例表现；和异常连写的照列", () => {
+  assert.deepEqual(withoutBareMenstrualAttributeTerms(["经期", "经量", "月经"], "月经周期28天，经期4天，经量中等，色暗"), []);
+  assert.deepEqual(withoutBareMenstrualAttributeTerms(["经量", "小腹冷痛"], "经量偏少，色暗有块，小腹冷痛"), ["经量偏少", "小腹冷痛"]);
+  assert.deepEqual(withoutBareMenstrualAttributeTerms(["经期", "经量"], "经期无腹痛，经量偏少"), ["经量偏少"], "否认的不算异常");
+});
+
+check("10.7", "方义紧挨着重复的一句去掉；不相邻或不同的句子照留", () => {
+  assert.equal(withoutRepeatedAnalysisSentence("本方以越婢加半夏汤为基础，加桑白皮、苦杏仁、桔梗。加桑白皮、苦杏仁、桔梗。麻黄与石膏为君。"),
+    "本方以越婢加半夏汤为基础，加桑白皮、苦杏仁、桔梗。麻黄与石膏为君。");
+  const kept = "麻黄为君。石膏为臣。麻黄为君，宣肺。";
+  assert.equal(withoutRepeatedAnalysisSentence(kept), kept);
+});
+
+check("10.8", "本虚栏里虚火、虚热有阴虚在就不单列，虚寒有阳虚在就不单列；没有来源条目时照留", () => {
+  assert.deepEqual(withoutDerivedRootItems(["阴虚", "虚火"]), ["阴虚"]);
+  assert.deepEqual(withoutDerivedRootItems(["肾阴虚", "虚热", "虚火"]), ["肾阴虚"]);
+  assert.deepEqual(withoutDerivedRootItems(["阳虚", "虚寒"]), ["阳虚"]);
+  assert.deepEqual(withoutDerivedRootItems(["虚热"]), ["虚热"]);
+  const nature = { items: ["阴虚", "虚火"], rootDeficiency: ["阴虚", "虚火"], branchExcess: [] };
+  classifyNatureColumns(nature);
+  assert.deepEqual(nature.rootDeficiency, ["阴虚"]);
+  assert.ok(nature.items.includes("虚火"), "病性条目不动");
+});
+
+check("10.9", "引用的睡眠呼吸暂停筛查项写中文，不写英文缩写", () => {
+  const gate = safety.evaluateSafetyGate(caseOf("失眠3月", "入睡困难3个月，多梦易醒。"));
+  const text = gate.missingItems.join("、");
+  assert.match(text, /睡眠呼吸暂停风险筛查/u);
+  assert.doesNotMatch(text, /OSA/u);
+});
+
+check("10.10", "触发条件去病程尾巴：数字区间和「每次N天」这类属性时长不删", () => {
+  assert.equal(triggerWithoutCourse("本例已见月经量多、每次7-8天"), "本例已见月经量多、每次7-8天");
+  assert.equal(triggerWithoutCourse("本例已见经期7天"), "本例已见经期7天");
+  assert.equal(triggerWithoutCourse("本例已见头晕2月"), "本例已见头晕");
+});
+
+check("10.11", "定义性表现「部位＋痛」中间隔一两个修饰字也算写到；否认、隔着标点不算", () => {
+  assert.equal(diseaseDefiningFindingStatus("胃痛", "患者2天前贪凉饮冷后出现胃脘拘急作痛，阵发加重。").status, "supported");
+  assert.equal(diseaseDefiningFindingStatus("胃痛", "胃脘部隐隐作痛半月。").status, "supported");
+  assert.equal(diseaseDefiningFindingStatus("胃痛", "腹泻2天。无胃脘作痛，大便稀。").status, "missing");
+  assert.equal(diseaseDefiningFindingStatus("胃痛", "胃脘胀满3天，无疼痛。").status, "missing");
+  assert.equal(diseaseDefiningFindingStatus("胃痛", "头晕1周，胃脘不痛。").status, "missing");
+  assert.equal(diseaseDefiningFindingStatus("胃痛", "不慎受凉后胃脘拘急作痛2天。").status, "supported", "小句前半的「不慎」不是否认");
+  assert.equal(diseaseDefiningFindingStatus("胃痛", "未见呕吐及胃脘作痛。").status, "missing");
+});
+
+check("10.12", "待核实一栏：理由就是病历原话（没说缺什么）的去掉；「舌红脉数支持」病历两项都写着的去掉；真缺的照留", () => {
+  const record = "从事餐饮工作，双手常接触水及洗涤剂。舌红，苔薄黄，脉数。";
+  const reasoning = { overview: { primarySyndrome: "风伤肠络证", secondarySyndromes: [] }, pathogenesis: { uncertainties: [
+    { item: "接触诱因", reason: "双手常接触水及洗涤剂", affects: "防护建议" },
+    { item: "舌红脉数支持", reason: "尚需核实舌红脉数支持", affects: "证候细节" },
+    { item: "出血量变化", reason: "仅记录量少数滴，未观察动态", affects: "复查节奏" },
+  ] } };
+  reconcileAnalysisUncertainties(reasoning, record);
+  assert.deepEqual(reasoning.pathogenesis.uncertainties.map((row) => row.item), ["出血量变化"]);
+});
+
+check("10.13", "注意事项按药味表对齐药名时，病历里引号或剂型写着的药名不改（「藿香正气水」不成「广藿香正气水」）", () => {
+  const names = recordMedicineNames("自服“藿香正气水”2支，另服复方炙甘草口服溶液。");
+  assert.ok(names.includes("藿香正气水"), names.join("|"));
+  assert.ok(names.some((name) => name.startsWith("复方炙甘草")), names.join("|"));
+});
+
+
+check("10.14", "安全层的四处读法：乳房无肿块不排乳腺癌、白天无尿失禁不是无尿、慢性声嘶不算气道受累、婴儿呼吸按 PALS 分档", () => {
+  assert.equal(safety.unevaluatedBreastMassText("双侧乳房周期性胀痛，经后消退，未触及肿块。", 38, "女"), false);
+  assert.equal(safety.unevaluatedBreastMassText("左乳无肿块，乳房胀痛1月。", 45, "女"), false);
+  assert.equal(safety.unevaluatedBreastMassText("左乳外上触及一肿块2周，无痛。", 45, "女"), true);
+  assert.equal(safety.unevaluatedBreastMassText("左乳触及一不规则肿块1月，质硬。", 52, "女"), true, "「不规则」不是否认");
+  assert.equal(safety.unevaluatedBreastMassText("左乳无痛性结节1个月。洗澡时触及无痛肿块，近月无明显增大。", 45, "女"), true, "「无痛性」不是否认（甲方 100 例 C069）");
+  assert.equal(safety.unevaluatedBreastMassText("右乳房上有一个像胡桃一样大小的结节，乳头溢血。", 45, "女"), true, "同一小句里部位与肿块隔得远一些也认");
+  assert.equal(safety.unevaluatedBreastMassText("自查乳房未触及明显肿块，乳房胀痛。", 40, "女"), false);
+  const advisories = (state) => safety.evaluateSafetyGate(state).advisories.join("；");
+  const enuresis = normalizeCaseStateInput({ chiefComplaint: "夜间遗尿1年", patient: { sex: "男", age: 7 }, symptoms: { 现病史: "夜间遗尿每周3-4次，白天无尿失禁，无尿痛。" }, vitals: { T: "36.6", P: "88", R: "20", BP: "100/62" } });
+  assert.doesNotMatch(advisories(enuresis), /循环灌注异常/u);
+  const anuria = normalizeCaseStateInput({ chiefComplaint: "腹泻呕吐2天", patient: { sex: "男", age: 70 }, symptoms: { 现病史: "腹泻呕吐2天，今日无尿，乏力。" } });
+  assert.match(advisories(anuria), /循环灌注异常/u);
+  const hoarse = normalizeCaseStateInput({ chiefComplaint: "声音嘶哑2月", patient: { sex: "女", age: 45 }, symptoms: { 现病史: "干咳少痰、声音嘶哑2月，咽干。" }, vitals: { T: "36.5", P: "76", R: "16", BP: "118/72" } });
+  assert.doesNotMatch(advisories(hoarse), /严重过敏或气道受累/u);
+  const acute = normalizeCaseStateInput({ chiefComplaint: "吃海鲜后皮疹1小时", patient: { sex: "女", age: 30 }, symptoms: { 现病史: "1小时前进食海鲜后全身风团，伴声音嘶哑、喉紧。" } });
+  assert.match(advisories(acute), /严重过敏或气道受累/u);
+  const infant = (rr) => normalizeCaseStateInput({ chiefComplaint: "咳嗽2天", patient: { sex: "男", age: "8个月" }, symptoms: { 现病史: "咳嗽2天，无发热，吃奶可，精神好，无呼吸费力。" }, vitals: { T: "36.8", P: "120", R: String(rr) } });
+  assert.doesNotMatch(advisories(infant(32)), /呼吸.{0,10}需尽快复测/u);
+  assert.match(safety.evaluateSafetyGate(infant(52)).redFlags.join("；"), /呼吸 52次\/分/u, "WHO 快速呼吸线（2～12 月龄≥50）照旧是红旗");
+  const toddler = (rr) => normalizeCaseStateInput({ chiefComplaint: "咳嗽2天", patient: { sex: "女", age: "2岁" }, symptoms: { 现病史: "咳嗽2天，无发热，精神好。" }, vitals: { T: "36.8", P: "110", R: String(rr) } });
+  assert.doesNotMatch(advisories(toddler(34)), /呼吸.{0,10}需尽快复测/u);
+  assert.match(advisories(toddler(38)), /呼吸 38次\/分需尽快复测/u);
+});
+
+const polarity = await jiti.import("../src/lib/clinical-polarity.ts");
+const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
+check("10.15", "自服药名读法：维生素B12片、B2 等带编号的名字不截断；剂量与次数不进药名；长期规律服用的不算「曾自服」", () => {
+  const names = polarity.selfTakenMedicationMentions("近1周自服维生素B12片1片每日1次，另自服维生素B2片。");
+  assert.ok(names.some((name) => name.startsWith("维生素B12")), names.join("|"));
+  assert.ok(names.some((name) => name.startsWith("维生素B2")), names.join("|"));
+  assert.ok(!names.some((name) => /每日|1片/u.test(name)), names.join("|"));
+  const items = rp.requiredPrecautionsForCase(caseOf("口干多饮1年", "糖尿病3年，长期规律服用盐酸二甲双胍片0.5g每日2次，近1月口干多饮。"), undefined);
+  assert.ok(!items.some((item) => item.kind === "self_medication" && /二甲双胍/u.test(item.name)), JSON.stringify(items.map((item) => item.kind)));
+});
+
+check("10.16", "附子等久煎药的煎法只写时长，不让病人口尝药液", () => {
+  const phrase = decoction.SPECIAL_DECOCTION_ORDER[0].phrase("制附子");
+  assert.equal(phrase, "制附子先煎45–60分钟");
+  assert.doesNotMatch(phrase, /口尝/u);
+});
+
 console.log(`r1081 main: ${n} checks passed`);

@@ -161,6 +161,10 @@ export function reconcileAnalysisUncertainties(reasoning: Json, recordText: stri
       const missing = parts.filter((part) => !findingAnswered(part, recordText, text(row.item)));
       if (missing.length < parts.length) row = { ...row, reason: `尚需核实${missing.length ? missing.join("、") : text(row.item)}` };
     }
+    // 「理由」一栏就是病历原话、没说缺什么（「接触诱因——双手常接触水及洗涤剂」，第六十二轮 d079）：这一条没有待核实的内容。
+    const reasonText = text(row.reason).replace(/[。；;，,]+$/u, "");
+    if (recordText && reasonText.length >= 4 && !PENDING.test(reasonText) && !new RegExp(SETTLED.source, "u").test(reasonText) &&
+      recordText.replace(/\s+/gu, "").includes(reasonText.replace(/\s+/gu, ""))) return [];
     if (uncertaintyAlreadySettled(row) || uncertaintyLeaksPromptWording(row) || uncertaintyDiscussesSyndromeNaming(row) || uncertaintyAsksListedElement(text(row.item).replace(SUFFIX, ""), pathogenesis)) return [];
     const item = text(row.item);
     const core = questionCore(item);

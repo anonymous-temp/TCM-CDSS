@@ -222,6 +222,25 @@ export function indicationEvidenceTerms(tag: TcmTreatmentIndicationTag, caseFact
 }
 /** 适应证词里只是部位、本身不说不适的词（闭集，取自 INDICATION_PATTERNS 的骨骼肌肉项与胃肠项）。 */
 const BODY_PART_ONLY_TERMS = /^(?:颈肩|颈项|颈部|颈椎|颈肌|脖子|关节|骨关节|肌筋膜|经筋|筋骨|胃脘|脘腹)$/;
+/**
+ * 月经的属性名（月经、经期、经量、经色…）本身不是表现，要和异常写在一起才算本例的表现（2026-11-26 第六十二轮 d055：
+ * 病历「经期4天，经量中等」，卡上写「本例见经期、经量、月经」）。卡上写属性名连同紧跟的那段异常（「经量多」「经期延长」）。
+ */
+const MENSTRUAL_ATTRIBUTE_TERMS = /^(?:月经|经期|经量|经色|经质|经血|行经|月经周期)$/u;
+const MENSTRUAL_ABNORMAL_AFTER = /^[^，,。；;无不未没否]{0,4}?(?:量多|量少|过多|过少|偏多|偏少|增多|减少|提前|推后|延后|错后|先期|后期|延长|缩短|不调|紊乱|不规律|淋漓|不尽|不止|疼痛|腹痛|血块|夹块|有块|色暗|色紫|紫暗|色淡|淡红|鲜红|质稀|质稠|量大)/u;
+export function withoutBareMenstrualAttributeTerms(terms: readonly string[], caseFacts: string): string[] {
+  const out: string[] = [];
+  for (const term of terms) {
+    if (!MENSTRUAL_ATTRIBUTE_TERMS.test(term)) { if (!out.includes(term)) out.push(term); continue; }
+    let shown: string | undefined;
+    for (let at = caseFacts.indexOf(term); at >= 0 && !shown; at = caseFacts.indexOf(term, at + 1)) {
+      const abnormal = caseFacts.slice(at + term.length).match(MENSTRUAL_ABNORMAL_AFTER)?.[0];
+      if (abnormal) shown = `${term}${abnormal}`;
+    }
+    if (shown && !out.some((item) => item.includes(shown!) || shown!.includes(item))) out.push(shown);
+  }
+  return out;
+}
 /** 部位所在小句里说不适的字（痛、酸、麻、僵、肿、活动受限、屈伸不利、不适…）。 */
 const BODY_COMPLAINT_WORDS = /痛|酸|麻|僵|肿|胀|受限|不利|屈伸|无力|活动障碍|弹响|畸形|不适|不舒服|痞|满|嘈杂|灼热|发凉/;
 /** 卡上与部位连写的那一段不适（取部位之后最先出现的一段）。 */
@@ -644,7 +663,7 @@ function controlledTreatmentPlan(
     // 与净化器同一判据（sourceDocumentsAffirmation），已签名的中医病名照算。
     const diseaseNames = textbookContext?.diseaseNames || [];
     const affirmedHere = (term: string) => diseaseNames.includes(term) || sourceDocumentsAffirmation(caseFacts, term);
-    const groundedTerms = (evidenceTerms.length > 0 ? evidenceTerms : matchedTemplateTerms).filter(affirmedHere);
+    const groundedTerms = withoutBareMenstrualAttributeTerms((evidenceTerms.length > 0 ? evidenceTerms : matchedTemplateTerms).filter(affirmedHere), caseFacts.normalize("NFKC"));
     return {
       // 甲方评测(2026-08-04) 第 3 条：治疗内容不再内嵌病机原文。
       // 同一个对象已经带 targetPathogenesis 字段，渲染层单独成行；内嵌等于每个项目块把同一句病机

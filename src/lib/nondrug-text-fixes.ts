@@ -16,6 +16,8 @@ const NONDRUG_TEXTBOOK_OCR_FIXES: ReadonlyArray<readonly [string, string]> = [
   ["施以法", "施以滚法"],
   ["施法及", "施滚法及"],
   ["施法约", "施滚法约"],
+  // 《中医食疗学》食疗方里的「篇蓄」是萹蓄（药典名）的扫描错字（第六十二轮 d078「篇蓄粥」）；「篇蓄」不是任何药名，整词替换无歧义。
+  ["篇蓄", "萹蓄"],
 ];
 export function textbookOcrFixed(text: string): string {
   return NONDRUG_TEXTBOOK_OCR_FIXES.reduce((value, [wrong, right]) => value.split(wrong).join(right), String(text || ""))

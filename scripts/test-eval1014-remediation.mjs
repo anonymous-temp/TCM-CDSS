@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 //   1 注意事项：说「方中有某药」而该药不在本方；提到本次没有给出的治疗项目
 //   2 追问：一轮只问一题；病历已答的急症筛查题不再问；「其他急危重线索」的题有所指；红旗已成立时问处置
 //   3 西医诊断：病名与病历已记录内容矛盾或说过头时的改名——只采信带病历原文引文的结论，只改病名一项
-//   5 煎服用法：先煎且久煎的毒性药（附子等）单列，写 45–60 分钟至口尝无麻辣感
+//   5 煎服用法：先煎且久煎的毒性药（附子等）单列，写 45–60 分钟（第六十二轮起不再写「至口尝无麻辣感」）
 //   6 药味功效：外用功效不作为内服汤剂里该药的功效
 //   7 中医鉴别：闭集选择点了名时候选只给这几个病；病名级鉴别缺失时只补写这一项（区分要点说本例，不贴教材定义）
 //   4 针刺方案：教材分「实证 / 虚证」写的只取本例那一套；未按证型配穴时不写按病的治法；老年人、虚证、皮肤破损不列刺络拔罐；
@@ -576,9 +576,9 @@ const checkAsync = async (name, run) => {
     const out = summary.applyDeterministicDecoctionMethod(content, "患者，男，30岁", 30);
     return JSON.parse(out.slice(out.indexOf(START) + START.length, out.indexOf(END))).formula.candidates[0].decoction.method;
   };
-  check("5.1 附子与龙骨、牡蛎同方：附子单列「先煎45–60分钟（至口尝无麻辣感）」，龙骨牡蛎仍是先煎20–30分钟", () => {
+  check("5.1 附子与龙骨、牡蛎同方：附子单列「先煎45–60分钟」，龙骨牡蛎仍是先煎20–30分钟", () => {
     const method = methodOf(["附子", "龙骨", "牡蛎", "桑螵蛸", "甘草"]);
-    assert.match(method, /附子先煎45–60分钟（至口尝无麻辣感）/, method);
+    assert.match(method, /附子先煎45–60分钟/, method);
     assert.match(method, /龙骨、牡蛎先煎20–30分钟/, method);
     assert.doesNotMatch(method, /附子[^，]*先煎20–30分钟|龙骨[^，]*45–60/, method);
     assert.ok(method.indexOf("附子先煎") < method.indexOf("龙骨、牡蛎先煎"), "久煎的毒性药排在最前");
@@ -606,7 +606,7 @@ const checkAsync = async (name, run) => {
   });
   check("5.4 加减加入有特殊煎法的药：煎法写在这一条的说明里（附子先煎45–60分钟），普通药不写（对照）", () => {
     const { specialDecoctionPhrase } = herbDecoction;
-    assert.equal(specialDecoctionPhrase("附子"), "附子先煎45–60分钟（至口尝无麻辣感）");
+    assert.equal(specialDecoctionPhrase("附子"), "附子先煎45–60分钟");
     // r1081《方剂学》煎药方法：大黄取攻下作用时后下煎10～15分钟；几选一仍以声明为准。
     assert.equal(specialDecoctionPhrase("大黄"), "大黄后下（第一煎结束前10～15分钟放入），第二煎用原药渣加水再煎，不另加一剂", "几选一没有标注时取所列的第一种");
     assert.equal(specialDecoctionPhrase("砂仁"), "砂仁后下（第一煎结束前约5分钟放入），第二煎用原药渣加水再煎，不另加一剂");
@@ -617,7 +617,7 @@ const checkAsync = async (name, run) => {
     assert.match(compilerSource, /function additionRiskNote[\s\S]{0,600}?return \[\s*modificationDecoctionPhrase\(herbName\)/, "煎法是提示的第一项");
   });
   check("5.2 制川乌同样单列；没有这类药的处方写法不变（对照）", () => {
-    assert.match(methodOf(["制川乌", "桂枝", "甘草"]), /制川乌先煎45–60分钟（至口尝无麻辣感）/);
+    assert.match(methodOf(["制川乌", "桂枝", "甘草"]), /制川乌先煎45–60分钟/);
     const plain = methodOf(["龙骨", "牡蛎", "甘草"]);
     assert.match(plain, /龙骨、牡蛎先煎20–30分钟/);
     assert.doesNotMatch(plain, /45–60/);

@@ -3773,16 +3773,42 @@ function hasPatternWithoutNegation(text: string, pattern: RegExp): boolean {
  * 写法是有限闭集的构词式守卫：部位（乳房/乳腺/左右双乳/乳晕/腋下）+ 肿块类名词，否定与既往按 hasPatternWithoutNegation；
  * 病历里已有乳腺影像、穿刺或病理的结果，或写明已确诊、已切除的，不算未评估。
  */
-const BREAST_MASS_PATTERN = /(?:乳房|乳腺|[左右双]侧?乳|乳晕|腋下|腋窝)[^。；;\n，,]{0,6}(?:肿块|结节|包块|硬结|肿物)|(?:触及|扪及|摸到|摸及)[^。；;\n，,]{0,8}(?:乳房|乳腺|乳)[^。；;\n，,]{0,6}(?:肿块|结节|包块|硬结|肿物)/u;
 const BREAST_EVALUATION_RECORDED = /(?:超声|B超|彩超|钼靶|X线|MRI|磁共振|穿刺|病理|活检)[^。；;\n]{0,16}(?:示|提示|显示|所见|报告|结果|BI-?RADS|诊断为)|BI-?RADS|已确诊|确诊为|切除术后|已切除|乳[^。；;\n，,]{0,6}术后|(?:确诊|诊断为?)[^。；;\n]{0,6}乳(?:腺)?癌|(?<!母亲|母|姐姐|妹妹|家族|家人|外婆|奶奶|姨)乳(?:腺)?癌[^。；;\n]{0,8}(?:确诊|术后|复发|转移|化疗|放疗|肿物)/iu;
 // 乳痈、乳腺炎（红肿热痛、成脓）与哺乳期的乳房结块按感染处置，不是「不明原因的肿块」。
 const BREAST_INFLAMMATORY = /乳痈|乳腺炎|化脓|流脓|脓肿|成脓|哺乳期/u;
 export function unevaluatedBreastMass(state: CaseState): boolean {
   return unevaluatedBreastMassText(trustedInputText(state), authoritativePatientAgeYears(state), patientSexText(withPatientObject(state)));
 }
+/**
+ * 乳房肿块这件事按「肿块」这个词本身判极性（第六十二轮实链 d064：「自查乳房未触及肿块」「乳房无肿块」被当成有肿块，
+ * 否定词夹在「乳房」与「肿块」之间，原来只看匹配起点）。同一小句内乳房与肿块隔得远一些也认（「左乳外上可触及2cm肿块」原来认不出）。
+ */
+const BREAST_SITE = /乳房|乳腺|[左右双]侧?乳(?!头|晕)|乳晕|腋下|腋窝/u;
+const BREAST_MASS_NOUN = /肿块|结节|包块|硬结|肿物/gu;
+function breastMassAffirmed(text: string): boolean {
+  // 「无痛性结节」「无意中发现肿块」的「无」不是否认（maskNonNegatingWuWords；等长替换，位置不变）——
+  // 回放抓到：甲方 100 例 C069「左乳无痛性结节1个月」按肿块处的否认读法被读成否认，丢了两周乳腺专科的评估。
+  const masked = maskNonNegatingWuWords(text);
+  let offset = 0;
+  for (const clause of masked.split(/(?<=[。；;\n，,])/u)) {
+    const start = offset; offset += clause.length;
+    if (!BREAST_SITE.test(clause)) continue;
+    for (const mass of clause.matchAll(BREAST_MASS_NOUN)) {
+      const before = clause.slice(0, mass.index);
+      const site = before.search(new RegExp(BREAST_SITE.source, "gu"));
+      if (site < 0 || before.length - site > 24) continue;
+      // 否认（未触及、无、未扪及、没有摸到、否认）按共用的否认读法在「肿块」这个词上判；不另按「不」字判，
+      //「左乳触及一不规则肿块」是肯定（反证 M46：另加的那条字面判据与共用读法重复，还会把「不规则」读成否认）。
+      const at = start + mass.index!;
+      if (isNegatedAt(masked, at) || isExcludedClinicalAssertionAt(masked, at)) continue;
+      return true;
+    }
+  }
+  return false;
+}
 export function unevaluatedBreastMassText(text: string, ageYears: number | undefined, sex: string): boolean {
   const normalized = normalizeClinicalText(text);
-  if (!hasPatternWithoutNegation(normalized, BREAST_MASS_PATTERN)) return false;
+  if (!breastMassAffirmed(normalized)) return false;
   if (BREAST_EVALUATION_RECORDED.test(normalized) || BREAST_INFLAMMATORY.test(normalized)) return false;
   if (ageYears == null) return /女/.test(sex);
   return /男/.test(sex) ? ageYears >= 50 : ageYears >= 30;
@@ -6756,7 +6782,8 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
     "全身冰冷", "四肢冰冷", "少尿", "意识模糊"]) ||
     // 「无尿」要按构词式认：「无尿痛、腹痛及阴道流血」里的「无尿」是否认尿痛（2026-10-24 甲方 100 例 C097：孕 12 周、血压 110/68，
     // 被提示「循环灌注异常线索需立即复核」）。
-    hasPatternWithoutNegation(text, /无尿(?![痛频急道意感等])/)) {
+    // 第六十二轮实链 d073（7 岁遗尿「白天无尿失禁」）：尿失禁、尿床、尿血、尿色、尿常规等词里的「无尿」同样是否认那一项。
+    hasPatternWithoutNegation(text, /无尿(?![痛频急道意感等失床血色常检黄液潴])/)) {
     addAdvisory("shock", "循环灌注异常线索需立即复核血压、意识、尿量及末梢循环");
   }
   // 皮肤表现（风团、荨麻疹）本身不是严重过敏：WAO 2020 过敏反应判据要求皮肤表现同时伴呼吸受累、血压下降或靶器官
@@ -6767,7 +6794,11 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
     const skinOnly = new Set(["全身风团"]);
     const airway = [...anaphylaxis.symptoms.filter((term) => !skinOnly.has(term)), "脸肿", "喉紧", "喉头肿胀"];
     const involvement = [...anaphylaxis.dangerCompanions, ...ANAPHYLAXIS_INVOLVEMENT_COMPANIONS];
-    if (hasAnyTerm(text, airway) ||
+    // 声音嘶哑自身写明一个月以上病程（「干咳少痰、声音嘶哑2月」）、又没有过敏或气道受累的伴随表现时，是慢性喉病而不是急性气道受累
+    //（词表本条 qualifiers 本来就是 acuteOnset；第六十二轮实链 d009 慢喉喑被提示「严重过敏或气道受累」）。病程判据与局灶缺损同一个。
+    const chronicHoarsenessOnly = (term: string) => term === "声音嘶哑" && !mentionedWithoutNegation(text, involvement) &&
+      [...text.matchAll(/声音嘶哑/gu)].every((match) => focalDeficitHasChronicCourseAt(text, match.index ?? 0, match[0]));
+    if (airway.some((term) => hasAnyTerm(text, [term]) && !chronicHoarsenessOnly(term)) ||
       (hasAnyTerm(text, [...skinOnly, "风团", "荨麻疹"]) && mentionedWithoutNegation(text, involvement))) {
       addAdvisory("anaphylaxis", "严重过敏或气道受累线索需立即复核气道、呼吸和循环");
     }
@@ -8653,7 +8684,7 @@ export function evaluateSafetyGate(input: CaseState): SafetyGate {
   // 只对以失眠就诊的病例（主诉里有失眠）要求 OSA 筛查：慢性失眠评估包括睡眠呼吸暂停（AASM）；胃痛、头痛病历里顺带一句「睡眠差」
   // 不是就诊原因（第二十三轮回放：甲方「上腹部胀痛半月…睡眠差」因起病时间读法修正而多出这一项）。
   if (insomniaPresentation((state.chiefComplaint || fieldText(state, "zhushu") || "").trim()) && !hasExplicitOsaScreen(trustedText)) {
-    addMissing("osa_screening", "失眠需补充OSA风险筛查（打鼾/呼吸暂停/日间嗜睡/高血压）");
+    addMissing("osa_screening", "失眠需补充睡眠呼吸暂停风险筛查（打鼾/呼吸暂停/日间嗜睡/高血压）");
   }
   if (thyroidScreenRequired(trustedText) && !hasCurrentThyroidAssessment(trustedText)) {
     addMissing("thyroid_screening", "相关症状需补充甲状腺功能线索或近期甲功");
@@ -9597,7 +9628,21 @@ export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolea
 /** 就医警示的兜底：模型没有写出本例的急症表现时，至少给出不分病种都成立的几条。 */
 const GENERIC_URGENT_SIGNS = ["高热不退", "胸痛或呼吸困难", "神志不清或抽搐", "呕血、便血或咯血等出血"];
 const PATIENT_EFFICACY_TRIGGER = "服药后主要症状没有好转或反而加重，或出现新的不适";
-const PATIENT_WORSENING_PLAN = "服药后症状没有好转、反而加重，或出现新的不适，请及时回门诊复诊，由医生重新评估并调整治疗；请不要自行加减或更换药物。如新出现皮疹或瘙痒、皮损与原有表现不同，或出现胸闷气短等明显不适，请暂停服药并及时就医。";
+const PATIENT_WORSENING_PLAN_HEAD = "服药后症状没有好转、反而加重，或出现新的不适，请及时回门诊复诊，由医生重新评估并调整治疗；请不要自行加减或更换药物。";
+/** 病历写着本人现有皮损（皮疹、风团、湿疹、疱疹、丘疹、斑疹、皮损）——随访的过敏观察才问「皮损与原有表现不同」。 */
+const RECORDED_SKIN_LESION_TERMS = ["皮损", "皮疹", "风团", "湿疹", "疱疹", "丘疹", "斑疹", "红斑", "水疱", "结节性红斑"];
+function recordedCurrentSkinLesion(state: CaseState): boolean {
+  const text = clinicalGroundingText(state);
+  return RECORDED_SKIN_LESION_TERMS.some((term) => sourceDocumentsAffirmation(text, term));
+}
+/**
+ * 无效或加重的处置预案。服药后过敏观察：病历有皮损的写「皮损与原有表现不同」，没有的只写新出现皮疹瘙痒——
+ * 此前一句话对所有患者都问「皮损与原有表现不同」（2026-11-26 第六十二轮 100 份病历逐字复核：70 份，病历没有任何皮损）。
+ */
+function patientWorseningPlan(state: CaseState): string {
+  const allergy = recordedCurrentSkinLesion(state) ? "如新出现皮疹或瘙痒、皮损与原有表现不同" : "如服药后新出现皮疹或瘙痒";
+  return `${PATIENT_WORSENING_PLAN_HEAD}${allergy}，或出现胸闷气短等明显不适，请暂停服药并及时就医。`;
+}
 const PATIENT_MEDICATION_NOTE = "请不要自行叠加中药或中成药；复诊时请携带正在使用的全部药物（或药盒、药品清单）。";
 
 function patientUrgentCareLine(signs: readonly string[] | undefined): string {
@@ -9674,16 +9719,21 @@ function uniqueFollowupText(values: Array<string | undefined>, limit = 5): strin
 // M05 随访汇总原先从 nonPharma.monitoring 取 指标/时间/触发 三路输入。该结构化字段已删除，
 // 这里改为：指标与触发落到既有的 coreFacts / 固定回退路径（两条回退本就存在且被测试覆盖），
 // 注意事项只作为一条只读文本行呈现，不再变成随访时间轴的结构化行。
-function structuredFollowupInputs(state: CaseState): {
+export function structuredFollowupInputs(state: CaseState): {
   precautions: string[];
   coreFacts: string[];
 } {
   const prescribe = state.reasoningPrescribe || (state.reasoningV2?.stage === "prescribe" ? state.reasoningV2 : undefined);
   const diagnose = state.reasoningDiagnose || state.reasoningV2;
+  // 西医「症状依据」一栏 10/26 起交付的是一整句诊断依据（不是病历摘句）：只收病历里逐字有的那几条，
+  // 否则随访的「复诊评估重点」成了「既往胃镜确诊溃疡，本次呕血黑便符合其出血表现…」（第六十二轮 d098）。
+  const record = clinicalGroundingText(state).replace(/\s+/gu, "");
+  const recordedWesternFacts = (diagnose?.westernDiagnosis?.primary?.supportingFacts || [])
+    .filter((fact) => typeof fact === "string" && fact.trim().length > 0 && record.includes(fact.replace(/\s+/gu, "").replace(/[。.；;，,]+$/u, "")));
   return {
     precautions: uniqueFollowupText(prescribe?.nonPharma?.precautions || [], 6),
     coreFacts: uniqueFollowupText([
-      ...(diagnose?.westernDiagnosis?.primary?.supportingFacts || []),
+      ...recordedWesternFacts,
       ...(diagnose?.overview?.primarySyndromeBasis || []),
       state.chiefComplaint,
     ], 5),
@@ -10037,7 +10087,7 @@ export function buildDeterministicRiskFollowupPayload(
     ...(followup.precautions.length > 0 && !(state.prescription || "").includes("### 注意事项")
       ? [`**注意事项**：${followup.precautions.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`]
       : []),
-    adviceText(`**无效或加重的处置预案**：${PATIENT_WORSENING_PLAN}${patientUrgentCareLine(authored?.urgentSigns)}`),
+    adviceText(`**无效或加重的处置预案**：${patientWorseningPlan(state)}${patientUrgentCareLine(authored?.urgentSigns)}`),
     "",
     ...sixHealthFollowupTable(authored?.dimensions).split("\n").map(adviceText),
     "",
@@ -10085,7 +10135,7 @@ export function buildForcedIncompleteRiskFollowup(state: CaseState): string {
     "**首次复诊时间**：请按医生告知的时间复诊；如有不适或症状加重，请提前复诊。",
     "**复诊评估重点**：复诊时医生会再次核对本次尚未确认的病情信息，并查看主要症状、伴随不适、舌象脉象和服药后的反应；请您如实告知过敏史、正在使用的药物等情况，服药期间留意症状变化。",
     "**安全性观察**：服药期间请留意有无皮疹瘙痒、胃肠不适、头晕乏力、心悸胸闷、出血倾向或原有症状加重；如出现上述情况，请及时复诊。",
-    `**无效或加重的处置预案**：${PATIENT_WORSENING_PLAN}${patientUrgentCareLine(undefined)}`,
+    `**无效或加重的处置预案**：${patientWorseningPlan(state)}${patientUrgentCareLine(undefined)}`,
     "",
     ...sixHealthFollowupTable().split("\n"),
     "",

@@ -39,7 +39,8 @@ const POINTED_PROJECTS = new Set(["acupuncture", "moxibustion", "acupoint_applic
 // 例外集逐项钉死:耳穴区(非体穴)/部位区描述/自由文本占位。任何一项被误删、或新增未归类的
 // 模板穴位值,都会让测试变红——这就是「新增模板必须过穴位目录或人工登记」的门禁。
 const AURICULAR_ZONES = new Set(["交感", "内分泌", "平喘", "心", "肺", "胃", "脾", "大肠", "枕", "皮质下"]);
-const REGION_TERMS = new Set(["膀胱经大杼至肾俞区域", "局部阿是穴", "循经远端穴", "额"]);
+// 第六十二轮：灸疗部位改写为「背部膀胱经大杼至肾俞一线」（去掉「（现场定位）」流程话）。
+const REGION_TERMS = new Set(["背部膀胱经大杼至肾俞一线", "局部阿是穴", "循经远端穴", "额"]);
 const FREE_TEXT_PLACEHOLDERS = new Set(["按针刺方案中与当前证型匹配的穴位", "证型配穴由医师复核"]);
 let checked = 0, resolved = 0, excepted = 0;
 for (const project of TCM_TREATMENT_PROJECTS) {

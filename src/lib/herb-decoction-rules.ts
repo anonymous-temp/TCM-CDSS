@@ -65,6 +65,9 @@ const AUDIT_VERIFIED_METHOD_SUPPLEMENTS: Record<string, string[]> = {
  */
 const AUDIT_VERIFIED_ONE_OF_SUPPLEMENTS: Record<string, string[][]> = {
   大黄: [["后下", "先煎", "冲服"]],
+  // 药典 2020 一部玄明粉【用法与用量】「3～9g，溶入煎好的汤液中服用」（知识库只把这句存在剂量条目里，没有煎法字段）：
+  // 第六十二轮 d085 方里有玄明粉，煎服行只写了大黄后下。写作溶入、溶化或冲服都算交代了，缺省按药典写「溶入」。
+  玄明粉: [["溶入", "溶化", "冲服"]],
 };
 /**
  * 鲜汁、乳类不入煎，取汁兑入煎好的药液服（2026-10-19，验收集 X-G-1104：消渴方加减里的藕汁、牛乳，煎服行一字未提，
@@ -361,7 +364,8 @@ function lateDecoctionPhrase(herbs: string): string {
 }
 
 export const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (herbs: string) => string }> = [
-  { pattern: /久煎/, phrase: (herbs) => `${herbs}先煎45–60分钟（至口尝无麻辣感）` },
+  // 第六十二轮：「至口尝无麻辣感」是药房判断煎透的方法，写给患者等于让人尝有毒药液（样张评审与本轮阅卷 5 份都判错），只写时长。
+  { pattern: /久煎/, phrase: (herbs) => `${herbs}先煎45–60分钟` },
   // 药典写了先煎时长、比一般先煎长得多的（水牛角，见 PHARMACOPOEIA_LONG_DECOCTION）在这一组里单独写、写在前面（先下锅）。
   { pattern: /先煎/, phrase: (herbs) => firstDecoctionPhrase(herbs) },
   { pattern: /后下/, phrase: lateDecoctionPhrase },
@@ -369,6 +373,7 @@ export const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (
   { pattern: /另煎|另炖/, phrase: (herbs) => `${herbs}另煎兑入` },
   { pattern: /烊化/, phrase: (herbs) => `${herbs}烊化兑服` },
   { pattern: /冲服|冲入/, phrase: (herbs) => `${herbs}冲服（不入煎）` },
+  { pattern: /溶入|溶化/, phrase: (herbs) => `${herbs}溶入煎好的药液中服（不入煎）` },
   // 鲜汁、乳类（LIQUID_ADJUNCT_METHODS）兑入煎好的药液服，不说「冲服」。排在冲服之后：既有声明里写「冲服」的仍归冲服一组。
   { pattern: /兑服/, phrase: (herbs) => `${herbs}兑入药液服（不入煎）` },
 ];
@@ -410,7 +415,7 @@ export function specialDecoctionOrderIndexes(name: string, declared = ""): numbe
   return first < wrap && SPECIAL_DECOCTION_ORDER[wrap].pattern.test(requirement) ? [first, wrap] : [first];
 }
 
-/** 单味药的特殊煎法说明（「附子先煎45–60分钟（至口尝无麻辣感）」）；不必点名时为空串。先煎又包煎的两组都写（「金礞石先煎20–30分钟，金礞石包煎」）。 */
+/** 单味药的特殊煎法说明（「附子先煎45–60分钟」）；不必点名时为空串。先煎又包煎的两组都写（「金礞石先煎20–30分钟，金礞石包煎」）。 */
 export function specialDecoctionPhrase(name: string, declared = ""): string {
   return specialDecoctionOrderIndexes(name, declared).map((index) => SPECIAL_DECOCTION_ORDER[index].phrase(name)).join("，");
 }

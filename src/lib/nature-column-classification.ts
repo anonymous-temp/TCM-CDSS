@@ -27,6 +27,14 @@ export function classifyNatureColumns(nature: Record<string, unknown>): void {
   nature.items = [...new Set([...authoredItems, ...columns.filter((item) => STANDALONE.has(item))])];
   nature.rootDeficiency = [...new Set([...roots.filter((item) => natureItemDeficiencyOrExcess(item) === "root"), ...items.filter((item) => natureItemDeficiencyOrExcess(item) === "root")])].filter((item, _, all) => !all.some((other) => other !== item && other.includes(item)));
   nature.branchExcess = [...new Set([...branches.filter((item) => natureItemDeficiencyOrExcess(item) === "branch"), ...items.filter((item) => natureItemDeficiencyOrExcess(item) === "branch")])].filter((item, _, all) => !all.some((other) => other !== item && other.includes(item)));
+  nature.rootDeficiency = withoutDerivedRootItems(nature.rootDeficiency as string[]);
+}
+
+const DERIVED_ROOT_ITEMS = (policy.classification.derivedRootItems || []) as Array<{ item: string; parents: string[] }>;
+/** 本虚栏里由同栏另一条派生的病性（虚火、虚热←阴虚；虚寒←阳虚）不单列：数据与依据见 pathogenesis-columns.source.json。 */
+export function withoutDerivedRootItems(roots: readonly string[]): string[] {
+  return roots.filter((item) => !DERIVED_ROOT_ITEMS.some((row) => row.item === item &&
+    roots.some((other) => other !== item && row.parents.some((parent) => other.includes(parent)))));
 }
 
 const MECHANISM_ITEM = new RegExp(policy.classification.mechanismItemPattern, "u");

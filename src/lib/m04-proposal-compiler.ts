@@ -3394,7 +3394,7 @@ export function compileM04Proposal(
       herbName: item.herbName.trim(),
       doseOrHandling: item.actionType !== "remove" ? addDose : null,
       reason: cleanNarrative(item.reason, "随证调整治疗重点"),
-      // 加入的药有特殊煎法时写在这一条里（附子「先煎45–60分钟，至口尝无麻辣感」）：用量栏只收「数字g」，
+      // 加入的药有特殊煎法时写在这一条里（附子「先煎45–60分钟」）：用量栏只收「数字g」，
       // 煎服行只列方中原有的药——此前 11 岁患儿「寒痛甚加附子3g」一条没有任何煎法说明（2026-10-14 独立评审）。
       riskNote: item.actionType === "add" ? additionRiskNote(item.herbName.trim(), caseState) : "",
       ...(substitutions.length > 0 ? { substitutions } : {}),

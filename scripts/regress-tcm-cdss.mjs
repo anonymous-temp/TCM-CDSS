@@ -1784,7 +1784,7 @@ cases.push(...bloodPressureFormatCases);
 
 cases.push(expected("insomnia-osa-screen-missing", baseCase("insomnia-osa-screen-missing", {
   fields: { tcmDetail: "" },
-}), "needs_information", "需关注", { ...PRESCRIPTION_ONLY_GATE, expectedMissing: "OSA风险筛查" }));
+}), "needs_information", "需关注", { ...PRESCRIPTION_ONLY_GATE, expectedMissing: "睡眠呼吸暂停风险筛查" }));
 cases.push(expected("thyroid-differential-missing", baseCase("thyroid-differential-missing", {
   chiefComplaint: "心悸伴消瘦、多汗手抖",
   rawText: "心悸伴消瘦、多汗手抖，否认胸痛晕厥。",

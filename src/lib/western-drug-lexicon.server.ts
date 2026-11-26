@@ -26,6 +26,18 @@ export function westernClassTable(): WesternClassTable {
   return westernClassTableCache;
 }
 
+/**
+ * 全身用的非甾体抗炎药（布洛芬、双氯芬酸、塞来昔布、美洛昔康…）：药理分类表里有「抗炎和抗风湿药>非甾体抗炎药」这一类。
+ * 只在眼科、局部或阴道给药类下出现的不算；阿司匹林在表里属抗血小板与解热镇痛两类，不在此类。认不出药名时为 false。
+ */
+export function westernDrugIsSystemicNsaid(text: string): boolean {
+  const name = westernDrugNameIn(text);
+  if (!name) return false;
+  const table = westernClassTable();
+  const ids = [...(table.byProduct[name] || []), ...(table.byGeneric[name] || [])];
+  return ids.some((id) => (table.classes[id] || "").includes("抗炎和抗风湿药>非甾体抗炎药"));
+}
+
 let genericKeysLongestFirst: string[] | undefined;
 /**
  * 一段写法里能认出的西药通用名（2026-11-14 第四十五轮复核：「用药史」一栏逐段切开后，「偶有漏用」「近期」「喝热水」也被当药名写进注意事项）。

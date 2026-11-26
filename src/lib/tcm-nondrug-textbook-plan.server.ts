@@ -2068,8 +2068,20 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     : "";
   // 本节与联网来源都没写频次时，写教材总论通行的次数与疗程（generator 的 COURSE_DEFAULT_PATTERNS），标明书名：
   // 回放 1082 例：针刺方案 790 个里 508 个（64%）、灸法方案 61 个里 36 个的疗程栏只有一句「间隔与疗程按病情和耐受确定」，没有频次（甲方外治标准要求具体穴位、频次、安全边界）。
+  // 耳穴：卡上写了压丸（压籽、王不留行）用压籽法的留置与按压次数（《刺法灸法学》耳针法），只写毫针时用针灸的通行次数；
+  // 拔罐：本卡已写了留罐时长（总论那句不并列）时，只取总论里的次数与疗程小句。此前两类卡没有频次时落到
+  //「首次安排一次面诊治疗…再约下次时间」（2026-11-26 第六十二轮 100 份病历：耳穴 51 张、拔罐 8 张）。
+  const cuppingCourseText = code === "cupping"
+    ? (data.modalityDefaults.cupping?.text || "").replace(/[。]+$/u, "").split(/(?<=[，,；;])/u).filter((part) => /次|疗程|间隔/u.test(part) && !/分钟/u.test(part)).join("").replace(/[，,；;]\s*$/u, "")
+    : "";
   const courseDefault = code === "acupuncture" ? data.modalityDefaults.acupunctureCourse
-    : code === "moxibustion" ? data.modalityDefaults.moxibustionCourse : undefined;
+    : code === "moxibustion" ? data.modalityDefaults.moxibustionCourse
+    : code === "auricular"
+      ? /压丸|压籽|压豆|王不留行|磁珠/u.test(base.content) && data.modalityDefaults.auricular
+        ? { ...data.modalityDefaults.auricular, text: `压丸：${data.modalityDefaults.auricular.text}` }
+        : data.modalityDefaults.acupunctureCourse
+    : code === "cupping" && ownDuration && cuppingCourseText ? { ...data.modalityDefaults.cupping, text: cuppingCourseText }
+    : undefined;
   const courseClause = courseDefault && !frequency && !web
     ? `${courseDefault.text.replace(/[。]+$/u, "")}（《${data.sources[courseDefault.book || ""]?.title || "教材"}》总论）。`
     : "";
@@ -2079,6 +2091,8 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       ? `${web.schedule}。${defaultClause}`
       : courseClause
         ? `${courseClause}${defaultClause ? ` ${defaultClause}` : ""}`
+        // 拔罐总论那句本身写了次数与疗程（可每日1次或隔日1次，5～10次为1个疗程），不再接「首次安排一次面诊治疗…」。
+        : code === "cupping" && defaultClause ? defaultClause
         : `${defaultClause}首次安排一次面诊治疗，治疗后由医生评估局部反应，再约下次时间。`;
   // 针刺卡的操作栏：教材操作原句去掉已作疗程栏的那一句（此前「头痛急性发作时每日治疗1-2次…」在疗程栏、操作栏各印一遍）。
   // 其他项目（耳穴、拔罐、灸法）的操作就是治疗内容栏那段教材原文，操作栏不再逐字重抄，只写技术禁忌（2026-10-19 Claude 评审：
@@ -2165,17 +2179,23 @@ function tuinaPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan |
   // 教材写了逐步操作时，卡片正文给手法与本例取的背俞穴，不再以病种治则开头（第二十七轮：甲方 10.26 病历 5「虚劳只给食疗」——
   // 《推拿学》虚劳节有取穴与操作，卡片却只以一段病种治则开头，被当作「只有治则」的卡不交付）。教材没有操作步骤的病种照旧以治则开头。
   const principle = `治则：${(entry.principle.split("。")[0] || entry.principle).trim().replace(/[“”"]/g, "")}。`;
+  // 教材本节没列手法名时，正文写教材的前两步操作，不写「手法：见操作」这句跳转语；随证加减写成「X：…」，
+  // 不写「本例证候与教材「X」相符」这种讲系统查表的话（2026-11-26 第六十二轮 100 份病历 d067、d068）。
+  const manipulations = uniq(entry.manipulations.map((item) => (item === "法" ? "滚法" : item))).slice(0, 8);
+  const operationInContent = manipulations.length === 0 && entry.operation.length > 0;
+  const methodPart = manipulations.length > 0 ? `手法：${manipulations.join("、")}。`
+    : operationInContent ? `操作：${cutText(entry.operation.slice(0, 2).join(" "), 360).replace(/[。]?$/u, "。")}` : "";
   return {
     kind: "acupoint",
     treatmentContent: cutText(
-      textbookOcrFixed(`${entry.operation.length > 0 ? "" : principle}手法：${uniq(entry.manipulations.map((item) => (item === "法" ? "滚法" : item))).slice(0, 8).join("、") || "见操作"}。${backShu.note}${modification ? `本例证候与教材「${modification.label}」相符：${cutText(modification.content, 200)}` : ""}`),
+      textbookOcrFixed(`${entry.operation.length > 0 ? "" : principle}${methodPart}${backShu.note}${modification ? `随证加减（${modification.label}）：${cutText(modification.content, 200)}` : ""}`),
       1150,
     ),
     points: sites.slice(0, POINT_LIMIT).map((name) => ({ name, role: "base_point" as const })),
     items: [],
     // 不写「教材按手法逐项给出…未单列每周次数」这种讲资料本身的话（第四十一轮 r1054 回顾：系统用语）；只写教材给了的时长，没给的按耐受定。
     scheduleSuggestion: `${tuinaWeb ? tuinaWeb.schedule + "。" : ""}${perPoint}每次操作完毕观察反应。`,
-    techniqueBoundary: cutText(textbookOcrFixed(`${entry.operation.slice(0, 3).join(" ")} ${techniqueContraindications("tuina", input.patientAgeYears)}`), 980) || "手法与力度以现场查体为准。",
+    techniqueBoundary: cutText(textbookOcrFixed(`${entry.operation.slice(operationInContent ? 2 : 0, 3).join(" ")} ${techniqueContraindications("tuina", input.patientAgeYears)}`).trim(), 980) || "手法与力度以现场查体为准。",
     protocolSource: cutText(`${bookCitation(data, "tuina", entry.disease, entry.line)}${tuinaWeb ? `；${tuinaWeb.citation}` : ""}`, 980),
     syndromeLabels: modification ? [modification.label] : [],
     syndromeTailored: Boolean(modification),
