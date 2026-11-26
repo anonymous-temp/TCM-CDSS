@@ -358,7 +358,6 @@ check("10.14", "安全层的四处读法：乳房无肿块不排乳腺癌、白�
 });
 
 const polarity = await jiti.import("../src/lib/clinical-polarity.ts");
-const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
 check("10.15", "自服药名读法：维生素B12片、B2 等带编号的名字不截断；剂量与次数不进药名；长期规律服用的不算「曾自服」", () => {
   const names = polarity.selfTakenMedicationMentions("近1周自服维生素B12片1片每日1次，另自服维生素B2片。");
   assert.ok(names.some((name) => name.startsWith("维生素B12")), names.join("|"));
