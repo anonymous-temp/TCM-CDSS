@@ -4288,6 +4288,40 @@ All four are in the second commit. **Order problems need a live re-run before th
 - **Not pushed.** Both commits are local; `origin/main` is behind.
 - **Sample for the customer.** `~/runlogs/r1018/work/r1077/deliver/`: five real records from the final run (R046, R062, R007, R008, R010) as Word and PDF, and the 100-case verdict table (CSV). The first run's sample is in `第一版-修复前/`.
 
+### 11/26 round 60: the five sample cases read again before sending, fixed by class, two deploys (2026-11-26)
+
+The user asked for the five sample cases for the customer's reviewers (R046, R062, R007, R008, R010 from round 59) to be fixed first, so they can be sent. They were read again word by word, the server-caused defects fixed by class, deployed, and the five re-run on production and re-read after each deploy. Material: `~/runlogs/r1018/work/r1079/` (`replay/rx.mjs` = delivered-surface replay over saved prescriptions, `cp/cp.py` 42 mutations, all caught, `gate.sh`, `deploy/`, `web/` saved source text) and `~/runlogs/r1018/work/r1077/` (`out/sample5d`, `out/sample5e`, `sets/sample5.json`, `docgen/mkdoc.cjs`, `deliver/`). Suite `test:r1079-main` (24 checks). Commits 634c06b5 + 073d7b41, local, **not pushed**.
+
+**Fixed, by class.**
+- **「原方」 for 疏风清热汤 (R008).** The formula had no entry in the original-composition table, so a prescription with exactly its 13 herbs stayed 「疏风清热汤加减」. Added 疏风清热汤《中医喉科学讲义》 (tier `modern_source`; the 13 herbs quoted from A+医学百科 喉痹, the book attribution from 医学教育网; the textbook itself has no electronic copy). Also applies to R080.
+- **Patent medicine notes carried brand names.** The label source site replaced 「本品」 with brand + generic name in about 1,900 of 8,807 label records (「风寒感冒者禁用可可康双黄连口服液」). `tidiedMedicineLabelNote` (instruction-record-pool, called by the delivered surface) writes the product's own name back as 「本品」: the 2–8 characters between a lead word (`medicine-label-own-name.source.json`) and the name are the brand; a brand learned that way is also removed at a sentence start; 「brand + name」 that is itself another catalog product (丹栀逍遥丸) is left. Item numbers of the two label fields (「1.…2.…1.…」, 「10 本品…」) and repeated sentences are dropped.
+- **Herb function column follows the 方义.** `formulaAnalysisUseOfHerb` returns what the 方义 says about a herb (segments where it is a subject, role words and summary statements excluded). `selectGroundedHerbFunction` first keeps the 《中药学》 clauses best supported by that text (share of a clause's two-character pieces that are literal in it or in the same concept group; `analysisConcepts` in `herb-function-selection.source.json` are synonym groups used only here), needs at least half supported, then ranks ties by pathogenesis target and method, then by literally written pieces; two overlapping clauses keep one. Before: 桑叶 in 沙参麦冬汤 「疏散风热」, 防风 in 疏风清热汤 「胜湿止痛」, 牛膝 in 四妙丸 「逐瘀通经」, 川芎 in 荆防败毒散 「活血行气」. Two earlier versions were replaced after replaying 100 saved prescriptions: fixed weights picked 「健脾止泻」 for 薏苡仁 in 四妙丸; character overlap picked 「透疹」 for 荆芥.
+- **Chain syndrome evidence (R046).** When a node's evidence equals its patient fact, `applyM03AdvisoryQualityBoundaries` replaced it with the first other syndrome-basis item, whatever it said (「咽痒、咳嗽」 got 「头痛、鼻塞、恶寒」). The replacement must share a finding with the node; otherwise the two columns stay equal.
+- **M05 efficacy criteria (R010).** `efficacyCriteriaForRecord`: clauses about urine, stool, appetite or sleep are not delivered when the record says nothing about that domain (`m05-followup-general-domains.source.json`); the review-focus sentence is not filtered. Applied at the exit of `authorFollowupClinicalContent`, like the population filter.
+- **Western name kept pending by its own echo (R046, after the first deploy).** For a clinically diagnosable disease (criteria row without required tests or course threshold), `settleWesternDiagnosisBasis` no longer reads the name's own 「X待查」 inside the basis as the basis saying "not established" (「据此临床考虑急性上呼吸道感染待查」 kept 「急性上呼吸道感染待查」). Explicit wording (须先排除, 诊断尚不能确立…) still does.
+- **Precautions for the elderly with age unknown.** With no age and no elderly wording in the record, lines written for the elderly are not delivered (the customer's records have no age). `test:eval1014-remediation` 10.3 pinned the opposite control and moved.
+- **Authored modifications.** A row that reinforces the chief complaint does not add a herb graded 有毒/有大毒 (`main_symptom_toxic_herb`; R062: 咽痛 → 山豆根 6g). Herbs with 小毒, textbook rows and rows for accompanying findings are unaffected.
+- **Cards.** 「5分钟后去罐」 counts as a stated cupping duration (the general 5–15 min sentence was appended next to it); a diet card's schedule starts at the frequency clause instead of repeating the preparation steps.
+- **方义** loses the echoed prompt clause 「原方沙参品种未定，」.
+
+**What the re-runs showed.** Each of the two deploys redrew M04 (and part of M03) for all five records, although only post-processing changed and the run did not force regeneration: prescribe took 19–45 s, formulas gained or lost a herb, modification rows changed. The cause was not traced (memo hits are logged, misses are not). So each deploy's outputs had to be read from scratch, and the second batch of fixes came from the first re-run. Identical requests on one build do replay (stage-result reuse).
+
+**Measured.**
+- Delivered-surface replay over the 100 saved prescriptions of round 59: function column changed in 84, medicine notes in 19, formula name in 2 (R008, R080); idempotent in all 100.
+- Gate on 073d7b41: lint, 357 suites, fresh-artifact suites, typecheck, all green.
+- Production 073d7b4, the five records (hospital-b, follow-up skipped): every stage 200, all dosed, no red flag; R046 急性上呼吸道感染 without 待查; R008 「疏风清热汤」 with 「本方用疏风清热汤原方」; no brand names or item numbers in medicine notes; R010 efficacy 「腰痛逐渐减轻、发作次数减少，精神体力恢复」; R062 without 山豆根.
+
+**In production (073d7b41, tag `20261126-073d7b4-prebuilt`, deployed 2026-11-26 03:09 UTC; same release directory and `20260927-dsrepair` override).** 634c06b5 went out first at 02:11 UTC. `verify:deployed-image` passed both times (commit, digest, strictReady, both model families). `regress:prod-smoke`: 0 failures both times; on the second run M03 P95 28.5 s and M04 P95 33.9 s, measured while the five-case run used the service at the same time. Rollback: image `tcm-cdss:20261126-634c06b-prebuilt` or `…20261125-b9bd6b3…` with the compose backups in the release directory. Container logs before each replacement: `~/telemetry-archive/container-pre-{634c06b,073d7b4}-*.log.gz` on the host.
+
+**Sample for the customer.** `~/runlogs/r1018/work/r1077/deliver/中医辅助诊疗系统-真实病历测试样张-5例.docx` / `.pdf` (29 pages, from `out/sample5e`); the medicine table now shows usage, relation to the decoction, course note and label notes as separate labelled paragraphs, and an all-empty 「建议核实」 column is not printed. Earlier versions are in `第二版-1125/` and `第一版-修复前/`. The 100-case verdict table is still the round-59 run; the 100 records were not re-run on this build.
+
+**Left as is.**
+- R007's syndrome rationale opens with the mechanism and no finding (「肺失濡润、气逆作咳，故病位在肺」); the delivered surface does not cut it, the upstream step was not traced. Its Western basis says 「故暂以症状名待查」.
+- 养阴清肺丸's `correspondingProblem` says 「干咳少痰」 for a record that only says 干咳 (model-written).
+- 白扁豆 「健脾化湿，和中消暑」: two clauses tie at half support.
+- Cases 1 and 5 have no modification rows (one-symptom records, round-51 decision).
+- The gate label 「性别/生理状态（剂量建议前需明确生理风险分层）」 is printed as is.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).

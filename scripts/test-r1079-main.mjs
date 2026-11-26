@@ -187,6 +187,8 @@ await check("3.3", "方义没讲到这味药时照旧按病机靶点与治法选
 await check("3.5", "选出的两条原文小句意思重叠时只留一条（白术「健脾益气」「补气健脾」）；不重叠的两条都留", () => {
   const baizhu = functions.selectGroundedHerbFunction({ name: "白术", role: "臣", target: "", therapy: "", analysisUse: "健脾以助运化" }).text;
   assert.equal(baizhu, "健脾益气");
+  // 并列的两条里，方义原字写到的那条排前面，重叠时留下的就是它（党参「补脾益气」：留「补脾益肺」，不留同组近义的「健脾益肺」）。
+  assert.equal(functions.selectGroundedHerbFunction({ name: "党参", role: "君", target: "", therapy: "", analysisUse: "补脾益气以改善食少倦怠" }).text, "补脾益肺");
   const jinyinhua = functions.selectGroundedHerbFunction({ name: "金银花", role: "君", target: "", therapy: "", analysisUse: "疏散风热、清热解毒" }).text;
   assert.equal(jinyinhua, "清热解毒，疏散风热");
 });
