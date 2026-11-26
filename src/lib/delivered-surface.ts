@@ -2505,6 +2505,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       candidate.identityDeclassified = true;
       candidate.formulaSource = { evidenceLevel: "model_inference", source: source || "自拟方", confidence: "中" };
     }
+    // 提示词里交代模型的话被抄进了方义（「原方沙参品种未定，取北沙参…」，第六十轮 r1077 样张 R007）：这半句是写给模型的说明，不是方解。
+    if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = candidate.formulaAnalysis.replace(/原方(?:的)?[\u4e00-\u9fff]{1,6}品种未定[，,；;：:]?\s*/gu, "");
     // 方义开头与最终方名一致（自拟方 / 以某方为基础），三种写法同一个判据（withOpeningMatchingFormulaName）。
     if (typeof candidate.formulaAnalysis === "string" && typeof candidate.name === "string") {
       candidate.formulaAnalysis = withOpeningMatchingFormulaName(candidate.formulaAnalysis, candidate.name, original === true).text;

@@ -134,15 +134,20 @@ function functionRelevance(clause: string, context: string): number {
 /**
  * 方义里对这味药的说明与一条功效原文的贴合度（第六十轮，r1077 样张：沙参麦冬汤里桑叶的功效栏是「疏散风热」、方义写的是「清肺润燥」；
  * 疏风清热汤里防风是「胜湿止痛」、四妙丸里牛膝是「逐瘀通经」）。只用来在同一味药的几条原文小句之间选，不生成功效：
- * 小句按两个字一段切开后有几段出现在说明里（「清肺润燥」对「清肺润燥以助止咳」），加上落在同一概念组的组数（概念组与仅用于方义的同义组
- * 见 herb-function-selection.source.json：「引血下行」对「引药下行至腰膝」）。
+ * 小句按两个字一段切开，看有几段在说明里站得住——原字出现，或与说明里的说法落在同一概念组（「祛风」对「疏风」、「引血下行」对「引药下行」；
+ * 概念组与仅用于方义的同义组见 herb-function-selection.source.json）。站得住的段数占一半以上才算贴合；
+ * 贴合度并列的几条再按病机靶点与总治法分先后（四妙丸里薏苡仁「利湿健脾、舒筋缓急」：「利水渗湿」「健脾止泻」各有一段站得住，治法清热利湿，取前者）。
  */
+const ANALYSIS_USE_MINIMUM = 0.5;
+const ANALYSIS_CONCEPTS: readonly string[][] = [...selectionSource.concepts, ...((selectionSource as { analysisConcepts?: string[][] }).analysisConcepts || [])];
 function analysisUseRelevance(clause: string, use: string): number {
-  if (!use) return 0;
+  if (!use || !clause) return 0;
+  const groupsInUse = ANALYSIS_CONCEPTS.filter((terms) => terms.some((term) => use.includes(term)));
+  // 整条小句本身就是某个概念组里的说法（「引血下行」）：说明里有同组说法即整条站得住。
+  if (use.includes(clause) || groupsInUse.some((terms) => terms.includes(clause))) return 1;
   const pieces = clause.length <= 3 ? [clause] : [...new Set([...Array.from({ length: Math.floor(clause.length / 2) }, (_, index) => clause.slice(index * 2, index * 2 + 2)), clause.slice(-2)])];
-  const groups = [...selectionSource.concepts, ...((selectionSource as { analysisConcepts?: string[][] }).analysisConcepts || [])]
-    .filter((terms) => terms.some((term) => clause.includes(term)) && terms.some((term) => use.includes(term)));
-  return pieces.filter((piece) => use.includes(piece)).length + groups.length;
+  const supported = pieces.filter((piece) => use.includes(piece) || groupsInUse.some((terms) => terms.some((term) => term === piece || (term.length >= 3 && term.includes(piece)) || piece.includes(term))));
+  return supported.length / pieces.length;
 }
 
 /** 选出的两条原文小句有两个连续的字相同时是同一层意思（「健脾益气」「补气健脾」；「散风清热」「疏散风热」），只留前一条。 */
@@ -174,11 +179,21 @@ export function selectGroundedHerbFunction(input: {
   }
   const applicable = available.filter((source) => applicableFunction(source.text, input.patient || {}));
   const eligible = applicable.filter((source) => !/^有(?:大|小)?毒$/u.test(source.text));
-  const ranked = eligible.map((source) => ({ source, score: analysisUseRelevance(source.text, input.analysisUse || "") * 16 +
-    functionRelevance(source.text, `${input.target}；${input.role}`) * 4 + functionRelevance(source.text, input.therapy) }));
+  const byContext = eligible.map((source) => ({ source, score: functionRelevance(source.text, `${input.target}；${input.role}`) * 4 + functionRelevance(source.text, input.therapy) }));
+  // 方义讲到了这味药、且有原文小句与它贴合时，先按贴合度取最贴合的几条，其间再按病机靶点与总治法排；否则全部按后者。
+  const byAnalysis = byContext.map((item) => ({ ...item, fit: analysisUseRelevance(item.source.text, input.analysisUse || "") }));
+  const bestFit = Math.max(0, ...byAnalysis.map((item) => item.fit));
+  const ranked = bestFit >= ANALYSIS_USE_MINIMUM
+    ? byAnalysis.filter((item) => item.fit === bestFit).map((item) => ({ source: item.source, score: item.score + 1 }))
+    : byContext;
   const max = Math.max(0, ...ranked.map((item) => item.score));
   // A model's verbatim list cannot override this case's use or population. No relevant clause: first applicable clause only.
-  const chosen = max > 0 ? withoutOverlappingClause(ranked.filter((item) => item.score === max).slice(0, 2).map((item) => item.source)) : eligible.slice(0, 1);
+  // 并列的几条里，方义原字写到的排前面（「补脾益气」对「补脾益肺」，先于同组近义的「健脾益肺」）；随后意思重叠的只留一条。
+  const literalPieces = (text: string) => !input.analysisUse ? 0 : Array.from({ length: Math.max(0, text.length - 1) }, (_, index) => text.slice(index, index + 2))
+    .filter((pair) => input.analysisUse!.includes(pair)).length;
+  const top = ranked.filter((item) => item.score === max).map((item) => item.source);
+  const ordered = bestFit >= ANALYSIS_USE_MINIMUM ? [...top].sort((left, right) => literalPieces(right.text) - literalPieces(left.text)) : top;
+  const chosen = max > 0 ? withoutOverlappingClause(ordered.slice(0, 2)) : eligible.slice(0, 1);
   const toxicity = available.filter((source) => /^有(?:大|小)?毒$/u.test(source.text));
   const sources = [...new Map([...chosen, ...toxicity].map((source) => [source.id, source])).values()];
   return { text: sources.map((source) => source.text).join("，"), sources, status: "grounded", relevant: max > 0 };

@@ -291,7 +291,8 @@ function casePrecautions(precautions: readonly string[], caseState: CaseState | 
   if (caseState.safetyGate?.status === "red_flag") precautions = precautions.filter((item) => !PRESCRIPTION_ADMINISTRATION_LINE.test(item));
   // 写给某一年龄段的条目只写给这个年龄段（2026-10-17：24 岁体健的感冒患者注意事项里写「高龄或体弱者起身宜缓，防跌倒」，独立评审判套话）。
   const age = authoritativePatientAgeYears(caseState);
-  if (age != null && age < 60) precautions = precautions.filter((item) => !ELDERLY_ADVICE_LINE.test(item));
+  // 年龄未知、病历里也没有写老年的，同样不写给老年人的条目（第六十轮，r1077 样张 R046：病历没有年龄，注意事项写「高龄或体弱者服药宜少量多次，起身宜缓，防跌倒」）。
+  if ((age != null && age < 60) || (age == null && !ELDERLY_ADVICE_LINE.test(clinicalGroundingText(caseState)))) precautions = precautions.filter((item) => !ELDERLY_ADVICE_LINE.test(item));
   if (age != null && age >= 18) precautions = precautions.filter((item) => !CHILD_ADVICE_LINE.test(item));
   return [...precautions];
 }
@@ -2968,6 +2969,10 @@ export function topUpModificationRow(
     { textbookListed: Boolean(source), recordText, chiefComplaint: caseState?.chiefComplaint || "" })) return reject("incidental_sleep");
   // 偶见纳差不加消食药（与编译阶段同一判据，第四十六轮）。
   if (incidentalAppetiteDigestiveModification({ trigger: row.trigger, herbName }, prior, caseState?.chiefComplaint || "")) return reject("incidental_appetite");
+  // 主症补强行是给药力不足的主法添一味，不主动添《中药学》标「有毒」「有大毒」的药（第六十轮，r1077 样张 R062：风热感冒一天，主诉咽痛，
+  // 补强行写「咽痛：加山豆根6g」；山豆根【使用注意】「本品有毒…用量不宜过大」）。有小毒的常用药（苦杏仁）、教材加减写到的药、伴随表现的行不在此列。
+  if (context.authored && notFinding === "main_symptom" && !source &&
+    getTcmHerbGenerationSafetyProfile(herbName).toxicity.some((grade) => /^有大?毒$/u.test(grade))) return reject("main_symptom_toxic_herb");
   if (!isKnownTcmHerbName(canonicalTcmHerbIdentity(herbName))) return reject("unknown_herb");
   const trigger = source ? row.trigger : present ? present.trigger : row.trigger;
   const sameCondition = (left: string, right: string) => distinctModificationConditions([{ trigger: left.replace(/^本例已见/u, "") }, { trigger: right.replace(/^本例已见/u, "") }]) === 1;

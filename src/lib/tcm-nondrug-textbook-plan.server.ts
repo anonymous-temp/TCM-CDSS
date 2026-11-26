@@ -478,6 +478,13 @@ function frequencySentence(text: string): string {
   return "";
 }
 
+/** 一句服法里从说频次的小句起的那一段（「…加盖温浸10分钟即成，每日2次，乘热顿服。」→「每日2次，乘热顿服。」）；没有频次小句时原样返回。 */
+export function usageFromFrequencyClause(sentence: string): string {
+  const clauses = String(sentence || "").split(/(?<=[，,])/u);
+  const at = clauses.findIndex((clause) => isFrequencyClause(clause));
+  return at > 0 ? clauses.slice(at).join("").trim() : String(sentence || "");
+}
+
 /**
  * 卡片已有本项目自己的时长写法（留针、留罐、施灸的分钟数或壮数）：总论的通用时长不再并列（acupointPlan）。
  * 只认带数字的写法；「久留针」「不宜久留针」这类没有数字的说法不算。
@@ -2264,7 +2271,9 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
   const items = [format(matched, first)];
   // 疗程栏照方子自己的服法写（「每早空腹及午饭前各服半杯」「趁热频服」「泡水代茶饮」）；此前没有「每日N次」时一律写
   //「随三餐食用」，与方子的服法相反（2026-10-19 Claude 评审 X-H-0326、0174、0406、0276、0312）。
-  const usage = frequencySentence(first.text) || first.text.split("。").find((part) => part.includes("每日") || part.includes("每天")) ||
+  // 带频次的那一句常连着做法（「…洗净切成细丝，放入锅内，以沸水冲泡，加盖温浸10分钟即成，每日2次，乘热顿服」）：做法已在内容栏，
+  // 疗程栏从说频次的那一小句起（第六十轮，r1077 样张 R046 食疗卡两栏各印一遍做法）。
+  const usage = usageFromFrequencyClause(frequencySentence(first.text)) || first.text.split("。").find((part) => part.includes("每日") || part.includes("每天")) ||
     recipeUsageClause(first.text);
   const dietHead = matched.method ? `食疗原则：${matched.method.replace(/[。]+$/, "")}。` : "";
   return {

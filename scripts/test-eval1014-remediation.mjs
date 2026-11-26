@@ -1105,13 +1105,15 @@ const checkAsync = async (name, run) => {
     assert.deepEqual(filter(lines, redFlag), ["继续服用硝苯地平控释片，不要自行停药。", "注意休息，避免受凉。"]);
     assert.deepEqual(filter(lines, woman("干咳2周")), lines);
   });
-  check("10.3 写给某一年龄段的条目只写给这个年龄段（10/17：24 岁感冒患者写「高龄或体弱者起身宜缓」）；年龄不详时照列（对照）", () => {
+  // 第六十轮（2026-11-26）：年龄不详时写给老年人的条目也不列（甲方真实病历都没有年龄，每份都带一条「高龄或体弱者…」）；
+  // 写给儿童的条目照旧保留（r1079 7.2）。此前的对照是「年龄不详时照列」。
+  check("10.3 写给某一年龄段的条目只写给这个年龄段（10/17：24 岁感冒患者写「高龄或体弱者起身宜缓」）；年龄不详时不写给老年人的那条", () => {
     const lines = ["高龄或体弱者起身宜缓，防跌倒。", "小儿服药宜少量多次。", "注意休息，避免受凉。"];
     const aged = (age) => ({ ...woman("咳嗽2周"), patient: { sex: "女", age } });
     assert.deepEqual(filter(lines, aged(24)), ["注意休息，避免受凉。"]);
     assert.deepEqual(filter(lines, aged(72)), ["高龄或体弱者起身宜缓，防跌倒。", "注意休息，避免受凉。"]);
     assert.deepEqual(filter(lines, aged(6)), ["小儿服药宜少量多次。", "注意休息，避免受凉。"]);
-    assert.deepEqual(filter(lines, { ...woman("咳嗽2周"), patient: { sex: "女" } }).length, 3);
+    assert.deepEqual(filter(lines, { ...woman("咳嗽2周"), patient: { sex: "女" } }), ["小儿服药宜少量多次。", "注意休息，避免受凉。"]);
   });
 }
 

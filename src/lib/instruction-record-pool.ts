@@ -88,7 +88,7 @@ export function tidiedMedicineLabelNote(value: string, name: string, isOtherProd
     text = out + text.slice(cursor);
   }
   // 条目编号：句首或句读之后的「1.」「2、」「10．」，以及前后都是汉字、中间没有句读的「…地方11.如与…」。
-  text = text.replace(/(^|[。；;])\s*\d{1,2}\s*[.．、]\s*(?=[^\d\s])/gu, "$1").replace(/(?<=[\u4e00-\u9fff])\s*\d{1,2}[.．]\s*(?=[\u4e00-\u9fff])/gu, "。");
+  text = text.replace(/(^|[。；;])\s*\d{1,2}\s*[.．、]\s*(?=[^\d\s])/gu, "$1").replace(/(^|[。；;])\s*\d{1,2}\s+(?=[\u4e00-\u9fff])/gu, "$1").replace(/(?<=[\u4e00-\u9fff])\s*\d{1,2}[.．]\s*(?=[\u4e00-\u9fff])/gu, "。");
   const seen = new Set<string>();
   const sentences = text.split(/(?<=。)/u).map((sentence) => sentence.trim()).filter(Boolean).filter((sentence) => {
     const key = sentence.replace(/[。；;，,\s]/gu, "");

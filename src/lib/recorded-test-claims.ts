@@ -253,7 +253,7 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
   if (qualified.name !== name) return qualified;
   const core = String(name || "").trim().replace(/(?:待[查排]|可能)$/u, "");
   if (!core) return { name, basis };
-  const cleaned = withoutMissingClaimsForRecordedTests(basis, recordText);
+  const cleanedAsWritten = withoutMissingClaimsForRecordedTests(basis, recordText);
   const treated = recordStatesTreatedHypertension(core, recordText);
   // 原词写在主诉（如“经期腹泻2月”）只证明症状被记录；既往/明确诊断语境才可免去首次确诊要求。
   const aliases = [core, ...westernDiagnosisAbbreviations().filter((row) => row.fullName.replace(/症$/u, "") === core.replace(/症$/u, "")).map((row) => row.abbreviation),
@@ -264,6 +264,10 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
       /既往|病史|已确诊|确诊为|诊断为|曾诊断|镜示|镜检查示/u.test(sentence)));
   const known = diagnosedContext || treated || Boolean(establishedHistoryText(core, recordText));
   const criteria = westernCriteriaCertainty(core, recordText, known);
+  // 可凭临床诊断的病（要点表注明、没有必需检查与病程门槛）：依据句里的「X待查」只是病名被改成待查以后带进去的回声
+  //（第六十轮，r1077 样张 R046：「据此临床考虑急性上呼吸道感染待查；尚缺血象等检查佐证」，病名于是一直是「急性上呼吸道感染待查」）。
+  // 回声不算依据句自己说未确立；依据另有明说未确立的写法（须先排除、诊断尚不能确立、暂按…）时照旧待查。
+  const cleaned = criteria?.clinicalOnly ? cleanedAsWritten.split(`${core}待查`).join(core) : cleanedAsWritten;
   // 第四十八轮配对盲评：可凭临床诊断的病，要点表把「待查」去掉时依据句却说「需先排除」「需专科检查确立诊断」「暂按此考虑」
   //（痛风伴脓毒症待排、重症肌无力未做抗体、慢性疲劳综合征等排除性诊断），复核员判西医确定程度错。这类病名跟着依据句自己的表态走，
   // 两头一致：依据说未确立就待查，依据说可临床诊断就不待查（上感待查而依据说「临床可以诊断」的另一类错同样消失）。
