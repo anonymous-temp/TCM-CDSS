@@ -16,6 +16,7 @@
  * 指纹、药名、规格在同一条目内，对应问题落在适应证段内）和病历核验，门槛一处都没放松。
  */
 import type { EvidenceBoundMedicineProposal } from "./m04-proposal-compiler";
+import labelOwnName from "../data/medicine-label-own-name.source.json";
 import { parseMedicationLabelUsage } from "./medication-label-usage";
 
 export type InstructionRecordPool = ReadonlyMap<string, EvidenceBoundMedicineProposal>;
@@ -47,6 +48,55 @@ const LABEL_PLACEHOLDER_SEGMENT = new RegExp(`(?:^|(?<=[。；;]))\\s*${LABEL_PL
 export function withoutLabelPlaceholders(value: string | undefined): string | undefined {
   if (!value) return value;
   return value.replace(LABEL_PLACEHOLDER_SEGMENT, "").replace(/^[；;，,\s]+/u, "").trim();
+}
+
+/**
+ * 中成药注意事项的说明书原文收口（第六十轮，r1077 样张 R008「风寒感冒者禁用可可康双黄连口服液」）：
+ *  · 来源站把「本品」换成了「商品名＋通用名」，这里把本药自己的通用名连同前面的商品名写回「本品」。商品名只认两种位置：
+ *    紧跟在引导词后面的 2–8 个字（「使用仁和丁香风油精」），或同一段文字里已这样认出过的商品名（句首「可可康双黄连口服液性状改变时」）；
+ *    「商品名＋通用名」本身是目录里另一个药名的不动（丹栀逍遥丸里的「逍遥丸」）。
+ *  · 禁忌、注意事项两栏各自从 1 编号，拼在一起成了「1.…2.…1.…」：条目编号去掉；逐句去重（相互作用一栏常与注意事项末条重复）。
+ * 只改写法，不增删内容。
+ */
+const OWN_NAME = labelOwnName as { leadWords: string[]; maxBrandLength: number; minBrandLength: number };
+export function tidiedMedicineLabelNote(value: string, name: string, isOtherProductName: (name: string) => boolean = () => false): string {
+  let text = String(value || "");
+  const own = String(name || "").trim();
+  if (own.length >= 2 && text.includes(own)) {
+    const occurrences: Array<{ at: number; run: string; cut: number }> = [];
+    for (let at = text.indexOf(own); at >= 0; at = text.indexOf(own, at + own.length)) {
+      const run = text.slice(0, at).match(/[\u4e00-\u9fffA-Za-z·]*$/u)?.[0] || "";
+      let cut = -1;
+      for (const lead of OWN_NAME.leadWords) {
+        const index = run.lastIndexOf(lead);
+        if (index >= 0 && index + lead.length > cut) cut = index + lead.length;
+      }
+      occurrences.push({ at, run, cut });
+    }
+    const brandOk = (brand: string) => brand.length >= OWN_NAME.minBrandLength && brand.length <= OWN_NAME.maxBrandLength && !isOtherProductName(`${brand}${own}`);
+    const brands = new Set(occurrences.filter((item) => item.cut >= 0).map((item) => item.run.slice(item.cut)).filter(brandOk));
+    let out = "", cursor = 0;
+    for (const item of occurrences) {
+      const after = item.cut >= 0 ? item.run.slice(item.cut) : item.run;
+      const known = [...brands].filter((brand) => item.run.endsWith(brand)).sort((a, b) => b.length - a.length)[0];
+      // 引导词后面紧跟通用名、或前面没有别的字：只把通用名写回「本品」；认得出商品名的连商品名一起；其余（可能是别的药名的一部分）不动。
+      const drop = after === "" ? 0 : item.cut >= 0 && brandOk(after) ? after.length : known ? known.length : -1;
+      if (drop < 0) { out += text.slice(cursor, item.at + own.length); cursor = item.at + own.length; continue; }
+      out += `${text.slice(cursor, item.at - drop)}本品`;
+      cursor = item.at + own.length;
+    }
+    text = out + text.slice(cursor);
+  }
+  // 条目编号：句首或句读之后的「1.」「2、」「10．」，以及前后都是汉字、中间没有句读的「…地方11.如与…」。
+  text = text.replace(/(^|[。；;])\s*\d{1,2}\s*[.．、]\s*(?=[^\d\s])/gu, "$1").replace(/(?<=[\u4e00-\u9fff])\s*\d{1,2}[.．]\s*(?=[\u4e00-\u9fff])/gu, "。");
+  const seen = new Set<string>();
+  const sentences = text.split(/(?<=。)/u).map((sentence) => sentence.trim()).filter(Boolean).filter((sentence) => {
+    const key = sentence.replace(/[。；;，,\s]/gu, "");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return sentences.join("");
 }
 
 /** 从提示词文本解析模型可选的全部说明书条目。同一 ID 出现多次时取第一次（与模型读到的顺序一致）。 */

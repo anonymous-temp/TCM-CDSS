@@ -1838,6 +1838,36 @@ export function withoutUnsupportedSummaryEffects(
 }
 
 /**
+ * 方义里以这味药为主语的各段说明，连起来返回（第六十轮：功效栏按本方里的用途选《中药学》原文小句）。
+ * 几味药并列作主语的那一段每味药都算（「金银花、连翘、防风为臣，助君疏风清热、透邪外出」）；主语后面的角色（「为君」「共为佐」）不算说明；
+ * 到总括说法（共奏、合用、相配…）为止。方义没有讲到这味药时返回空串。
+ */
+export function formulaAnalysisUseOfHerb(analysis: string, herb: string): string {
+  const text = typeof analysis === "string" ? analysis : "";
+  const identity = identityOf(herb);
+  if (!text || !identity) return "";
+  const parts: string[] = [];
+  let sentenceStart = 0;
+  for (const sentence of text.split(/(?<=[。！!；;])/u)) {
+    const sentenceEnd = sentenceStart + sentence.length;
+    for (const segment of analysisSegments(text, sentenceStart, sentenceEnd)) {
+      if (!segment.subjects.some((subject) => identityOf(subject.token) === identity)) continue;
+      const body = text.slice(segment.subjectEnd, segment.end).replace(/^\s*(?:共|同|均|并|皆|俱)?(?:为|作)[君臣佐使]药?[，,、]?/u, "");
+      // 逐个逗号分句看：到讲几味药合起来作用的分句为止（「调和诸药」是甘草自己的作用，不算总括）。
+      const kept: string[] = [];
+      for (const piece of body.split(/(?<=[，,])/u)) {
+        if (COMBINED_EFFECT.test(piece.replace(/调和诸药/gu, ""))) break;
+        kept.push(piece);
+      }
+      const predicate = kept.join("").replace(/[，,、；;。\s]+$/u, "").trim();
+      if (predicate) parts.push(predicate);
+    }
+    sentenceStart = sentenceEnd;
+  }
+  return parts.join("；");
+}
+
+/**
  * 方义里讲这味药自己的那半句（药味功效栏取不到时用）。
  * 2026-10-20 第八轮，X-G-2326 冬瓜子、X-C-0072 益智：知识库与核对词典都没有这味药的功效，功效栏落成「臣药，本方中的具体配伍作用需医生结合方义复核」
  *（流程用语），而方义写着「冬瓜子为佐，清热利湿、消痈排脓」。只认这味药在一个分句里**单独作主语**的写法（几味药并列、分说的不取）；

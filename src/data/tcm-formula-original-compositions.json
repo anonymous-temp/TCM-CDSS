@@ -3,13 +3,13 @@
  "generatedBy": "scripts/build-formula-original-compositions.py",
  "note": "原方组成的唯一权威（生成物，勿手改；改 tcm-formula-original-compositions.source.json 后重跑生成器）。herbs[].herb 是饮片基础名，written 是原文写法，preparation 是原文炮制，deliver=true 的炮制交付时随方写进药名；guides 是煎服法里的药引。",
  "counts": {
-  "entries": 3382,
+  "entries": 3383,
   "tiers": {
    "original_text": 3235,
    "national_catalog": 2,
    "fangjixue": 11,
    "textbook_appendix": 99,
-   "modern_source": 35
+   "modern_source": 36
   }
  },
  "substitutions": [
@@ -96398,6 +96398,72 @@
     "ref": "三因极一病证方论",
     "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
     "quote": "山栀子仁（一两半） 大黄 白滑石 熟地黄 悬豆（酥炙焦黄，各二两）"
+   }
+  },
+  {
+   "name": "疏风清热汤",
+   "book": "中医喉科学讲义",
+   "tier": "modern_source",
+   "herbs": [
+    {
+     "herb": "荆芥",
+     "written": "荆芥"
+    },
+    {
+     "herb": "防风",
+     "written": "防风"
+    },
+    {
+     "herb": "金银花",
+     "written": "金银花"
+    },
+    {
+     "herb": "连翘",
+     "written": "连翘"
+    },
+    {
+     "herb": "黄芩",
+     "written": "黄芩"
+    },
+    {
+     "herb": "赤芍",
+     "written": "赤芍"
+    },
+    {
+     "herb": "玄参",
+     "written": "玄参"
+    },
+    {
+     "herb": "浙贝母",
+     "written": "浙贝母"
+    },
+    {
+     "herb": "天花粉",
+     "written": "天花粉"
+    },
+    {
+     "herb": "桑白皮",
+     "written": "桑白皮"
+    },
+    {
+     "herb": "牛蒡子",
+     "written": "牛蒡子"
+    },
+    {
+     "herb": "桔梗",
+     "written": "桔梗"
+    },
+    {
+     "herb": "甘草",
+     "written": "甘草"
+    }
+   ],
+   "guides": [],
+   "evidence": {
+    "kind": "web",
+    "ref": "http://www.a-hospital.com/w/%E5%96%89%E7%97%B9",
+    "url": "http://www.a-hospital.com/w/%E5%96%89%E7%97%B9",
+    "quote": "方中以荆芥、防风疏风解表；金银花、连翘、黄芩、赤芍清热解毒；玄参、浙贝母、天花粉、桑白皮清肺化痰；牛蒡子、桔梗、甘草散结解毒，清利咽喉。"
    }
   },
   {

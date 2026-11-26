@@ -84,7 +84,7 @@ import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { internalMustProcessHerb, isGovernedPreparedHerbName, processedHerbName, purposeProcessedHerbName, rawFormPurposeStated, withProcessedHerbMentions } from "./herb-processing-forms";
 import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose";
 import { settleWesternDiagnosisBasis, withoutUnrecordedTestCitations } from "./recorded-test-claims";
-import { withoutLabelPlaceholders } from "./instruction-record-pool";
+import { withoutLabelPlaceholders, tidiedMedicineLabelNote } from "./instruction-record-pool";
 import { resolveTcmDiseaseName } from "./clinical-terminology";
 import { applyFormulaRelock, formulaRelockAfterSyndromeRewrite } from "./tcm-formula-indications";
 import { governedHerbPreparationPrefixes, governedTcmHerbAdjudicatedCanonical, preferStandardHerbNames, preparedHerbNameBase, resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
@@ -2699,6 +2699,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     if (medicine.positioning === "替代方案" && medicineRowIsExternal(String(medicine.name || ""), String(medicine.usage || medicine.doseAndUsage || medicine.route || medicine.usageBoundary || ""))) medicine.positioning = "需医生评估";
     // 说明书各段拼接留下的「；；」「。；」「。。」：收成一个标点（第五轮方名代理统计 741 条里 17 条）。
     if (typeof medicine.riskNote === "string") medicine.riskNote = medicine.riskNote.replace(/([；;。])(?:\s*[；;。])+/gu, "$1");
+    // 说明书原文里的「商品名＋通用名」写回「本品」，两栏各自的条目编号去掉，重复句只留一句（第六十轮，tidiedMedicineLabelNote）。
+    if (typeof medicine.riskNote === "string" && typeof medicine.name === "string") {
+      medicine.riskNote = tidiedMedicineLabelNote(medicine.riskNote, medicine.name, (name) => Boolean(findLocalPatentMedicineLabel(name))) || medicine.riskNote;
+    }
     // 「说明书用法字段已与本候选的说明书条目及指纹绑定」「与中药饮片方案不默认联用…」是系统说明，不是用药信息。
     // 第四十四轮（甲方 11/14：中成药按接口原始数据核对）起不再交付空串：使用边界取说明书里「服药N天/周…无缓解…就诊」那一句，
     // 与汤剂的关系按这一行的定位写成一句临床说明（定位是受控四值）。说明书没有疗程句时使用边界仍为空。

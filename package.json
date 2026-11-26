@@ -436,6 +436,7 @@
     "test:r1075-same-source-herbs": "node --max-old-space-size=2000 scripts/test-r1075-same-source-herbs.mjs",
     "test:r1076-main": "node --max-old-space-size=2000 scripts/test-r1076-main.mjs",
     "test:r1078-main": "node --max-old-space-size=2000 scripts/test-r1078-main.mjs",
+    "test:r1079-main": "node --max-old-space-size=2000 scripts/test-r1079-main.mjs",
     "test:r1067-rationale3": "node --max-old-space-size=1280 scripts/test-r1067-rationale3.mjs"
   },
   "dependencies": {

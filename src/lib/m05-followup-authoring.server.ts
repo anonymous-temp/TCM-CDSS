@@ -5,7 +5,8 @@ import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { SIX_HEALTH_FOLLOWUP_DIMENSIONS } from "./tcm-followup-dimensions";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
-import { authoritativePatientAgeYears, deriveFirstReviewTiming, hasStrongPrescriptionRisk, isRecordCompletenessStatement, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sanitizeFreeTextForModel } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, deriveFirstReviewTiming, hasStrongPrescriptionRisk, isRecordCompletenessStatement, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sanitizeFreeTextForModel, trustedInputText } from "./diagnosis-safety";
+import generalDomainsSource from "../data/m05-followup-general-domains.source.json";
 import { signListForPopulation, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
@@ -339,13 +340,42 @@ export function authoredFollowupForPopulation(authored: AuthoredFollowupContent,
   };
 }
 
+/**
+ * 疗效评价标准只写病历里有的表现（第六十轮，r1077 样张 R010：病历只有「腰痛1年余，加重3天」与舌脉，疗效标准写了
+ *「小便颜色变清、排尿顺畅，大便不黏滞，胃口和睡眠变好」——把病历没记的二便、饮食、睡眠说成了会好转的症状；提示词第五十九轮已要求，模型仍照写）。
+ * 按逗号、顿号切成小句：小句点到二便、食欲、睡眠这几个方面（m05-followup-general-domains.source.json），病历里对这些方面一个字都没记的，这一小句不交付。
+ * 只删不改；删完剩不下一条具体的好转标志时原样返回。复诊时评估重点（医生会问什么）不在此列。与人群收口一样只在出口做，缓存里仍是原文。
+ */
+const GENERAL_DOMAINS = (generalDomainsSource as { domains: Array<{ name: string; clauseTerms: string[]; recordTerms: string[] }> }).domains;
+const EFFICACY_CONCLUSION_WORDS = (generalDomainsSource as { conclusionWords: string[] }).conclusionWords;
+export function efficacyCriteriaForRecord(efficacy: string, recordText: string): string {
+  const text = String(efficacy || "");
+  const record = String(recordText || "");
+  if (!text || !record.trim()) return text;
+  const pieces = text.split(/(?<=[，,、；;。])/u);
+  const kept = pieces.filter((piece) => {
+    const named = GENERAL_DOMAINS.filter((domain) => domain.clauseTerms.some((term) => piece.includes(term)));
+    return named.length === 0 || named.some((domain) => domain.recordTerms.some((term) => record.includes(term)));
+  });
+  if (kept.length === pieces.length) return text;
+  const joined = kept.join("").replace(/^[，,、；;\s]+/u, "");
+  // 收尾的结论小句（「说明治疗有效」）不算具体的好转标志。
+  const last = Math.max(joined.lastIndexOf("，"), joined.lastIndexOf(","), joined.lastIndexOf("；"));
+  const tail = joined.slice(last + 1).replace(/^就/u, "");
+  const concrete = EFFICACY_CONCLUSION_WORDS.some((word) => tail.startsWith(word)) ? joined.slice(0, Math.max(0, last)) : joined;
+  return (concrete.match(/[\u4e00-\u9fff]/gu) || []).length >= 6 ? joined : text;
+}
+
 export async function authorFollowupClinicalContent(
   state: CaseState,
   input: Parameters<typeof authorFollowupClinicalContentUnfiltered>[1],
   signal?: AbortSignal,
 ): Promise<AuthoredFollowupContent | null> {
   const authored = await authorFollowupClinicalContentUnfiltered(state, input, signal);
-  return authored ? authoredFollowupForPopulation(authored, { reproductive: reproductiveAdviceRelevant(state), pregnancy: pregnancyAdviceRelevant(state), ageYears: authoritativePatientAgeYears(state) ?? null }) : authored;
+  if (!authored) return authored;
+  const forPopulation = authoredFollowupForPopulation(authored, { reproductive: reproductiveAdviceRelevant(state), pregnancy: pregnancyAdviceRelevant(state), ageYears: authoritativePatientAgeYears(state) ?? null });
+  const efficacyCriteria = efficacyCriteriaForRecord(forPopulation.efficacyCriteria, trustedInputText(state));
+  return efficacyCriteria === forPopulation.efficacyCriteria ? forPopulation : { ...forPopulation, efficacyCriteria };
 }
 
 async function authorFollowupClinicalContentUnfiltered(

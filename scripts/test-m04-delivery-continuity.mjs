@@ -318,7 +318,8 @@ test("a route projection that rewrites the payload still retains the candidate",
   // R1064：sentinel 是输入事实来源，功效仍须重新按原文定稿。
   assert.equal(checkpoint.payloadHash, clinicalReviewPayloadHash(projectDeliveredReasoning(projected, { recordText: input.clinicalContext })));
   // R47 F2：按健脾益气用途选原文，不再整串照列养血生津。
-  assert.equal(checkpoint.reasoning.formula.candidates[0].herbs[0].function, "健脾益肺，补脾益肺");
+  // 第六十轮：方义写了这味药的用途时按方义选，意思重叠的两条原文小句（「健脾益肺」「补脾益肺」）只留一条。
+  assert.equal(checkpoint.reasoning.formula.candidates[0].herbs[0].function, "补脾益肺");
   assert.match(renderM04DeliveryCheckpoint(checkpoint, prior, "contract_rejected"), /党参/);
   // 边界不放宽：sentinel 本身不是合法 prescribe 载荷时仍然丢弃。
   for (const bad of [

@@ -6,6 +6,7 @@ import verifiedJson from "../data/tcm-herb-verified-functions.json";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { verifiedHerbFunctionEntry } from "./tcm-knowledge";
 import { withoutPreparationPrefix } from "./formula-original-composition";
+import { formulaAnalysisUseOfHerb } from "./formula-analysis-review";
 import { contentDigest } from "./m04-content-fingerprint";
 import { asRecord, asRecords, asText, type SourceSpan } from "./m04-final-content-types";
 
@@ -130,9 +131,36 @@ function functionRelevance(clause: string, context: string): number {
   return groups.length + (literal ? 2 : 0);
 }
 
+/**
+ * 方义里对这味药的说明与一条功效原文的贴合度（第六十轮，r1077 样张：沙参麦冬汤里桑叶的功效栏是「疏散风热」、方义写的是「清肺润燥」；
+ * 疏风清热汤里防风是「胜湿止痛」、四妙丸里牛膝是「逐瘀通经」）。只用来在同一味药的几条原文小句之间选，不生成功效：
+ * 小句按两个字一段切开后有几段出现在说明里（「清肺润燥」对「清肺润燥以助止咳」），加上落在同一概念组的组数（概念组与仅用于方义的同义组
+ * 见 herb-function-selection.source.json：「引血下行」对「引药下行至腰膝」）。
+ */
+function analysisUseRelevance(clause: string, use: string): number {
+  if (!use) return 0;
+  const pieces = clause.length <= 3 ? [clause] : [...new Set([...Array.from({ length: Math.floor(clause.length / 2) }, (_, index) => clause.slice(index * 2, index * 2 + 2)), clause.slice(-2)])];
+  const groups = [...selectionSource.concepts, ...((selectionSource as { analysisConcepts?: string[][] }).analysisConcepts || [])]
+    .filter((terms) => terms.some((term) => clause.includes(term)) && terms.some((term) => use.includes(term)));
+  return pieces.filter((piece) => use.includes(piece)).length + groups.length;
+}
+
+/** 选出的两条原文小句有两个连续的字相同时是同一层意思（「健脾益气」「补气健脾」；「散风清热」「疏散风热」），只留前一条。 */
+function withoutOverlappingClause(sources: readonly SourceSpan[]): SourceSpan[] {
+  const kept: SourceSpan[] = [];
+  for (const source of sources) {
+    const pairs = Array.from({ length: Math.max(0, source.text.length - 1) }, (_, index) => source.text.slice(index, index + 2));
+    if (kept.some((item) => pairs.some((pair) => item.text.includes(pair)))) continue;
+    kept.push(source);
+  }
+  return kept;
+}
+
 export function selectGroundedHerbFunction(input: {
   name: string; role: string; target: string; therapy: string;
   modelText?: string; preferredSourceIds?: readonly string[]; patient?: HerbFunctionPatient;
+  /** 方义里以这味药为主语的说明（formulaAnalysisUseOfHerb）；有时优先于病机靶点与总治法。 */
+  analysisUse?: string;
 }): { text: string; sources: readonly SourceSpan[]; status: "grounded" | "missing"; relevant: boolean } {
   const available = herbFunctionSourceClauses(input.name);
   // 无独立功效原文仍标记缺口；只筛选既有模型小句，不借原药来源，不保留人群不适用句。
@@ -146,10 +174,11 @@ export function selectGroundedHerbFunction(input: {
   }
   const applicable = available.filter((source) => applicableFunction(source.text, input.patient || {}));
   const eligible = applicable.filter((source) => !/^有(?:大|小)?毒$/u.test(source.text));
-  const ranked = eligible.map((source) => ({ source, score: functionRelevance(source.text, `${input.target}；${input.role}`) * 4 + functionRelevance(source.text, input.therapy) }));
+  const ranked = eligible.map((source) => ({ source, score: analysisUseRelevance(source.text, input.analysisUse || "") * 16 +
+    functionRelevance(source.text, `${input.target}；${input.role}`) * 4 + functionRelevance(source.text, input.therapy) }));
   const max = Math.max(0, ...ranked.map((item) => item.score));
   // A model's verbatim list cannot override this case's use or population. No relevant clause: first applicable clause only.
-  const chosen = max > 0 ? ranked.filter((item) => item.score === max).slice(0, 2).map((item) => item.source) : eligible.slice(0, 1);
+  const chosen = max > 0 ? withoutOverlappingClause(ranked.filter((item) => item.score === max).slice(0, 2).map((item) => item.source)) : eligible.slice(0, 1);
   const toxicity = available.filter((source) => /^有(?:大|小)?毒$/u.test(source.text));
   const sources = [...new Map([...chosen, ...toxicity].map((source) => [source.id, source])).values()];
   return { text: sources.map((source) => source.text).join("，"), sources, status: "grounded", relevant: max > 0 };
@@ -172,7 +201,8 @@ export function projectGroundedHerbFunctions<T>(reasoning: T, patient: HerbFunct
   for (const candidate of asRecords(formula.candidates)) for (const herb of asRecords(candidate.herbs)) {
     herb.function = selectGroundedHerbFunction({ name: asText(herb.name), role: asText(herb.role),
       target: [asText(herb.targetPathogenesis), asText(herb.prescriptionRole), ...asRecords(asRecord(root.pathogenesis).chain).filter((node) => node.nodeId === herb.targetRef).map((node) => [asText(node.pathogenesis), asText(node.therapyDirection)].join("；"))].join("；"),
-      therapy: [asText(asRecord(root.therapy).overallMethod), asText(asRecord(root.overview).primarySyndrome)].join("；"), modelText: asText(herb.function), patient }).text;
+      therapy: [asText(asRecord(root.therapy).overallMethod), asText(asRecord(root.overview).primarySyndrome)].join("；"), modelText: asText(herb.function), patient,
+      analysisUse: formulaAnalysisUseOfHerb(asText(candidate.formulaAnalysis), asText(herb.name)) }).text;
   }
   return projected;
 }

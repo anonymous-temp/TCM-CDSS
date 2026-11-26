@@ -129651,6 +129651,83 @@
    "review": "agent:w203"
   },
   {
+   "name": "疏风清热汤",
+   "book": "中医喉科学讲义",
+   "status": "modern_formula",
+   "tier": "modern_source",
+   "ingredients": [
+    {
+     "written": "荆芥",
+     "herb": "荆芥"
+    },
+    {
+     "written": "防风",
+     "herb": "防风"
+    },
+    {
+     "written": "金银花",
+     "herb": "金银花"
+    },
+    {
+     "written": "连翘",
+     "herb": "连翘"
+    },
+    {
+     "written": "黄芩",
+     "herb": "黄芩"
+    },
+    {
+     "written": "赤芍",
+     "herb": "赤芍"
+    },
+    {
+     "written": "玄参",
+     "herb": "玄参"
+    },
+    {
+     "written": "浙贝母",
+     "herb": "浙贝母"
+    },
+    {
+     "written": "天花粉",
+     "herb": "天花粉"
+    },
+    {
+     "written": "桑白皮",
+     "herb": "桑白皮"
+    },
+    {
+     "written": "牛蒡子",
+     "herb": "牛蒡子"
+    },
+    {
+     "written": "桔梗",
+     "herb": "桔梗"
+    },
+    {
+     "written": "甘草",
+     "herb": "甘草"
+    }
+   ],
+   "guideHerbs": [],
+   "evidence": [
+    {
+     "kind": "web",
+     "url": "http://www.a-hospital.com/w/%E5%96%89%E7%97%B9",
+     "saved": "r1079/web/shufengqingretang.txt",
+     "quote": "方中以荆芥、防风疏风解表；金银花、连翘、黄芩、赤芍清热解毒；玄参、浙贝母、天花粉、桑白皮清肺化痰；牛蒡子、桔梗、甘草散结解毒，清利咽喉。"
+    },
+    {
+     "kind": "web",
+     "url": "https://www.med66.com/new/40a185aa2009/2009916liuhon17521.shtml",
+     "saved": "r1079/web/shufengqingretang.txt",
+     "quote": "主方：疏风清热汤（广州中医学院《中医喉科学讲义》）加减处方"
+    }
+   ],
+   "note": "广州中医学院《中医喉科学讲义》（1960 年代教材）无电子本。十三味组成依 A+医学百科「喉痹」条的方解逐味列举，与深圳调剂标准 SZJG/T 38.2-2011 所录该方十三味（调剂写法：炒牛蒡子、黄芩片）药味相同；出处书名依医学教育网「风热乳蛾」页（该页为加减处方，十二味，无赤芍）。原书剂量、炮制未取得，不录。",
+   "review": "r1079"
+  },
+  {
    "name": "疔毒走黄经验方",
    "book": "验方新编",
    "volume": "卷二十四·疔疮部",

@@ -2088,9 +2088,15 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
 
     for (const node of chain) {
       if (narrativeFingerprint(node.patientFact) !== narrativeFingerprint(node.syndromeEvidence)) continue;
+      // 换上的主证依据必须讲的是这个节点的表现（第六十轮，r1077 样张 R046：节点「咽痒、咳嗽一日余」的证候依据被换成了
+      // 另一条主证依据「头痛、鼻塞、恶寒」）：与节点表现至少有两个连续的字相同才换；没有这样的依据时两栏同文，不借别的表现。
+      const fact = narrativeFingerprint(node.patientFact);
+      const sharesFinding = (basis: string) => Array.from({ length: Math.max(0, fact.length - 1) }, (_, index) => fact.slice(index, index + 2))
+        .some((pair) => /^[\u4e00-\u9fff]{2}$/u.test(pair) && basis.includes(pair));
       const replacement = syndromeBasis.find((basis) =>
         narrativeFingerprint(basis) &&
-        narrativeFingerprint(basis) !== narrativeFingerprint(node.patientFact)
+        narrativeFingerprint(basis) !== fact &&
+        sharesFinding(narrativeFingerprint(basis))
       );
       if (replacement) node.syndromeEvidence = replacement;
     }

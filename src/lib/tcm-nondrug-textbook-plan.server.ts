@@ -485,7 +485,8 @@ function frequencySentence(text: string): string {
 export function cardStatesDuration(code: string, text: string): boolean {
   const value = String(text || "").normalize("NFKC");
   if (code === "acupuncture") return /留针[^。；;，,]{0,8}\d/u.test(value);
-  if (code === "cupping") return /留罐[^。；;，,]{0,8}\d/u.test(value);
+  // 「5分钟后去罐」「10分钟后起罐」也是留罐时长（第六十轮，r1077 样张 R062：拔罐卡「5分钟后去罐」后面又并列总论「留罐时间一般为5～15分钟」）。
+  if (code === "cupping") return /留罐[^。；;，,]{0,8}\d|\d+\s*分钟[^。；;，,]{0,4}(?:去|起|取)罐/u.test(value);
   if (code === "moxibustion") return /灸[^。；;，,]{0,10}\d+(?:\.\d+)?\s*(?:[～~\-－至]\s*\d+(?:\.\d+)?\s*)?(?:分钟|壮)|\d+\s*(?:[～~\-－至]\s*\d+\s*)?壮/u.test(value);
   return false;
 }
