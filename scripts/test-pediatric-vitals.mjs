@@ -71,12 +71,12 @@ check("1.2 反证：同样的读数在成人仍是红旗/复测（成人线不�
   assert.match(flags(caseWith({ age: "35岁", P: 155 })).join("；"), /心率\/脉搏 155次\/分异常/);
 });
 
-check("1.3 婴儿（8 月龄）心率 120、呼吸 30 是正常值，不提示复测；呼吸 32 已超 6～12 月龄正常上限 30 → 只是复测提示（回放实例）", () => {
+check("1.3 婴儿（8 月龄）心率 120、呼吸 30、32 是正常值，不提示复测（第六十二轮改按 AHA-PALS 2020 婴儿 30–53：原表 6～12 月龄上限 30 把 32 次/分提示复测，阅卷判错）", () => {
   const state = caseWith({ age: "8个月", P: 120, R: 30 });
   assert.deepEqual(flags(state), []);
   assert.deepEqual(adv(state), []);
-  assert.match(adv(caseWith({ age: "8个月", P: 120, R: 32 })).join("；"), /呼吸 32次\/分需尽快复测/, "反证：超上限仍提示");
-  assert.deepEqual(flags(caseWith({ age: "8个月", P: 120, R: 32 })), [], "复测提示不是红旗");
+  assert.deepEqual(adv(caseWith({ age: "8个月", P: 120, R: 32 })), [], "PALS 婴儿正常范围内");
+  assert.deepEqual(flags(caseWith({ age: "8个月", P: 120, R: 32 })), []);
 });
 
 check("1.4 危险值仍报：新生儿呼吸 ≥60 / 心率 ≥220 红旗；婴儿呼吸 ≥50；幼儿呼吸 ≥40、心率 ≥180", () => {
@@ -92,13 +92,14 @@ check("1.4 危险值仍报：新生儿呼吸 ≥60 / 心率 ≥220 红旗；婴�
   assert.equal(flags(caseWith({ age: "2岁", P: 179 })).length, 0);
 });
 
-check("1.6 复测提示线：婴儿呼吸 41～49、心率 187～219；幼儿呼吸 31～39、心率 152～179", () => {
-  const infantBreath = adv(caseWith({ age: "3个月", R: 45 }));
-  assert.match(infantBreath.join("；"), /呼吸 45次\/分需尽快复测/);
+check("1.6 复测提示线：1～2 月龄呼吸 54～59、心率 187～219；2～12 月龄呼吸到 WHO 快速呼吸线 50 才报（与红旗线相同，不另设复测带）；幼儿呼吸 38～39、心率 152～179", () => {
+  assert.equal(adv(caseWith({ age: "3个月", R: 45 })).length, 0, "45 在 PALS 婴儿 30–53 内");
+  assert.match(adv(caseWith({ age: "45天", R: 56 })).join("；"), /呼吸 56次\/分需尽快复测/);
   assert.equal(adv(caseWith({ age: "3个月", R: 40 })).length, 0, "40 仍在 0～5 月龄正常上限内");
   assert.match(adv(caseWith({ age: "3个月", P: 190 })).join("；"), /心率\/脉搏 190次\/分需尽快复测/);
   assert.equal(adv(caseWith({ age: "3个月", P: 186 })).length, 0);
-  assert.match(adv(caseWith({ age: "2岁", R: 35 })).join("；"), /呼吸 35次\/分需尽快复测/);
+  assert.equal(adv(caseWith({ age: "2岁", R: 35 })).length, 0, "35 在 PALS 幼儿 22–37 内");
+  assert.match(adv(caseWith({ age: "2岁", R: 38 })).join("；"), /呼吸 38次\/分需尽快复测/);
   assert.match(adv(caseWith({ age: "2岁", P: 160 })).join("；"), /心率\/脉搏 160次\/分需尽快复测/);
 });
 
@@ -158,7 +159,8 @@ check("4.1 数据文件：每个年龄带的判定线不低于成人复测线的
     assert.ok(band.maxDays > band.minDays);
     expected = band.maxDays;
     assert.ok(band.pulseAdvisoryFrom < band.pulseRedFlagFrom, `${band.label} 心率复测线必须低于红旗线`);
-    assert.ok(band.respirationAdvisoryFrom < band.respirationRedFlagFrom, `${band.label} 呼吸复测线必须低于红旗线`);
+    // 呼吸复测线可以等于红旗线（第六十二轮：2～12 月龄 PALS 正常上限 53 已高于 WHO 快速呼吸线 50，不另设复测带），不得高于。
+    assert.ok(band.respirationAdvisoryFrom <= band.respirationRedFlagFrom, `${band.label} 呼吸复测线不得高于红旗线`);
     assert.ok(band.respirationRedFlagFrom >= 35, `${band.label} 呼吸红旗线不得低于成人线 35（本表只放宽）`);
     assert.ok(band.pulseRedFlagFrom >= 150, `${band.label} 心率红旗线不得低于成人线 150（本表只放宽）`);
   }

@@ -95,7 +95,15 @@ await check("1.4 病性栏的虚热、虚火挪到本虚，不当标实", () => 
     natureDifferentiation: { items: ["阴虚", "虚热"], rootDeficiency: ["阴虚"], branchExcess: ["虚热", "气滞"], basis: "五心烦热；舌红少苔", resolution: "resolved" },
   })), "五心烦热，舌红少苔")).pathogenesis.natureDifferentiation;
   assert.deepEqual(out.branchExcess, ["气滞"]);
-  assert.ok(out.rootDeficiency.includes("虚热"));
+  // 第六十二轮：同栏已有阴虚时虚热不单列（《中医诊断学》阴虚证「虚热内生」，nature-column-classification.withoutDerivedRootItems）；
+  // 这条原本钉的是「虚热不进标实」，照旧。
+  assert.deepEqual(out.rootDeficiency, ["阴虚"]);
+  const alone = unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(diagnose({
+    locationDifferentiation: { items: [], details: [], resolution: "unresolved" },
+    natureDifferentiation: { items: ["虚热"], rootDeficiency: [], branchExcess: ["虚热", "气滞"], basis: "五心烦热；舌红少苔", resolution: "resolved" },
+  })), "五心烦热，舌红少苔")).pathogenesis.natureDifferentiation;
+  assert.ok(alone.rootDeficiency.includes("虚热"), "没有阴虚时虚热照列本虚");
+  assert.ok(!alone.branchExcess.includes("虚热"));
 });
 
 // ───── 2 血证分型 ─────

@@ -25,13 +25,13 @@ const core = (name: string) => name.trim().replace(/类病$/u, "").split(/[（(]
  * 构词式守卫：部位取表里这个词去掉痛字后的部分（至少两个字），中间不许有标点、否定词或并列连词；否认、未评估、他人的读法
  * 交给共用的病历读法（部位处须是本人当前肯定）——不另按小句前半有没有「不」字判，「不慎受凉后胃脘拘急作痛」是肯定。
  */
-const SITE_PAIN_TERM = /^([\u4e00-\u9fff]{2,4}?)部?(?:疼痛|痛|疼)$/u;
+const SITE_PAIN_TERM = /^([\u4e00-\u9fff]{2,4}?)部?[疼痛]{1,2}$/u;
 function affirmedSitePainWithModifier(recordText: string, term: string): boolean {
   const site = term.match(SITE_PAIN_TERM)?.[1];
   if (!site) return false;
   for (let at = recordText.indexOf(site); at >= 0; at = recordText.indexOf(site, at + 1)) {
     const after = recordText.slice(at + site.length).replace(/^部/u, "");
-    const gap = after.match(/^([^，,。；;、：:\s]{1,3}?)(?:疼痛|痛|疼)/u)?.[1];
+    const gap = after.match(/^([^，,。；;、：:\s]{1,3}?)[疼痛]/u)?.[1];
     if (!gap || /[不无未没非否和与及或]/u.test(gap)) continue;
     if (recordMentionPolarityAt(recordText, at) === "affirmed") return true;
   }
