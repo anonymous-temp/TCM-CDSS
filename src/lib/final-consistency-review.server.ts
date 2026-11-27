@@ -1,6 +1,5 @@
 import "server-only";
 
-import { treatmentMethodDisplay } from "./treatment-method-display";
 import { sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { buildDeliveryInvariantGovernance } from "./delivery-invariant-governance";
 import { scanDeliveryInvariants } from "./delivery-invariants";
@@ -350,8 +349,6 @@ export async function finalConsistencyReview(
   let suggestedPrinciple: string | undefined;
   if (stage === "diagnose") {
     const overview = object(reasoning.overview);
-    const display = treatmentMethodDisplay(text(object(reasoning.therapy)?.overallMethod), text(overview?.tcmDiseaseName), text(overview?.primarySyndrome));
-    if (display.reference) draft.治法显示说明 = "治法正文：" + display.text + "。教材引文保留原文，不为凑字数改临床判断。" + display.reference;
     const snapshot = { m03: reasoning };
     const governedContext = buildDeliveryInvariantGovernance(snapshot);
     const findings = scanDeliveryInvariants({ ...snapshot, governedContext });
