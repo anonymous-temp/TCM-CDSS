@@ -130,15 +130,12 @@ assert.match(
   /const tierDraftLength = m03CandidateSubstanceLength\(authoritativeContent, tierReasoning\);/,
   "JSON-only 契约下必须以统一口径衡量充实度（草稿与结构化载荷体积取大）",
 );
-const qualityNoticeAt = diagnosisApiSource.indexOf("qualityAnnotationCopy(m03QualityAcceptedReason)");
-const finalReviewAt = diagnosisApiSource.indexOf("await reviewEmissionConsistency(prepared, locked)", qualityNoticeAt);
-const signAt = diagnosisApiSource.indexOf("let signedContent =", finalReviewAt);
-assert.ok(qualityNoticeAt > 0 && qualityNoticeAt < finalReviewAt && finalReviewAt < signAt,
-  "复核与签名应读取同一份带质量批注的正文");
 assert.match(
-  diagnosisApiSource.slice(qualityNoticeAt, finalReviewAt),
-  /if \(annotation && !emissionContent\.includes\(annotation\)\) emissionContent = `\$\{annotation\}\\n\\n\$\{emissionContent\}`;/,
-  "受理时将医生可读批注前置，路由已有同一批注时不重复",
+  diagnosisApiSource,
+  // 带幂等守卫的形态：路由终审分支可能已贴过同一段批注，流层不得重复贴（双层各贴一次
+  // 是甲方生产实测的呈现噪音类）。
+  /m03QualityAcceptedReason\) \{\s*\n\s*const annotation = qualityAnnotationCopy\(m03QualityAcceptedReason\);\s*\n\s*if \(annotation && !signedContent\.includes\(annotation\)\) signedContent = `\$\{annotation\}\\n\\n\$\{signedContent\}`;/,
+  "受理时必须把医生可读批注前置到签名后的可见正文（且带防重复守卫）",
 );
 // 受理结果仍要过 finalize 的 attestation 绑定门：最终载荷的哈希必须与 attestation 绑定；
 // 此前没有绑定过的最终 M03 候选在这里补绑常量 attestation（模型复核环节已于 2026-09-16 删除）。

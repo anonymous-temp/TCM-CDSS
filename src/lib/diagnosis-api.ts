@@ -2977,9 +2977,11 @@ async function callPrimaryTextModelStream(
         } : undefined,
       }) : undefined;
       const projectEmissionSurface = (content: string) => applyDeliveredSurfaceToContent(content, { preservePreparedPrinciple: finalConsistencyReviewMode() === "on", signedDiagnose: opts.signedDiagnoseForDelivery, m03ElementAllows, herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState), patientSex: String((opts.structuredCaseState as { patient?: { sex?: unknown } } | undefined)?.patient?.sex || "") });
-      // Read the normalized delivery view. Terminal owners and safety content stay locked.
+      // 定稿前一致性通读（第五十五轮；CDSS_FINAL_CONSISTENCY_REVIEW=on 时）：在交付面投影之前按范围改写，随后照常投影、过合同、签名。
+      // 第六十三轮试过挪到投影与末端撰写之后（复核读最终正文）：辨证依据写定后病机与治法只能锁住，通读补不回漏掉的治法项、
+      // 去不掉无检查的确诊，48 例配对盲评偏好旧位置 21 比 14，撤回。投影不再重推治则（preservePreparedPrinciple），通读改过的治则留得住。
       // 改写后过不了结构与安全合同的整份放弃（原样交付）。
-      const reviewEmissionConsistency = async (content: string, lockedFields: string[]): Promise<string> => {
+      const reviewEmissionConsistency = async (content: string, lockedFields: string[] = []): Promise<string> => {
         const stage = opts.structuredStage;
         if (finalConsistencyReviewMode() !== "on" || (stage !== "diagnose" && stage !== "prescribe") || !opts.structuredCaseState) return content;
         let split: ReturnType<typeof splitDeliveryContent>;
@@ -5885,6 +5887,7 @@ async function callPrimaryTextModelStream(
           let emissionM04Attestation = m04AttestationWithScope;
           let m03SurfaceAccepted = false;
           if (!truncated && transformed.ok && (opts.structuredStage === "diagnose" || opts.structuredStage === "prescribe")) {
+            emissionContent = await reviewEmissionConsistency(emissionContent);
             const surfaced = projectEmissionSurface(emissionContent);
             if (surfaced !== emissionContent) {
               // 辨证结果随载荷重渲染可见正文（与上面的特异性投影同一做法），正文之前的服务端前置区（安全警示横幅、
@@ -6036,39 +6039,6 @@ async function callPrimaryTextModelStream(
               if (emissionM04Attestation) emissionM04Attestation = rebindClinicalReviewAttestation(emissionM04Attestation, gatedReasoning);
             }
           }
-          if (!truncated && transformed.ok) {
-            // The visible quality notice is part of the document the reviewer reads.
-            const annotation = opts.structuredStage === "diagnose" && m03QualityAcceptedReason
-              ? qualityAnnotationCopy(m03QualityAcceptedReason)
-              : opts.structuredStage === "prescribe" ? m04TransparentQualityAnnotation : undefined;
-            if (annotation && !emissionContent.includes(annotation)) emissionContent = `${annotation}\n\n${emissionContent}`;
-          }
-          if (!truncated && transformed.ok && finalConsistencyReviewMode() === "on" && opts.structuredStage) {
-            // The rationale is bound to the final diagnosis. Its inputs cannot be silently
-            // revised by a later reader. M04 source-selected herb rows have their own owner.
-            const locked = opts.structuredStage === "diagnose" ? (authoredRationaleHash
-              ? ["病位", "病性", "总体病机", "病机链", "待核实", "治法"] : [])
-              : [...(functionPolicy.enabled && functionPolicy.functions === "on" ? ["药味"] : []),
-                 ...(functionPolicy.enabled && (functionPolicy.analysis === "on" || functionPolicy.functions === "on") ? ["方义"] : [])];
-            const prepared = emissionContent;
-            const revised = await reviewEmissionConsistency(prepared, locked);
-            if (revised !== prepared) {
-              const checkedContent = finalDelivery && deliveryPolicy.mode !== "off" ? await finalDelivery.run(revised) : revised;
-              const proposed = structuredReasoningFromContent(revised);
-              const next = structuredReasoningFromContent(checkedContent);
-              const attestation = opts.structuredStage === "diagnose" ? emissionM03Attestation : emissionM04Attestation;
-              const rebound = next && attestation ? rebindClinicalReviewAttestation(attestation, next) : undefined;
-              if (next && proposed && finalRationaleDeliveryHash(next) === finalRationaleDeliveryHash(proposed) && (!attestation || rebound) && (!enforceElementClosure || checkM03ElementsBeforeSign(next))) {
-                emissionContent = checkedContent;
-                if (opts.structuredStage === "diagnose") emissionM03Attestation = rebound;
-                else emissionM04Attestation = rebound;
-                if (authoredRationaleHash) authoredRationaleHash = finalRationaleDeliveryHash(next);
-                console.info("[tcm-cdss:telemetry] final_consistency_delivery", { stage: opts.structuredStage, status: "accepted", hash: finalRationaleDeliveryHash(next) });
-              } else {
-                console.warn("[tcm-cdss:telemetry] final_consistency_delivery", { stage: opts.structuredStage, status: "rolled_back" });
-              }
-            }
-          }
           let signedContent = opts.structuredStage === "diagnose"
             ? attachClinicalReviewAttestation(emissionContent, emissionM03Attestation)
             : opts.structuredStage === "prescribe"
@@ -6090,6 +6060,19 @@ async function callPrimaryTextModelStream(
             const signatureContext = opts.prescribeSignatureContext;
             if (!signatureContext) throw new Error("Missing M04 signature context");
             signedContent = applyPrescribeContractSignature(signedContent, signatureContext);
+          }
+          // 质量批注必须与结果一起呈现：带批注受理的 M03 是完整签名结果，但医生要一眼看到
+          // 「哪一项文档质量项未达标、为什么仍可继续」。批注只加在可见正文最前，不进签名载荷。
+          // 三处都带幂等守卫：路由 outputTransform 的终审分支可能已经贴过同一段批注
+          // （甲方生产实测：同段批注顶部裸贴 + 引用块各一次），双层各贴一次是呈现噪音。
+          if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03QualityAcceptedReason) {
+            const annotation = qualityAnnotationCopy(m03QualityAcceptedReason);
+            if (annotation && !signedContent.includes(annotation)) signedContent = `${annotation}\n\n${signedContent}`;
+          }
+          // M04 同理：透明降级候选按质量批注受理时，医生必须一眼看到哪一项未能自动核验、
+          // 以及为什么仍然可以用（承重的安全核验层全部通过）。
+          if (!truncated && transformed.ok && opts.structuredStage === "prescribe" && m04TransparentQualityAnnotation && !signedContent.includes(m04TransparentQualityAnnotation)) {
+            signedContent = `${m04TransparentQualityAnnotation}\n\n${signedContent}`;
           }
           if (opts.structuredStage === "diagnose") {
             signedContent = sanitizeDiagnoseStreamingDraft(signedContent);

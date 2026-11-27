@@ -86,17 +86,15 @@ await check("R5", "开方阶段：方义漏讲原来讲到的药不写；中成�
   assert.equal(r.formula.candidates[0].herbs[3].dose, "9g");
   assert.deepEqual(apply("prescribe", r, { 加减: [] }).rejected, ["加减:out_of_scope"]);
 });
-await check("R6", "接线：定稿通读在交付面投影与末端撰写之后（投影、合同与签名照常作用于改写结果），改写后过不了合同整份放弃", () => {
+await check("R6", "接线：定稿通读在交付面投影之前（投影、合同与签名照常作用于改写结果），改写后过不了合同整份放弃", () => {
   const source = fs.readFileSync(`${root}/src/lib/diagnosis-api.ts`, "utf8");
-  const reviewAt = source.indexOf("const revised = await reviewEmissionConsistency(prepared, locked);");
+  const reviewAt = source.indexOf("emissionContent = await reviewEmissionConsistency(emissionContent);");
   const projectAt = source.indexOf("const surfaced = projectEmissionSurface(emissionContent);");
-  assert.ok(projectAt > 0 && reviewAt > source.indexOf("await applyM04FinalContent(emissionContent") && reviewAt > projectAt);
-  const gateAt = source.indexOf("emissionContent = await finalDelivery.run(emissionContent);", projectAt);
-  assert.ok(gateAt > projectAt && gateAt < reviewAt);
-  assert.ok(source.indexOf("await finalDelivery.run(revised)", reviewAt) > reviewAt);
+  assert.ok(reviewAt > 0 && projectAt > reviewAt && projectAt - reviewAt < 200);
   assert.match(source, /final_consistency_review_rejected/u);
   assert.match(source, /m04SafetyContractIssue\(reasoning, opts\.structuredPriorReasoning/u);
 });
+
 await check("R7", "正文分项均为四字，来源必须匹配本病本证；无可核实表述时正文照原文", async () => {
   const { treatmentMethodDisplay } = await jiti.import("../src/lib/treatment-method-display.ts");
   const result = treatmentMethodDisplay("健脾温阳利水", "水肿", "脾阳虚衰证");
