@@ -411,4 +411,22 @@ check("10.19", "中成药说明书里句首人群本例都不可能属于的句�
   assert.match(woman, /哺乳期妇女慎用。.*孕妇禁用/u);
   assert.equal(boundary.withoutIrrelevantPopulationSentences(label, undefined), label, "不知道人群时不动");
 });
+check("10.20", "说明书合写经期和孕哺人群：仅过滤不适用的独立提示，保留资料缺失时的提示和独立禁忌", () => {
+  const audience = (sex) => safety.medicationPopulationAudience(normalizeCaseStateInput({
+    chiefComplaint: "踝关节疼痛", patient: { sex, age: 26 },
+  }));
+  const male = audience("男");
+  const woman = audience("女");
+  const unknown = audience("");
+  const before = "对本品过敏者禁用。";
+  const after = "如正在使用其他药品，请咨询医师或药师。";
+  for (const label of ["经期及哺乳期妇女慎用。", "月经期、哺乳期妇女慎用。", "孕妇、哺乳期和经期妇女禁用。"]) {
+    const note = before + label + after;
+    assert.equal(boundary.withoutIrrelevantPopulationSentences(note, male), before + after);
+    assert.equal(boundary.withoutIrrelevantPopulationSentences(note, woman), note);
+    assert.equal(boundary.withoutIrrelevantPopulationSentences(note, unknown), note);
+  }
+  const mixed = "经期及哺乳期妇女慎用，局部皮肤破溃处禁用。";
+  assert.equal(boundary.withoutIrrelevantPopulationSentences(mixed, male), mixed);
+});
 console.log(`r1081 main: ${n} checks passed`);

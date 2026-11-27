@@ -7047,13 +7047,14 @@ export function pregnancyAdviceRelevant(state: CaseState): boolean {
 }
 
 /** 注意事项、逐味标签与治疗卡共用；哺乳已知时只给哺乳期提示。安全门仍独立读阳性事实。 */
-export function medicationPopulationAudience(state: CaseState): { reproductive: boolean; pregnancy: boolean; lactation: boolean; ageYears: number | null } {
+export function medicationPopulationAudience(state: CaseState): { reproductive: boolean; pregnancy: boolean; lactation: boolean; ageYears: number | null; sexKnown: boolean } {
   const maternal = maternalStateText(state, clinicalGroundingText(state));
   const pregnant = isPositiveOrPossibleClinicalState(assessPregnancyState(maternal));
   const lactating = isPositiveOrPossibleClinicalState(assessLactationState(maternal));
   const relevant = pregnancyAdviceRelevant(state);
   return { reproductive: reproductiveAdviceRelevant(state), pregnancy: relevant && (pregnant || !lactating),
-    lactation: relevant && (lactating || (!pregnant && assessLactationState(maternal).status !== "negative")), ageYears: authoritativePatientAgeYears(state) ?? null };
+    lactation: relevant && (lactating || (!pregnant && assessLactationState(maternal).status !== "negative")),
+    ageYears: authoritativePatientAgeYears(state) ?? null, sexKnown: Boolean(patientSexText(state)) };
 }
 
 /**

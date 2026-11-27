@@ -33,7 +33,7 @@ const SEVERITY_WORDING = [
  * 病历未必写全，一律保留。孕哺是否适用用 reproductiveAdviceRelevant 的同一判据（育龄女性；年龄不详按适用）。
  */
 /** reproductive：月经、带下类（reproductiveAdviceRelevant）；pregnancy：孕哺类（pregnancyAdviceRelevant），缺省同 reproductive。 */
-export type HerbBoundaryAudience = { reproductive: boolean; pregnancy?: boolean; lactation?: boolean; ageYears: number | null };
+export type HerbBoundaryAudience = { reproductive: boolean; pregnancy?: boolean; lactation?: boolean; ageYears: number | null; sexKnown?: boolean };
 
 export function herbBoundaryPopulationRelevant(population: string, audience?: HerbBoundaryAudience): boolean {
   if (!audience) return true;
@@ -71,7 +71,7 @@ export function withoutIrrelevantPopulationCautions(text: string, audience?: Her
 
 /**
  * 说明书注意事项里以人群开头、句首人群本例一个都不可能属于的句子去掉（「哺乳期妇女慎用。」「儿童、年老体弱者应在医师指导下服用。」对 39 岁男性）。
- * 人群写法与对应标签在 label-population-subjects.source.json；判据与逐味人群提示同一个。句首还有别的病情类人群的（「糖尿病…等慢性病患者」）不动。
+ * 人群写法与对应标签见 label-population-subjects.source.json。同句另有警示分句时保留整句，避免误删独立禁忌。
  */
 export function withoutIrrelevantPopulationSentences(text: string, audience?: HerbBoundaryAudience): string {
   if (!audience || !text) return text;
@@ -80,10 +80,14 @@ export function withoutIrrelevantPopulationSentences(text: string, audience?: He
   const head = new RegExp(`^((?:${names.join("|")})(?:[、及和与或](?:${names.join("|")}))*)(?=${(labelPopulationSubjects.predicates as string[]).join("|")})`, "u");
   const sentences = text.split(/(?<=[。；;])/u);
   const kept = sentences.filter((sentence) => {
-    const match = sentence.trim().match(head);
+    const clause = sentence.trim();
+    const match = clause.match(head);
     if (!match) return true;
+    if (/[、，,:：]/u.test(clause.slice(match[0].length))) return true;
     const populations = match[1].split(/[、及和与或]/u).filter(Boolean).map((name) => subjects[name]).filter(Boolean);
-    return populations.some((population) => herbBoundaryPopulationRelevant(population, audience));
+    return populations.some((population) => population === "月经期"
+      ? !audience.sexKnown || audience.reproductive
+      : herbBoundaryPopulationRelevant(population, audience));
   });
   return kept.length === sentences.length ? text : kept.join("").trim();
 }
