@@ -7,7 +7,8 @@ import { scanDeliveryInvariants } from "./delivery-invariants";
 import { settleWesternDiagnosisBasis } from "./recorded-test-claims";
 import { primaryModelJsonTask } from "./cross-model-small-task.server";
 import { quoteGroundedInText } from "./verbatim-quote";
-import { splitTextbookDiseaseSubtype, textbookDiseaseDifferentialNames, textbookDiseaseTypicalManifestation, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { splitTextbookDiseaseSubtype, textbookDiseaseDifferentialNames, textbookDiseaseTypicalManifestation, textbookRowForSyndrome, textbookTherapyItems } from "./tcm-textbook-syndromes";
+import { governedFourCharacterMethodTerms } from "./clinical-governance-tables";
 import { diagnosticsCriteriaFor } from "./m03-secondary-syndrome-consistency.server";
 import { natureLabelsNamedBySyndromeMissingFrom } from "./nature-column-classification";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
@@ -49,7 +50,7 @@ const RULES = `你是三甲医院中医科副主任医师，在门诊辅助诊�
 const SCOPE: Record<FinalReviewStage, string> = {
   diagnose: `【本次审稿范围】只审改：病位、病性、总体病机、病机链、待核实、治法、中医鉴别、西医诊断、西医依据。有治则核对候选时才审治则。其他步骤已定稿的只读字段保持原样。
 - 逐项对照病历和教材。辨证依据中成组表现所支持的病因、脏腑与病性要落实到总体病机和相应栏目；分清致病之本和病后损伤，区分虚热和独立实邪。病名、证名和依据保留。
-- 治法每项四字、至多三项，覆盖主症及并病脏腑，按教材本证治法核对方义。中医病名鉴别至少两项，逐项写本例与其如何区别。西医判断区分已确诊病史与本次待查的病因、分型或并发症。每个病机节点只引病历中支持该节点的原话。已记载的舌脉和检查不再列为待核实，只保留影响辨证或用药的具体缺项。
+- 治法每项四字、至多三项，覆盖主症及并病脏腑，按教材本证治法核对方义。每个病机节点只引病历中支持该节点的原话。已记载的舌脉和检查不再列为待核实，只保留影响辨证或用药的具体缺项。
 - 西医诊断只改确定程度（加或去"待查"），不换成别的病。`,
   prescribe: `【本次审稿范围】只审改：方义、中成药、药味。辨证结论（病名、证名、治法）只作参照，不改。
 - 中成药只能删，不能加。
@@ -105,7 +106,7 @@ export function finalReviewDraft(stage: FinalReviewStage, reasoning: Json, prior
 const core = (name: string) => name.replace(/待[查排]$/u, "");
 
 /** 按范围把读稿人的改动写回结构化结果；越界、类型不对、违反核对的改动不写，记进 rejected。返回实际写入的字段。 */
-type DiagnoseReviewContext = { suggestedPrinciple?: string; recordText?: string; unconfirmedFollowupQuestions?: readonly string[] };
+type DiagnoseReviewContext = { suggestedPrinciple?: string; recordText?: string; redFlag?: boolean; unconfirmedFollowupQuestions?: readonly string[] };
 export function applyFinalReviewPatch(stage: FinalReviewStage, reasoning: Json, patch: Json, reviewed: ReadonlySet<string>, context: DiagnoseReviewContext = {}): { applied: string[]; rejected: string[] } {
   const applied: string[] = []; const rejected: string[] = [];
   const scope = new Set<string>(stage === "diagnose" ? DIAGNOSE_FIELDS : PRESCRIBE_FIELDS);
@@ -198,6 +199,15 @@ function applyDiagnoseField(reasoning: Json, field: string, value: unknown, cont
       if (!nonEmpty(value) || !therapy) return "type";
       const items = value.split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
       if (!items.length || items.length > 3 || items.some((item) => item.length !== 4) || new Set(items).size !== items.length) return "not_four_char_items";
+      // 第六十三轮配对盲评：通读删掉过主症的治法项（风热咳嗽删「清热化痰」），也写出过非通行的拼合项（「固脱救逆，回阳固脱」）。
+      // 通读只许改写不许减项；新写的每项须是原有项、或受治理/教材里的四字治法。
+      const before = text(therapy.overallMethod).split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+      if (items.length < Math.min(before.length, 3)) return "dropped_items";
+      const governed = new Set([...governedFourCharacterMethodTerms(), ...textbookTherapyItems()]);
+      if (items.some((item) => !before.includes(item) && !governed.has(item))) return "ungoverned_item";
+      const halves = (list: string[]) => list.flatMap((item) => [item.slice(0, 2), item.slice(2)]);
+      const repeated = (list: string[]) => halves(list).filter((half, i, all) => all.indexOf(half) !== i);
+      if (repeated(items).some((half) => !repeated(before).includes(half))) return "repeated_half";
       therapy.overallMethod = items.join("，");
       if (typeof overview.overallTherapy === "string") overview.overallTherapy = therapy.overallMethod;
       return true;
@@ -222,6 +232,9 @@ function applyDiagnoseField(reasoning: Json, field: string, value: unknown, cont
       if (core(value.trim()) !== core(text(primary.name).trim())) return "renamed";
       if (context.recordText && /待[查排]$/u.test(value.trim()) &&
           !/待[查排]$/u.test(settleWesternDiagnosisBasis(value.trim(), text(primary.clinicalRationale), context.recordText).name)) return "established_diagnosis";
+      // 去「待查」同样要确定性结算同意；急危重红旗病例不去（异位妊娠破裂未做超声、溃疡出血未做胃镜被写成确诊）。
+      if (/待[查排]$/u.test(text(primary.name).trim()) && !/待[查排]$/u.test(value.trim()) && (context.redFlag ||
+          !context.recordText || /待[查排]$/u.test(settleWesternDiagnosisBasis(value.trim(), text(primary.clinicalRationale), context.recordText).name))) return "not_established";
       primary.name = value.trim(); return true;
     }
     case "西医依据": {
@@ -333,7 +346,6 @@ export async function finalConsistencyReview(
       证候: object(reasoning.overview)?.primarySyndromeResolution };
     draft.说明 = "题干不是已发生事实。直接影响病位、病性或证候时，在待核实改稿中为该项写项目、原因、题干原文与影响（病位、病性、证候三选一）。项目和原因只写临床问题，无关的判断保留。";
   }
-  if (context.visibleText) draft.交付正文 = sanitizeFreeTextForModel(context.visibleText);
   const evidenceText = [context.recordText, context.visibleText, JSON.stringify(draft)].join("\n");
   let suggestedPrinciple: string | undefined;
   if (stage === "diagnose") {

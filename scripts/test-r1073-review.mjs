@@ -177,3 +177,26 @@ await check("R12", "合称对上多个脏腑时不按教材顺序选方", async 
   assert.equal(textbookRowForSyndrome("虚劳", "肺气虚证")?.syndromeName, "肺气虚证");
 });
 
+
+await check("R13", "第六十三轮：通读不减治法项、不写受治理词表外的新治法；去「待查」须确定性结算同意且非红旗", async () => {
+  const dropped = diagnose();
+  assert.deepEqual(apply("diagnose", dropped, { 治法: "疏肝理气" }).rejected, ["治法:dropped_items"]);
+  assert.equal(dropped.therapy.overallMethod, "疏肝理气，和胃止痛");
+  const coined = diagnose();
+  assert.deepEqual(apply("diagnose", coined, { 治法: "疏肝理气，胃气舒畅" }).rejected, ["治法:ungoverned_item"]);
+  const twice = diagnose(); twice.therapy.overallMethod = "回阳救逆，益气固脱，活血止痛";
+  assert.deepEqual(apply("diagnose", twice, { 治法: "固脱救逆，回阳固脱，益气活血" }).rejected, ["治法:repeated_half"]);
+  const reworded = diagnose();
+  assert.deepEqual(apply("diagnose", reworded, { 治法: "疏肝理气，和胃降逆" }).applied, ["治法"], "受治理四字治法可以改写原项");
+  const ctx = (extra) => ({ recordText: "主诉：停经50天，下腹剧痛2小时。尿妊娠试验阳性。", ...extra });
+  const pending = () => { const r = diagnose(); r.westernDiagnosis.primary.name = "异位妊娠破裂待查"; r.westernDiagnosis.primary.clinicalRationale = "符合异位妊娠破裂，需急诊超声。"; return r; };
+  const red = pending();
+  assert.deepEqual(review.applyFinalReviewPatch("diagnose", red, { 西医诊断: "异位妊娠破裂" }, new Set(["西医诊断"]), ctx({ redFlag: true })).rejected, ["西医诊断:not_established"]);
+  assert.equal(red.westernDiagnosis.primary.name, "异位妊娠破裂待查");
+  const noRecord = pending();
+  assert.deepEqual(review.applyFinalReviewPatch("diagnose", noRecord, { 西医诊断: "异位妊娠破裂" }, new Set(["西医诊断"]), { redFlag: false }).rejected, ["西医诊断:not_established"]);
+  const pharyngitis = diagnose(); pharyngitis.westernDiagnosis.primary.name = "急性咽炎待查";
+  pharyngitis.westernDiagnosis.primary.clinicalRationale = "咽痛灼热，查体咽黏膜鲜红肿胀，符合急性咽炎。";
+  assert.deepEqual(review.applyFinalReviewPatch("diagnose", pharyngitis, { 西医诊断: "急性咽炎" }, new Set(["西医诊断"]),
+    { recordText: "主诉：咽痛2天。查体：咽黏膜鲜红肿胀。", redFlag: false }).applied, ["西医诊断"], "结算认可、非红旗时可去待查（对照）");
+});
