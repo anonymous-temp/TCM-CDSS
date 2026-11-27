@@ -47,7 +47,7 @@ const RULES = `你是三甲医院中医科副主任医师，在门诊辅助诊�
 不能碰的：红旗判断；药味的增删与剂量。`;
 
 const SCOPE: Record<FinalReviewStage, string> = {
-  diagnose: `【本次审稿范围】只审改：病位、病性、总体病机、病机链、待核实、治法、中医鉴别、西医诊断、西医依据。有治则核对候选时才审治则。其他步骤已定稿的只读字段保持原样。
+  diagnose: `【本次审稿范围】只审改：病位、病性、总体病机、病机链、待核实、治法、中医鉴别、西医诊断、西医依据。
 - 逐项对照病历和教材。辨证依据中成组表现所支持的病因、脏腑与病性要落实到总体病机和相应栏目；分清致病之本和病后损伤，区分虚热和独立实邪。病名、证名和依据保留。
 - 治法每项四字、至多三项，覆盖主症及并病脏腑，按教材本证治法核对方义。每个病机节点只引病历中支持该节点的原话。已记载的舌脉和检查不再列为待核实，只保留影响辨证或用药的具体缺项。
 - 西医诊断只改确定程度（加或去"待查"），不换成别的病。`,
@@ -85,7 +85,7 @@ export function finalReviewDraft(stage: FinalReviewStage, reasoning: Json, prior
       总体病机: text(pathogenesis.overallPathogenesis || pathogenesis.summary || overview.overallPathogenesis),
       病机链: list(pathogenesis.chain).map((row) => ({ 表现: text(object(row)?.patientFact), 病机: text(object(row)?.pathogenesis), 治法方向: text(object(row)?.therapyDirection), 证据: text(object(row)?.syndromeEvidence) })),
       待核实: list(pathogenesis.uncertainties).map((row) => ({ 项目: text(object(row)?.item), 原因: text(object(row)?.reason) })),
-      治法: text(object(reasoning.therapy)?.overallMethod), 治则: text(object(reasoning.therapy)?.overallPrinciple),
+      治法: text(object(reasoning.therapy)?.overallMethod),
       中医鉴别: list(overview.tcmDiseaseDifferentials).map((row) => ({ 病名: text(object(row)?.diseaseName), 相似: text(object(row)?.reason), 要点: text(object(row)?.distinguishingPoints), 典型表现: text(object(row)?.typicalManifestation) })),
       西医诊断: text(western.name), 西医依据: text(western.clinicalRationale) || list(western.supportingFacts).map(text).join(""),
     };
@@ -356,6 +356,7 @@ export async function finalConsistencyReview(
     if (!context.redFlag && findings.some(f => f.ruleId === "R04") && nature?.resolution === "resolved" &&
         list(nature.rootDeficiency).length && list(nature.branchExcess).length && list(object(reasoning.therapy)?.subTherapies).length >= 2) {
       suggestedPrinciple = governedContext.principle?.expected;
+      draft.治则 = text(object(reasoning.therapy)?.overallPrinciple);
       draft.治则核对 = { 候选: suggestedPrinciple, 分治法: object(reasoning.therapy)?.subTherapies,
         说明: "本虚标实分栏只提供线索。仅当本例证候、病机和实际分治法均支持该候选且当前治则不符时，可在治则字段选它并引用证据。兼带或继发病性不足以更改治则。" };
     }
@@ -376,7 +377,7 @@ export async function finalConsistencyReview(
   }
   for (const field of context.lockedFields || []) delete reply.patch[field];
   const copy = structuredClone(reasoning);
-  const { applied, rejected } = applyFinalReviewPatch(stage, copy, reply.patch, new Set(reply.review.filter(row => evidenceText.includes(row.evidence)).map(row => row.field)), { ...context, suggestedPrinciple });
+  const { applied, rejected } = applyFinalReviewPatch(stage, copy, reply.patch, new Set(reply.review.filter(row => evidenceText.includes(row.evidence) || quoteGroundedInText(row.evidence, evidenceText)).map(row => row.field)), { ...context, suggestedPrinciple });
   console.info("[tcm-cdss:telemetry] final_consistency_review", { stage, proposed: applied, rejected, reviewItems: reply.review.length });
   return applied.length > 0 ? { reasoning: copy, applied, rejected } : undefined;
 }
