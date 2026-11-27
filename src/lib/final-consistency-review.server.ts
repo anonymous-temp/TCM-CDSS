@@ -319,7 +319,7 @@ function parseReply(content: unknown): ReviewReply | undefined {
     const parsed = JSON.parse(text(content)) as Json;
     if (!Array.isArray(parsed.review) || !object(parsed.patch)) return undefined;
     const review = parsed.review.map(row => ({ field: text(object(row)?.field), evidence: text(object(row)?.evidence).trim() }))
-      .filter(row => row.field && row.evidence);
+      .filter(row => row.field);
     const patch = object(parsed.patch)!;
     return { review, patch };
   } catch {
@@ -345,7 +345,6 @@ export async function finalConsistencyReview(
       证候: object(reasoning.overview)?.primarySyndromeResolution };
     draft.说明 = "题干不是已发生事实。直接影响病位、病性或证候时，在待核实改稿中为该项写项目、原因、题干原文与影响（病位、病性、证候三选一）。项目和原因只写临床问题，无关的判断保留。";
   }
-  const evidenceText = [context.recordText, context.visibleText, JSON.stringify(draft)].join("\n");
   let suggestedPrinciple: string | undefined;
   if (stage === "diagnose") {
     const overview = object(reasoning.overview);
@@ -377,7 +376,7 @@ export async function finalConsistencyReview(
   }
   for (const field of context.lockedFields || []) delete reply.patch[field];
   const copy = structuredClone(reasoning);
-  const { applied, rejected } = applyFinalReviewPatch(stage, copy, reply.patch, new Set(reply.review.filter(row => evidenceText.includes(row.evidence) || quoteGroundedInText(row.evidence, evidenceText)).map(row => row.field)), { ...context, suggestedPrinciple });
+  const { applied, rejected } = applyFinalReviewPatch(stage, copy, reply.patch, new Set(reply.review.map((row) => row.field)), { ...context, suggestedPrinciple });
   console.info("[tcm-cdss:telemetry] final_consistency_review", { stage, proposed: applied, rejected, reviewItems: reply.review.length });
   return applied.length > 0 ? { reasoning: copy, applied, rejected } : undefined;
 }
