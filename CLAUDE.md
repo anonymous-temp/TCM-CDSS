@@ -4340,6 +4340,77 @@ The owner asked to apply the customer's review criteria, fix recurring classes, 
 
 **Final release.** `0509ac58` (`20261127-0509ac5-prebuilt`) deployed at 2026-11-27 00:54 UTC, with the compound-label repair. Both versions passed typecheck, lint, 365 deterministic suites, four fresh-artifact suites, production commit/source-digest verification and live model-family checks. Production smoke passed all five samples on both images. After the final cutover D095 selected 东乐膏 again. Its label matched the first run byte for byte after removing that one sentence. The 100-case Word/PDF files retain the original production observations and replay the final label rendering only. The replay changed one sentence in D095. The Word and PDF each contain all 100 input, output and review sections. Source and release evidence are under `~/runlogs/r1018/work/r1081/`. Rollback image `tcm-cdss:20261126-329968e-prebuilt`, with `docker-compose.yml.pre-0509ac5` from the release directory.
 
+### 11/27 round 63: taking over a Codex run that went off course; one writer per field; the review where it works (2026-11-27)
+
+After round 62 the user asked whether the reassessment's 23 confirmed items could be fixed without changing the model. The agreed plan had three parts: share one clinical judgment across stages, review the content actually delivered, add only a few core rules. Codex (gpt-6.2-astra) carried it out in runs 19–21 and left 50 files uncommitted. The user stopped it with 「越改越离谱」. Its work is saved on branch `wip/r1083-codex-astra` (6b7fb38c, never released). Material: `~/runlogs/r1018/work/r1084/` (arms, `check23.py`, `compare.py`, blind reviews `review-r63`/`review-r63b` with keys in `keys/`); Codex's own material is in `r1083-review/`.
+
+**What had gone wrong.** It started on the plan, then chased single cases:
+- **Hedge text:** D100 got the note 「当前主病归属待急诊评估时复核」 in its pending items.
+- **Case-specific rules and tables:** an enuresis-subtype regex, an ectopic-pregnancy cause rule, a two-row hand-written differential table, a 蜜枇杷叶 processing preference.
+- **A filter that broke more than it fixed:** a record-evidence filter on herb functions emptied 19 herb columns (0 before), and then needed a "contextual purpose" table to refill them.
+- **Whole cards dropped:** every 丹毒 acupuncture card was removed.
+- **Unmeasured safety-layer changes:** the chest-tightness red-flag wording was rewritten, and discriminator advisories were dropped from `safetyGate.advisories`.
+- **Process wording in the body:** when a six-character textbook method could not be split into four-character items, the page showed 「治法待核」.
+
+**What was kept** (branch `fix/r1084`, merged to main as 60c6b319):
+- **One writer per field.** The prescription's copy of overview, Western diagnosis, pathogenesis and therapy is the signed M03 (`projectDeliveredReasoning` option `signedDiagnose`). The projection no longer re-derives 治则 for the prescribe stage, nor for diagnose when the final review is on (`preservePreparedPrinciple`): the prepared stage derives it once and the review may change it.
+- **The review may set 治则 only to the scanner's R04 candidate.** This requires a resolved nature axis with both columns and at least two sub-therapies (D063 → 扶正祛邪). When R09 fires it may top up TCM disease differentials from the textbook list.
+- **Deterministic limits on the review patch:**
+  - no 治法 item may be dropped;
+  - a new item must be an existing item or a governed or textbook four-character method;
+  - two items may not newly repeat a two-character half (「固脱救逆，回阳固脱」);
+  - 待查 is removed only when `settleWesternDiagnosisBasis` agrees, and never on a red-flag case.
+- **Western 待查.** `settleWesternDiagnosisBasis` reads 「N年前确诊」, two recorded diagnoses written 「X伴/合并Y」, and a recorded diagnosis with its control state (「2型糖尿病伴血糖控制不佳」) as established (D016, D040, D047). A real complication stays 待查.
+- **Other kept fixes:**
+  - the T2DM follow-up names HbA1c;
+  - early-pregnancy instability keeps the recorded clause (「站立时险些晕倒」, not 「晕厥」);
+  - 阴阳俱虚 counts as 阴阳两虚 for card variants, and a variant's points must share the signed location;
+  - a composite syndrome matching several source rows no longer picks a row by chapter order;
+  - a symptom match no longer turns a candidate into a confirmed urinary infection;
+  - 平素时 is a clinical lexeme;
+  - stale 方义 openings (「改以自拟方」, repeated 加去) are dropped;
+  - 「不省人事」 stays whole in the 未诉 rewrite;
+  - 「审阅候选」-type words leave 方义.
+- **Bloodletting written inside an acupuncture card** follows the bloodletting project's own exclusions (anticoagulation, bleeding, active infection…). Only those sentences are removed and the needling stays. The 丹毒 textbook 散刺出血 is therefore not delivered while 红肿热痛 is recorded; this is still a clinician decision (V25).
+- **治法 display (owner decision 「正文四字，保留教材出处」).** The page, Markdown and Word show four-character items plus the textbook line (`treatment-method-display.ts`). When no faithful split exists the signed wording is shown as written.
+  - **Limit:** the interface field `therapy.overallMethod` still carries the textbook wording, and that field is what the customer's own panel reads. Changing it would touch chain-node therapies and the M04 contract.
+
+**Measured lesson: where the review runs matters less than what it is allowed to see and change.** Codex moved the final review after projection and the final rationale. Three effects followed:
+- **治法 and 病机 were locked**, because the rationale had been written against them. The review stopped restoring main-symptom methods that production's review restores, e.g. 风热咳嗽 without 清热化痰.
+- **A display note in the review prompt** (「治法显示说明」) changed the prompt for most textbook cases.
+- **A verbatim-evidence filter** discarded the review's own edits whenever their evidence was a paraphrase.
+
+Blind paired review of 48 delivery records (production code vs that version; memo-replayed arms, so the two differ only in code): errors 36 vs 33, but the reviewers preferred production 21 to 14. With the review back in its production position and wording, plus the limits above, a second blind review of the same 48 gave errors 30 vs 30, error-free outputs 22 vs 26, and preference 12 vs 16 with 20 ties. Reviewer-to-reviewer variance on the same production outputs was 36 vs 30, so differences of a few errors are noise.
+
+**Other measurements** (local route harness, customer request shape, memo replay with `REGENERATE_VALUE=1`):
+- **The 23 confirmed items:** still present on production code 18; on the final code 6, of which D047 was fixed afterwards. Left: D042 (model writes 「每次尿量正常」 in a differential), D078 (车前子 「渗湿止泻」 with 大便干), and D041/D046 (one TCM disease differential each).
+- **431 customer-tested records:** class-scan nominations 162 → 150. The P0 audit is 0 on every check in every set. Classes that rose by one are redrawn prescriptions or scanner false positives.
+- **Replay arms are CPU-bound:** about 20 s per prescription even with every model call cached. Much of production M04 latency is server-side post-processing.
+
+**Process notes.**
+- **Codex's diff contradicted its reports:** they read as steady progress while the diff showed the patch spiral (each "found another one" message added a rule or a table). Read the diff before trusting such a report.
+- **`pkill -f <pattern>` / `pgrep -f` inside a command whose own text contains the pattern kills the calling shell** (exit 144); it happened twice this round. Use `ps | grep "[x]"` and kill by PID.
+- **Paired arms need their own memo copy.** Codex had run its arms with `force` on the shared `memo-n3`/`memo-fin`, so those directories now hold its redrawn responses; arms that copy them are still paired, but they no longer reproduce round 62.
+
+**In production (60c6b319, tag `20261127-60c6b31-prebuilt`, deployed 2026-11-27 11:38 UTC; same release directory and `20260927-dsrepair` override).**
+- **Verification.** `verify:release` was green on 60c6b319: lint, 365 deterministic suites, the fresh-artifact suites and typecheck. `verify:deployed-image` passed (commit, digest, strictReady, both model families). `regress:prod-smoke` had 0 failures (M03 P95 13.4 s, M04 P95 24.1 s).
+- **The upload was the hard part.** Outbound bandwidth from this machine is about 46 KB/s. The rebuilt 51 MB client chunk (the knowledge tables in the page bundle; its hash changes with most builds) and the changed server files broke rsync three times (`Broken pipe`). The fix:
+  - the prebuilt files were uploaded first with a resumable rsync (`--partial`, retries);
+  - the deploy then ran from a copy of the deploy script that skips the re-seed of the packaging directory when `PRESYNCED=1` (`~/runlogs/r1018/work/r1084/deploy-green-presynced.sh`).
+
+  The stock script deletes and re-seeds that directory from the running image before uploading, so a pre-upload is discarded without that change.
+- **Host disk.** Our `20261126-634c06b` image was removed to stay above the 12 GB floor.
+- **The 100 delivery records on production** (`~/runlogs/r1018/work/r1084/prod/d100-60c6b31`, Word/PDF in `…/r1084/deliver/`):
+  - **Client-side failures:** 22 chains failed client-side (status 0, mostly M05 uploads of 150 KB bodies). They were rerun with gzip request bodies (as the browser does) and one chain per tenant. The server had already computed most stages, so the reruns replayed them.
+  - **Confirmed items:** of the 23 confirmed items, 6 remain (round 62's production run: 22). The six:
+    - D054 「否认腹痛」 (the rewritten rationale was not adopted on this draw);
+    - D042;
+    - D078;
+    - D041, D046 and D062 (one TCM disease differential each).
+  - **Audits:** the P0 audit is 0 on every check, with 100/100 dosed. Class-scan nominations went 49 → 46.
+  - **Latency:** M03 median 4.9 s, M04 median 29.8 s / p90 37.1 s (round 62: 15.6 s and 22.1 s). The M04 main model call takes 3–7 s; the stage time is the serial small tasks after it (final review ~4.5 s, modification authoring ~3.4 s, final herb functions ~3.2 s, caution checks, fit checks). Memo-replay arms showed no CPU regression, so the cause is not yet identified.
+- **Rollback.** Image `tcm-cdss:20261127-0509ac5-prebuilt` with `docker-compose.yml.pre-60c6b31` in the release directory. The container log before the replacement is `~/telemetry-archive/container-pre-60c6b31-*.log.gz` on the host.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
