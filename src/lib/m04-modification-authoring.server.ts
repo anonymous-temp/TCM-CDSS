@@ -11,7 +11,7 @@ import {
   withoutRepeatedAddedHerbs,
 } from "./m04-proposal-compiler";
 import { applyHerbCautionHits, checkHerbCautions } from "./herb-caution-check.server";
-import { herbFunctionSourceClauses } from "./herb-function-display-source";
+import { applicableFunction, herbFunctionSourceClauses, type HerbFunctionPatient } from "./herb-function-display-source";
 import { herbIndicationText } from "./herb-indication";
 import { patentMedicineDuplication } from "./patent-medicine-duplication.server";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
@@ -136,7 +136,10 @@ export function parseAuthoringPlan(content: unknown, existingCount: number): Aut
 }
 
 /** 复核看到的一行（纯函数，供测试）：条件、药、理由，《中药学》功效与【应用】、药性、使用注意。 */
-export function verifyRowPayload(row: Json) {
+function modificationFunctions(herb: string, patient?: HerbFunctionPatient) {
+  return herbFunctionSourceClauses(herb).filter(source => !patient || applicableFunction(source.text, patient));
+}
+export function verifyRowPayload(row: Json, patient?: HerbFunctionPatient) {
   const herb = text(row.herbName);
   return {
     condition: text(row.trigger),
@@ -144,7 +147,7 @@ export function verifyRowPayload(row: Json) {
     herb,
     dose: text(row.doseOrHandling) || text(row.dose),
     reason: text(row.reason),
-    functions: herbFunctionSourceClauses(herb).map((source) => source.text),
+    functions: modificationFunctions(herb, patient).map((source) => source.text),
     indications: herbIndicationText(herb) || herbClaimReferenceText(herb).slice(0, 160) || null,
     property: herbPropertyReferenceText(herb) || null,
     caution: herbCautionReferenceText(herb) || null,
@@ -192,6 +195,7 @@ export async function authorModificationsInContent(
   const secondary = (Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes : prior.overview?.secondarySyndromes || []).map(text).filter(Boolean);
   const method = text(record(root.therapy)?.overallMethod) || text(prior.therapy?.overallMethod);
   const rationale = text(prior.overview?.tcmDiagnosticRationale).slice(0, 800);
+  const patient = { sex: context.caseState.patient?.sex, recordText: context.recordText };
   const chiefComplaint = text(context.caseState.chiefComplaint);
   // 开方首轮的行先过编译阶段已有的确定性留存（与核对一步相同的起点）。
   const originalRows = Array.isArray(formula.modifications) ? formula.modifications.map(record).filter((row): row is Json => Boolean(row)) : [];
@@ -202,7 +206,7 @@ export async function authorModificationsInContent(
     { role: "user", content: JSON.stringify({
       disease, syndrome, secondarySyndromes: secondary, method, chiefComplaint, rationale,
       herbs: herbRows.map((herb) => ({ name: text(herb.name), role: text(herb.role), function: text(herb.function).slice(0, 24) })),
-      existing: existing.map((row, index) => ({ index, trigger: text(row.trigger), action: text(row.action), herb: text(row.herbName), reason: text(row.reason), indications: herbIndicationText(text(row.herbName)) || null, functions: herbFunctionSourceClauses(text(row.herbName)).map((source) => source.text) })),
+      existing: existing.map((row, index) => ({ index, trigger: text(row.trigger), action: text(row.action), herb: text(row.herbName), reason: text(row.reason), indications: herbIndicationText(text(row.herbName)) || null, functions: modificationFunctions(text(row.herbName), patient).map((source) => source.text) })),
       textbook: (textbook?.modifications || []).slice(0, 10).map((entry) => ({ condition: entry.condition, herbs: entry.herbs })),
       record: context.recordText.slice(0, 2_400),
     }) },
@@ -237,7 +241,7 @@ export async function authorModificationsInContent(
   }
   const deliverRequest = (row: Json) => [
     { role: "system" as const, content: DELIVER_VERIFY_SYSTEM },
-    { role: "user" as const, content: JSON.stringify({ ...verifyContext, row: verifyRowPayload(row) }) },
+    { role: "user" as const, content: JSON.stringify({ ...verifyContext, row: verifyRowPayload(row, patient) }) },
   ];
   const wrapped = `${START_MARKER}\n${JSON.stringify({ formula: { candidates: [], modifications: compiledNew } })}\n${END_MARKER}`;
   // 新写的行：另一家（qwen3.8-flash）核有没有明确错误；它说有错时再问写作那一家这个理由属不属实，两家都认才不进
@@ -247,7 +251,7 @@ export async function authorModificationsInContent(
     if (!verdict) return undefined;
     if (verdict.confirmed) {
       if (verdict.functionIndex !== undefined) {
-        const source = herbFunctionSourceClauses(text(row.herbName))[verdict.functionIndex];
+        const source = modificationFunctions(text(row.herbName), patient)[verdict.functionIndex];
         if (!source || /^有(?:大|小)?毒$/u.test(source.text)) return false;
         row.reason = source.text;
       }
@@ -255,7 +259,7 @@ export async function authorModificationsInContent(
     }
     const confirmedError = await recheck("m04_modification_authoring_recheck", [
       { role: "system", content: RECHECK_SYSTEM },
-      { role: "user", content: JSON.stringify({ ...verifyContext, row: verifyRowPayload(row), why: verdict.why }) },
+      { role: "user", content: JSON.stringify({ ...verifyContext, row: verifyRowPayload(row, patient), why: verdict.why }) },
     ], signal);
     return confirmedError === true ? false : confirmedError === false ? true : undefined;
   };
@@ -270,7 +274,7 @@ export async function authorModificationsInContent(
     const row = existing[index];
     const choices = plan.reasons?.filter((choice) => choice.index === index);
     if (choices?.length !== 1) return row;
-    const source = herbFunctionSourceClauses(text(row.herbName))[choices[0].functionIndex];
+    const source = modificationFunctions(text(row.herbName), patient)[choices[0].functionIndex];
     return source && !/^有(?:大|小)?毒$/u.test(source.text) ? { ...row, reason: source.text } : row;
   });
   let newRows = compiledNew.filter((_, position) => newVerdicts[position] === true);

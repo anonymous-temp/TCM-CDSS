@@ -2114,11 +2114,14 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
     const diet = card("diet_therapy", ["噎膈", "痰气交阻证", "开郁化痰，润燥降气", "吞咽梗阻，失眠多梦"], "吞咽不畅3月");
     assert.equal(diet.protocolStatus, "governed_patient_specific_plan");
   });
-  check("16.10 皮损在面部（鼻旁、唇周…）时不写「皮损局部三棱针散刺出血」（危险三角区；验收集 H-tri-17402）；皮损在小腿照常（对照）", () => {
+  check("16.10 皮损在面部（鼻旁、唇周…）时不写「皮损局部三棱针散刺出血」（危险三角区；验收集 H-tri-17402）；小腿红肿热痛时针刺照留、不写放血", () => {
     const face = card("acupuncture", ["丹毒", "风热毒蕴证", "疏风清热解毒", "面部鼻旁皮肤红肿热痛"], "面部红肿2天");
     assert.doesNotMatch(face.techniqueBoundary, /散刺出血/);
+    // 第六十三轮（r1084）：针刺卡里夹带的放血按放血项目的同一道禁忌判。小腿丹毒病历记了红肿热痛（活动性炎症，
+    // 放血项目本就不推荐），卡上只去掉散刺出血那句，针刺照留；待医师裁决前取较保守一侧。
     const leg = card("acupuncture", ["丹毒", "湿热毒蕴证", "清热利湿解毒", "小腿皮肤红肿热痛"], "小腿红肿2天");
-    assert.match(leg.techniqueBoundary, /皮损局部用三棱针散刺出血/);
+    assert.ok(leg && leg.treatmentContent, "针刺卡照留");
+    assert.doesNotMatch(`${leg.treatmentContent}${leg.techniqueBoundary}${leg.scheduleSuggestion || ""}`, /散刺出血/);
   });
 }
 

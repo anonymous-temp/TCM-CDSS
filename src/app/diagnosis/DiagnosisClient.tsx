@@ -1,6 +1,7 @@
 // src/app/diagnosis/page.tsx
 "use client";
 
+import { treatmentMethodDisplay } from "@/lib/treatment-method-display";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, type ReactNode } from "react";
 import { extractCdssReasonCode, reasonCodeRequiresM03Rerun } from "@/lib/cdss-reason-codes";
 import { createPortal } from "react-dom";
@@ -4323,6 +4324,8 @@ function ResultTabsV2({
   const reasoning = mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2;
   if (!reasoning) return null;
 
+  const methodDisplay = treatmentMethodDisplay(reasoning.therapy.overallMethod || reasoning.overview.overallTherapy || "",
+    reasoning.overview.tcmDiseaseName || "", reasoning.overview.primarySyndrome || "");
   const formula = reasoning.formula;
   const firstCandidate = formula?.candidates?.[0];
   const firstCandidateWarnings = firstCandidate?.herbs.map(structuredHerbWarningProfile) || [];
@@ -4518,7 +4521,8 @@ function ResultTabsV2({
         <div className="space-y-3">
           <div className="grid gap-2 md:grid-cols-2">
             <SummaryLine label="治则" value={reasoning.therapy.overallPrinciple || summary.treatmentPrinciple} tone="green" />
-            <SummaryLine label="总治法" value={reasoning.therapy.overallMethod || reasoning.overview.overallTherapy} tone="blue" />
+            <SummaryLine label="总治法" value={methodDisplay.text} tone="blue" />
+            {methodDisplay.reference && <SummaryLine label="治法说明" value={methodDisplay.reference} tone="blue" />}
           </div>
           {/* 分治方向（subTherapies）不再上屏（2026-10-21，clinician-page-view.ts）：ABC 与验收只看治则与治法。 */}
         </div>

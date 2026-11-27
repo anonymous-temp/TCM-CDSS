@@ -112,7 +112,7 @@ export function herbFunctionSourceClauses(name: string): readonly SourceSpan[] {
 
 export type HerbFunctionPatient = { sex?: string; ageYears?: number; recordText?: string };
 
-function applicableFunction(text: string, patient: HerbFunctionPatient): boolean {
+export function applicableFunction(text: string, patient: HerbFunctionPatient): boolean {
   const record = patient.recordText || "";
   // Exact labels supplied by clinicalGroundingText; no age/sex inference from narrative or relatives.
   const sex = patient.sex || /^患者性别：([男女])$/mu.exec(record)?.[1];

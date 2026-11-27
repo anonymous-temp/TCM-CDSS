@@ -266,6 +266,20 @@ export function basisAffirmedOtherDisease(name: string, basis: string, recordTex
   return undefined;
 }
 
+function explicitlyDiagnosedInRecord(core: string, recordText: string): boolean {
+  return [...recordText.matchAll(/[^。；;\n，,]+/gu)].some((match) => {
+    const clause = match[0];
+    const at = clause.indexOf(core);
+    if (at < 0 || UNCERTAIN_NEAR_DIAGNOSIS.test(clause)) return false;
+    const polarity = recordMentionPolarityAt(recordText, match.index + at);
+    if (polarity !== "affirmed" && !(polarity === "negated" && /^(?:确诊为|诊断为|诊为)/u.test(clause) &&
+        /排除[^，,。；;]+[，,]$/u.test(recordText.slice(0, match.index)) && recordMentionPolarityAt(clause, at) === "affirmed")) return false;
+    return (/^既往史[：:]\s*$/u.test(clause.slice(0, at)) && !clause.slice(at + core.length).trim()) ||
+      /^\s*(?:\d+(?:年|个月)前|既往|此前|曾|已)?(?:确诊为?|诊断为?|诊为)(?:[“"「]?|[^，。；]{1,50}、)$/u.test(clause.slice(0, at)) ||
+      /^(?:、(?!否认|待查)[^、，,；;。]{2,24})*["”」』]?病史/u.test(clause.slice(at + core.length));
+  });
+}
+
 /** 先定病名确定度，再以完整分句为单位舍弃互相冲突的断言；不把一个结论换词成另一个结论。 */
 export function settleWesternDiagnosisBasis(name: string, basis: string, recordText: string): { name: string; basis: string } {
   const affirmed = basisAffirmedOtherDisease(name, basis, recordText);
@@ -285,17 +299,9 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
       /既往|病史|已确诊|确诊为|诊断为|曾诊断|镜示|镜检查示/u.test(sentence)));
   // 只凭同一分句里的本人确诊记录恢复表外病名；裸症状、家族史、
   // 下位分型和旧病的新发并发症均不能用病名的一部分举证。
-  const explicitDiagnosis = [...recordText.matchAll(/[^。；;\n，,]+/gu)].some((match) => {
-    const clause = match[0];
-    const at = clause.indexOf(core);
-    if (at < 0 || UNCERTAIN_NEAR_DIAGNOSIS.test(clause)) return false;
-    const polarity = recordMentionPolarityAt(recordText, match.index + at);
-    if (polarity !== "affirmed" && !(polarity === "negated" && /^(?:确诊为|诊断为|诊为)/u.test(clause) &&
-        /排除[^，,。；;]+[，,]$/u.test(recordText.slice(0, match.index)) && recordMentionPolarityAt(clause, at) === "affirmed")) return false;
-    return (/^既往史[：:]\s*$/u.test(clause.slice(0, at)) && !clause.slice(at + core.length).trim()) ||
-      /^\s*(?:既往|此前|曾|已)?(?:确诊为?|诊断为|诊为)(?:[“"「]?|[^，。；]{1,50}、)$/u.test(clause.slice(0, at)) ||
-      /^["”」』]?病史/u.test(clause.slice(at + core.length));
-  });
+  const components = core.split(/(?:合并|伴)/u);
+  const explicitDiagnosis = explicitlyDiagnosedInRecord(core, recordText) || (components.length === 2 &&
+    components.every(part => part.length >= 2 && explicitlyDiagnosedInRecord(part, recordText)));
   const known = explicitDiagnosis || diagnosedContext || treated || Boolean(establishedHistoryText(core, recordText));
   const criteria = westernCriteriaCertainty(core, recordText, known);
   // 可凭临床诊断的病（要点表注明、没有必需检查与病程门槛）：依据句里的「X待查」只是病名被改成待查以后带进去的回声

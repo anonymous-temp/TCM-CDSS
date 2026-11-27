@@ -364,7 +364,7 @@ function controlledTreatmentPlan(
   /** 本例年龄（岁）。带年龄下限的模板取不到年龄一律不启用。 */
   patientAgeYears?: number,
   /** 教材方案（tcm-nondrug-textbook-plan.server.ts）的取材：已签名病名、西医主诊断、主证+兼证结论。 */
-  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; signedPrinciple?: string; signedMethod?: string; chiefComplaint?: string; avoidRichFood?: boolean; herbAlreadyPrescribed?: (herb: string) => boolean; prescribedHerbNames?: readonly string[]; signedRationale?: string; recordedDiabetes?: boolean; avoidTea?: boolean },
+  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; signedPrinciple?: string; signedMethod?: string; signedLocations?: readonly string[]; chiefComplaint?: string; avoidRichFood?: boolean; herbAlreadyPrescribed?: (herb: string) => boolean; prescribedHerbNames?: readonly string[]; signedRationale?: string; recordedDiabetes?: boolean; avoidTea?: boolean },
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
@@ -387,6 +387,7 @@ function controlledTreatmentPlan(
         patientAgeYears,
         signedPrinciple: textbookContext.signedPrinciple,
         signedMethod: textbookContext.signedMethod,
+        signedLocations: textbookContext.signedLocations,
         chiefComplaint: textbookContext.chiefComplaint,
         avoidRichFood: textbookContext.avoidRichFood,
         recordedDiabetes: textbookContext.recordedDiabetes,
@@ -1429,6 +1430,7 @@ export function compileTcmTreatmentRecommendations(
         signedSyndromeText,
         signedPrinciple: prior.therapy?.overallPrinciple || "",
         signedMethod: prior.therapy?.overallMethod || "",
+        signedLocations: prior.pathogenesis?.locationDifferentiation?.items,
         chiefComplaint: typeof caseState?.chiefComplaint === "string" ? caseState.chiefComplaint : "",
         avoidRichFood: dietAdviceAvoidsRichFood(dietAdvice),
         // 糖尿病读病历全部阳性面（含既往史）与已签名病名：糖尿病多写在既往史里（M-TCMChat-test-405）。
@@ -1493,7 +1495,7 @@ export function compileTcmTreatmentRecommendations(
       const withoutLesion = lesionPointAvoided ? withoutLesionPointMention(siteText) : siteText;
       return breastMassAvoided ? withoutBreastRegionPointSentences(withoutLesion) : withoutLesion;
     };
-    const treatmentPlan = {
+    const composedPlan = {
       ...plannedTreatment,
       ...(lesionPointAvoided || breastMassAvoided ? {
         suggestedSitesOrPoints: sitesWithoutLesion,
@@ -1505,6 +1507,19 @@ export function compileTcmTreatmentRecommendations(
       ...(typeof plannedTreatment.techniqueBoundary === "string" ? { techniqueBoundary: lesionText(cardText(plannedTreatment.techniqueBoundary)) } : {}),
       ...(typeof plannedTreatment.scheduleSuggestion === "string" ? { scheduleSuggestion: cardText(plannedTreatment.scheduleSuggestion) } : {}),
     };
+    // 教材可在针刺、耳穴等方案中合并放血操作。放血按放血项目的同一道禁忌判（抗凝、出血倾向、活动性感染…）：
+    // 本例不宜放血时只去掉卡里写放血的那几句，针刺本身照留。
+    const bloodlettingExcluded = Boolean(tcmTreatmentProjectExclusionReason("bloodletting", prior, caseState));
+    const withoutBloodletting = (value: unknown) => typeof value === "string" && bloodlettingExcluded
+      ? value.split(/(?<=[。；;])/u).filter((sentence) => !cardOffersBloodletting(sentence)).join("").trim()
+      : value;
+    const treatmentPlan = {
+      ...composedPlan,
+      ...(typeof composedPlan.treatmentContent === "string" ? { treatmentContent: withoutBloodletting(composedPlan.treatmentContent) as string } : {}),
+      ...(typeof composedPlan.techniqueBoundary === "string" ? { techniqueBoundary: withoutBloodletting(composedPlan.techniqueBoundary) as string } : {}),
+      ...(typeof composedPlan.scheduleSuggestion === "string" ? { scheduleSuggestion: withoutBloodletting(composedPlan.scheduleSuggestion) as string } : {}),
+    };
+    if (typeof composedPlan.treatmentContent === "string" && composedPlan.treatmentContent.trim() && !treatmentPlan.treatmentContent?.trim()) return [];
     // 卡片的「对应病机」跟着方案实际治的那个节点走（2026-10-19 甲方病历 10：月经先期·阳盛血热，耳穴卡写「热扰心神，神不守舍」、
     // 针刺卡写「肝胆热盛，灼伤津液」，取的却都是月经不调节的冲任穴）。教材方案按本病与本例证候取穴，不按节点，治的是核心病机 P1
     //（首个节点：M03 要求它解释主诉主症，君药同样只能引用它）；目录模板按节点的适应证命中，仍落在原节点上。
@@ -1763,6 +1778,13 @@ export function fractureSigned(diagnosisNames: readonly string[]): boolean {
   return diagnosisNames.some((name) => /骨折/u.test(name) && !/排除|除外|不考虑/u.test(name));
 }
 /** 卡片取的是病痛局部（阿是穴、局部、患处、伤处、压痛点）。 */
+function cardOffersBloodletting(text: string): boolean {
+  return text.split(/[，,。；;\n]/u).some(clause => {
+    const procedure = /刺络|(?:点刺|散刺|挑刺)(?:放血|出血)|放血/u.exec(clause);
+    return procedure && !/(?:避免|禁止|禁忌|不宜|不可|不予|不用|不得|勿|不)[^，。；]{0,12}$/u.test(clause.slice(0, procedure.index));
+  });
+}
+
 export function cardTreatsLocalSite(points: unknown, text: string): boolean {
   const names = Array.isArray(points) ? points.map((point) => String(point).replace(/（[^）]*）\s*$/u, "").trim()) : [];
   return names.some((name) => LESION_POINT.test(name) || /局部|患处|伤处|痛点/u.test(name)) ||

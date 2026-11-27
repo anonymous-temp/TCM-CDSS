@@ -505,6 +505,7 @@ type StreamSafetyOptions = {
    */
   structuredInstructionRecords?: InstructionRecordPool;
   structuredPriorReasoning?: ReturnType<typeof normalizeReasoningV2>;
+  signedDiagnoseForDelivery?: ReturnType<typeof normalizeReasoningV2>;
   diagnoseSignatureContext?: DiagnoseContractSignatureContext;
   m03FinalRationaleTransport?: RationaleTransport;
   m03FinalRationaleTimeoutMs?: number;
@@ -2946,7 +2947,7 @@ async function callPrimaryTextModelStream(
             : !m04SafetyContractIssue(reasoning, opts.structuredPriorReasoning, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: opts.structuredClinicalContext || "", waiveTherapyCoverageAnnotated: true }));
         },
         sign: signFinalDelivery,
-        fallback: () => opts.structuredStage === "diagnose" ? opts.truncateFallback || "" : renderM04DeliveryCheckpoint(undefined, opts.structuredPriorReasoning, "contract_rejected", opts.structuredDoseWithheldReasons || []),
+        fallback: () => opts.structuredStage === "diagnose" ? opts.truncateFallback || "" : renderM04DeliveryCheckpoint(undefined, opts.structuredPriorReasoning, "contract_rejected", opts.structuredDoseWithheldReasons || [], { signedDiagnose: opts.signedDiagnoseForDelivery }),
         // 交付闸门的核对不通过时先保底（第五十七轮）：此前这里直接退成「尚未形成候选方药」页（无候选、无剂量）。
         salvage: opts.structuredStage === "prescribe" && opts.structuredPriorReasoning ? (content) => {
           const prior = opts.structuredPriorReasoning!;
@@ -2975,10 +2976,10 @@ async function callPrimaryTextModelStream(
           return salvaged && salvaged.steps.length > 0 ? salvaged.content : undefined;
         } : undefined,
       }) : undefined;
-      const projectEmissionSurface = (content: string) => applyDeliveredSurfaceToContent(content, { m03ElementAllows, herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState), patientSex: String((opts.structuredCaseState as { patient?: { sex?: unknown } } | undefined)?.patient?.sex || "") });
-      // 定稿前一致性通读（第五十五轮；CDSS_FINAL_CONSISTENCY_REVIEW=on 时）：在交付面投影之前按范围改写，随后照常投影、过合同、签名。
+      const projectEmissionSurface = (content: string) => applyDeliveredSurfaceToContent(content, { preservePreparedPrinciple: finalConsistencyReviewMode() === "on", signedDiagnose: opts.signedDiagnoseForDelivery, m03ElementAllows, herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState), patientSex: String((opts.structuredCaseState as { patient?: { sex?: unknown } } | undefined)?.patient?.sex || "") });
+      // Read the normalized delivery view. Terminal owners and safety content stay locked.
       // 改写后过不了结构与安全合同的整份放弃（原样交付）。
-      const reviewEmissionConsistency = async (content: string): Promise<string> => {
+      const reviewEmissionConsistency = async (content: string, lockedFields: string[]): Promise<string> => {
         const stage = opts.structuredStage;
         if (finalConsistencyReviewMode() !== "on" || (stage !== "diagnose" && stage !== "prescribe") || !opts.structuredCaseState) return content;
         let split: ReturnType<typeof splitDeliveryContent>;
@@ -2986,11 +2987,18 @@ async function callPrimaryTextModelStream(
         if (split.kind !== "reasoning" || !split.candidate.structured || typeof split.candidate.structured !== "object") return content;
         const root = split.candidate.structured as Record<string, unknown>;
         if (root.stage !== stage) return content;
+        const timeoutMs = Math.min(9000, absoluteRunDeadline - Date.now() - 250);
+        if (timeoutMs <= 0 || upstreamController.signal.aborted) {
+          console.info("[tcm-cdss:telemetry] final_consistency_review", { stage, status: "unavailable", reason: "deadline_or_abort" });
+          return content;
+        }
         const result = await finalConsistencyReview(stage, root, {
+          visibleText: stage === "diagnose" ? sanitizeDiagnoseStreamingDraft(split.candidate.visibleText || "") : split.candidate.visibleText,
+          lockedFields, timeoutMs,
           recordText: clinicalGroundingText(opts.structuredCaseState),
           unconfirmedFollowupQuestions: opts.structuredCaseState.unconfirmedFollowupQuestions,
-          redFlag: content.includes("<!-- CDSS_SAFETY_ADVISORY -->"),
-          prior: opts.structuredPriorReasoning as unknown as Record<string, unknown> | undefined,
+          redFlag: opts.structuredCaseState.safetyGate?.status === "red_flag" || content.includes("<!-- CDSS_SAFETY_ADVISORY -->"),
+          prior: (opts.signedDiagnoseForDelivery ?? opts.structuredPriorReasoning) as unknown as Record<string, unknown> | undefined,
           signal: upstreamController.signal,
         });
         if (!result) return content;
@@ -3379,10 +3387,7 @@ async function callPrimaryTextModelStream(
           try {
             let checkpointContent = checkpoint.content;
             if (deliveryPolicy.mode !== "off") {
-              const projected = applyDeliveredSurfaceToContent(checkpointContent, { herbBoundaryAudience: opts.structuredHerbBoundaryAudience,
-                requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld,
-                doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation,
-                recordText: deliveredSurfaceRecordText(opts.structuredCaseState) });
+              const projected = projectEmissionSurface(checkpointContent);
               if (projected !== checkpointContent) checkpointContent = rerenderDelivery(projected);
               if (m04TransparentQualityAnnotation) checkpointContent = `${m04TransparentQualityAnnotation}\n\n${checkpointContent}`;
             }
@@ -3435,7 +3440,7 @@ async function callPrimaryTextModelStream(
         if (opts.structuredDoseWithheldReasons?.length && m04DeliveryCheckpoint) reason = "dose_withheld";
         const page = renderM04DeliveryCheckpoint(
           m04DeliveryCheckpoint, opts.structuredPriorReasoning, reason, opts.structuredDoseWithheldReasons || [],
-          { herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState),
+          { signedDiagnose: opts.signedDiagnoseForDelivery, herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, caseState: opts.structuredCaseState, recordText: deliveredSurfaceRecordText(opts.structuredCaseState),
             doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation });
         // 已签名剂量页自带横幅（由 outputTransform 贴上）；重建页则需要在这里补回。
         return opts.structuredContinuityBanner && !page.includes("CDSS_SAFETY_ADVISORY")
@@ -5880,7 +5885,6 @@ async function callPrimaryTextModelStream(
           let emissionM04Attestation = m04AttestationWithScope;
           let m03SurfaceAccepted = false;
           if (!truncated && transformed.ok && (opts.structuredStage === "diagnose" || opts.structuredStage === "prescribe")) {
-            emissionContent = await reviewEmissionConsistency(emissionContent);
             const surfaced = projectEmissionSurface(emissionContent);
             if (surfaced !== emissionContent) {
               // 辨证结果随载荷重渲染可见正文（与上面的特异性投影同一做法），正文之前的服务端前置区（安全警示横幅、
@@ -6032,6 +6036,39 @@ async function callPrimaryTextModelStream(
               if (emissionM04Attestation) emissionM04Attestation = rebindClinicalReviewAttestation(emissionM04Attestation, gatedReasoning);
             }
           }
+          if (!truncated && transformed.ok) {
+            // The visible quality notice is part of the document the reviewer reads.
+            const annotation = opts.structuredStage === "diagnose" && m03QualityAcceptedReason
+              ? qualityAnnotationCopy(m03QualityAcceptedReason)
+              : opts.structuredStage === "prescribe" ? m04TransparentQualityAnnotation : undefined;
+            if (annotation && !emissionContent.includes(annotation)) emissionContent = `${annotation}\n\n${emissionContent}`;
+          }
+          if (!truncated && transformed.ok && finalConsistencyReviewMode() === "on" && opts.structuredStage) {
+            // The rationale is bound to the final diagnosis. Its inputs cannot be silently
+            // revised by a later reader. M04 source-selected herb rows have their own owner.
+            const locked = opts.structuredStage === "diagnose" ? (authoredRationaleHash
+              ? ["病位", "病性", "总体病机", "病机链", "待核实", "治法"] : [])
+              : [...(functionPolicy.enabled && functionPolicy.functions === "on" ? ["药味"] : []),
+                 ...(functionPolicy.enabled && (functionPolicy.analysis === "on" || functionPolicy.functions === "on") ? ["方义"] : [])];
+            const prepared = emissionContent;
+            const revised = await reviewEmissionConsistency(prepared, locked);
+            if (revised !== prepared) {
+              const checkedContent = finalDelivery && deliveryPolicy.mode !== "off" ? await finalDelivery.run(revised) : revised;
+              const proposed = structuredReasoningFromContent(revised);
+              const next = structuredReasoningFromContent(checkedContent);
+              const attestation = opts.structuredStage === "diagnose" ? emissionM03Attestation : emissionM04Attestation;
+              const rebound = next && attestation ? rebindClinicalReviewAttestation(attestation, next) : undefined;
+              if (next && proposed && finalRationaleDeliveryHash(next) === finalRationaleDeliveryHash(proposed) && (!attestation || rebound) && (!enforceElementClosure || checkM03ElementsBeforeSign(next))) {
+                emissionContent = checkedContent;
+                if (opts.structuredStage === "diagnose") emissionM03Attestation = rebound;
+                else emissionM04Attestation = rebound;
+                if (authoredRationaleHash) authoredRationaleHash = finalRationaleDeliveryHash(next);
+                console.info("[tcm-cdss:telemetry] final_consistency_delivery", { stage: opts.structuredStage, status: "accepted", hash: finalRationaleDeliveryHash(next) });
+              } else {
+                console.warn("[tcm-cdss:telemetry] final_consistency_delivery", { stage: opts.structuredStage, status: "rolled_back" });
+              }
+            }
+          }
           let signedContent = opts.structuredStage === "diagnose"
             ? attachClinicalReviewAttestation(emissionContent, emissionM03Attestation)
             : opts.structuredStage === "prescribe"
@@ -6053,19 +6090,6 @@ async function callPrimaryTextModelStream(
             const signatureContext = opts.prescribeSignatureContext;
             if (!signatureContext) throw new Error("Missing M04 signature context");
             signedContent = applyPrescribeContractSignature(signedContent, signatureContext);
-          }
-          // 质量批注必须与结果一起呈现：带批注受理的 M03 是完整签名结果，但医生要一眼看到
-          // 「哪一项文档质量项未达标、为什么仍可继续」。批注只加在可见正文最前，不进签名载荷。
-          // 三处都带幂等守卫：路由 outputTransform 的终审分支可能已经贴过同一段批注
-          // （甲方生产实测：同段批注顶部裸贴 + 引用块各一次），双层各贴一次是呈现噪音。
-          if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03QualityAcceptedReason) {
-            const annotation = qualityAnnotationCopy(m03QualityAcceptedReason);
-            if (annotation && !signedContent.includes(annotation)) signedContent = `${annotation}\n\n${signedContent}`;
-          }
-          // M04 同理：透明降级候选按质量批注受理时，医生必须一眼看到哪一项未能自动核验、
-          // 以及为什么仍然可以用（承重的安全核验层全部通过）。
-          if (!truncated && transformed.ok && opts.structuredStage === "prescribe" && m04TransparentQualityAnnotation && !signedContent.includes(m04TransparentQualityAnnotation)) {
-            signedContent = `${m04TransparentQualityAnnotation}\n\n${signedContent}`;
           }
           if (opts.structuredStage === "diagnose") {
             signedContent = sanitizeDiagnoseStreamingDraft(signedContent);

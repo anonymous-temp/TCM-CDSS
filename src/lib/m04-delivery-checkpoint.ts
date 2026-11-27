@@ -1,3 +1,4 @@
+import { treatmentMethodDisplay } from "./treatment-method-display";
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { renderFinalM04Content } from "./diagnosis-visible-summary";
 import { projectM04FinalFacts, m04FinalContractView } from "./m04-final-projection";
@@ -303,7 +304,7 @@ export function renderM04DeliveryCheckpoint(
   }
   // 非剂量页与带剂量页走同一份交付面投影（2026-10-13）：此前这一页直接渲染未投影的结果，方名显示
   //「本例辨证组方」、方义写「本方以本方案为基础加减」、适用栏是「适用于与本例锁定证候…及病机链一致的情况」。
-  const prior = priorReasoning ? projectDeliveredReasoning(priorReasoning, surfaceOptions) : priorReasoning;
+  const prior = surfaceOptions?.signedDiagnose ?? (priorReasoning ? projectDeliveredReasoning(priorReasoning, surfaceOptions) : priorReasoning);
   if (checkpoint) checkpoint = { ...checkpoint, reasoning: projectM04FinalFacts(projectDeliveredReasoning(checkpoint.reasoning, { ...surfaceOptions, nonDosePage: true }), { record: surfaceOptions?.recordText || "", prior: priorReasoning }) };
   // 机器码随页交付（2026-09-13）：此前这一整类非剂量页**不带任何 reasonCode**，前端只能靠
   // 文案正则分流，服务端改一句措辞前端就瞎。三种处置各有各的恢复动作，必须分开。
@@ -318,11 +319,13 @@ export function renderM04DeliveryCheckpoint(
     const body = values.map(text).filter(Boolean).join("；");
     return body ? [`${label}：${body}`] : [];
   };
+  const method = treatmentMethodDisplay(prior?.therapy?.overallMethod || "", prior?.overview?.tcmDiseaseName || "", prior?.overview?.primarySyndrome || "");
   const lines = [NON_DOSE_PRESCRIPTION_MARKER, reasonMarker, ...(prior ? ["## 已完成的辨病辨证"] : []),
     ...labelled("西医诊断", prior?.westernDiagnosis?.primary?.name),
     ...labelled("证候", prior?.overview?.primarySyndrome),
     ...labelled("病机", prior?.overview?.overallPathogenesis),
-    ...labelled("治则治法", prior?.therapy?.overallPrinciple, prior?.therapy?.overallMethod),
+    ...labelled("治则治法", prior?.therapy?.overallPrinciple, method.text),
+    ...labelled("治法说明", method.reference),
   ];
   // 几个病机节点引的是同一段病历原文时（模型把整段现病史引给了两三个节点，2026-10-19 留出集 S190），原文只在第一次出现时列。
   const shownFacts = new Set<string>();

@@ -29,7 +29,13 @@ export function settleEncounterPrimary(western: Record<string, unknown>, recordT
   const problem = policy.problemNames.find((row) => row.forms.some((form) => chief.includes(form)));
   if (!problem) return; // 没有可追溯的问题名时不另造诊断。
   const candidates = Array.isArray(western.candidates) ? western.candidates as Record<string, unknown>[] : [];
-  const selected = candidates.find((row) => typeof row.name === "string" && row.name !== primary.name && !String(row.name).includes(core) && problem.forms.some((form) => String(row.name).includes(form) || (form.startsWith("尿") && String(row.name).includes("尿路感染"))));
+  const selected = candidates.find(row => {
+    const name = row.name;
+    if (typeof name !== "string" || name === primary.name || name.includes(core)) return false;
+    // A symptom match can restore a provisional alternative. It cannot establish an infection.
+    return problem.forms.some(form => name.includes(form) ||
+      (form.startsWith("尿") && name.includes("尿路感染") && /待[查排]$/u.test(name)));
+  });
   const previous = { name: primary.name, keyEvidence: [history] };
   primary.name = selected?.name || problem.name;
   primary.coding = undefined;

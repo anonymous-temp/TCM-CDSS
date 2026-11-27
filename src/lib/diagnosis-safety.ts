@@ -20,7 +20,7 @@ import {
   REPRODUCTIVE_STATE_MIN_AGE_YEARS,
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
-import { febrileSkinInfectionReview } from "./western-disease-care";
+import { adultFollowupReferences, febrileSkinInfectionReview } from "./western-disease-care";
 import priorityEvaluationWindowTable from "../data/priority-evaluation-windows.source.json";
 import drugConditionSources from "../data/drug-condition-contraindications.json";
 import { DEEP_NECK_SPACE_INFECTION, evaluateDiscriminators, isFatigueFramed, redFeatureChecklistForPatient, WEAK_CONSCIOUSNESS_TERMS, type DiscriminatorOutcome } from "./redflag-discriminators";
@@ -6686,7 +6686,12 @@ function earlyPregnancyInstabilitySigns(state: CaseState, text: string): string[
     signs.push(`血压${bp.systolic}/${bp.diastolic}mmHg`);
   }
   if (measured.pulse != null && measured.pulse >= EARLY_PREGNANCY_INSTABILITY.pulseAtLeast) signs.push(`心率${measured.pulse}次/分`);
-  if (hasAnyTerm(text, EARLY_PREGNANCY_INSTABILITY.collapseTerms)) signs.push("晕厥");
+  // Keep the qualifier in the recorded clause (including near-collapse). The threshold
+  // and presence test remain the same, only the supporting text is made attributable.
+  if (hasAnyTerm(text, EARLY_PREGNANCY_INSTABILITY.collapseTerms)) {
+    const clause = text.split(/[。；;，,\n]/u).find(part => hasAnyTerm(part, EARLY_PREGNANCY_INSTABILITY.collapseTerms));
+    signs.push(clause && clause.trim().length <= 40 ? sanitizeFreeTextForModel(clause.trim()) : "晕厥相关线索");
+  }
   return signs;
 }
 
@@ -8582,7 +8587,8 @@ export function evaluateSafetyGate(input: CaseState): SafetyGate {
       ? { level: "priority_review" as const, findings: priorityEvaluationItems }
       : undefined;
   const fallbackAdvisories = narrativeFallbackAdvisories(state);
-  const discriminatorAdvisories = [...discriminatorOutcomeForState(state).advisories, ...discriminatorChecklistAdvisory(state)];
+  const discriminator = discriminatorOutcomeForState(state);
+  const discriminatorAdvisories = [...discriminator.advisories, ...discriminatorChecklistAdvisory(state)];
   const advisories = Array.from(new Set([...semanticAdvisories, ...fallbackAdvisories, ...vitalAdvisories, ...discriminatorAdvisories]));
   const text = structuredCaseText(state);
   const ageRaw = patientAgeText(state);
@@ -8708,7 +8714,7 @@ export function evaluateSafetyGate(input: CaseState): SafetyGate {
         ...ageAlignedDisposition,
       ]
     : [];
-  const discriminatorRedFlags = discriminatorOutcomeForState(state).redFlags;
+  const discriminatorRedFlags = discriminator.redFlags;
   const redFlags = [
     ...programmaticRedFlags.map((flag) => withReaderDisagreementNote(state, flag)),
     ...reviewedSemanticEmergencyFindings,
@@ -9996,9 +10002,14 @@ export function buildDeterministicRiskFollowupPayload(
   // 什么时候复诊、服药期间留意什么、出现什么提前来、出现什么立即去急诊。
   // 安全总评（上方「处方安全总评」）仍是给医生的确定性结论，不在此列。
   const firstReview = patientFacingFirstReview(state, hasStrongRisk);
+  const afterEmergencyClearance = "急诊或专科处置完成、接诊医生确认可以按本方用药后";
   const symptomFocus = followup.coreFacts.length > 0
     ? followup.coreFacts.map((fact) => fact.replace(/[。.；;，,]+$/g, "")).join("、")
     : "本次主要不适";
+  const reviewFocus = authored?.reviewFocus || `复诊时医生会重点了解${symptomFocus}有没有减轻、发作次数和对日常生活的影响，并查看舌象和脉象；请您服药期间留意这些变化，复诊时如实告诉医生实际服药情况和服药后的不适。`;
+  const primaryName = state.reasoningDiagnose?.westernDiagnosis?.primary?.name || "";
+  const monitoring = gate.status === "red_flag" || medicationPopulationAudience(state).pregnancy ? []
+    : adultFollowupReferences(primaryName, authoritativePatientAgeYears(state), reviewFocus);
   const efficacyTrigger = PATIENT_EFFICACY_TRIGGER;
   const authoredIndicators = (authored?.monitoringIndicators || []).filter((item) => Boolean(item?.trim()));
   const actualRiskIndicators = concreteAuditRiskObservations(riskSource);
@@ -10076,9 +10087,7 @@ export function buildDeterministicRiskFollowupPayload(
     "",
     "## 随访管理方案",
     adviceText(`**首次复诊时间**：${firstReview}`),
-    adviceText(authored
-      ? `**复诊评估重点**：${authored.reviewFocus}`
-      : `**复诊评估重点**：复诊时医生会重点了解${symptomFocus}有没有减轻、发作次数和对日常生活的影响，并查看舌象和脉象；请您服药期间留意这些变化，复诊时如实告诉医生实际服药情况和服药后的不适。`),
+    adviceText(`**复诊评估重点**：${redFlagWithDose ? `${afterEmergencyClearance}，再按以下安排随访。` : ""}${[reviewFocus, ...monitoring].join("")}`),
     adviceText(authored
       ? `**疗效评价标准**：${authored.efficacyCriteria}`
       : `**疗效评价标准**：与这次就诊时相比，${symptomFocus}明显减轻或发作减少，且没有出现新的不适，说明治疗有效；如果没有好转甚至加重，请按时或提前复诊。`),
@@ -10098,12 +10107,15 @@ export function buildDeterministicRiskFollowupPayload(
     // 结构化 timelineItems 仍随 payload 返回（HIS 出参与 API 消费方读它），只是不再渲染。
     "## 生活管理",
     // 模型写本例证候该注意什么；固定安全句无论如何都保留——它不是调护建议，是边界声明。
+    ...(redFlagWithDose ? [adviceText(`当前请立即就医，以下居家调护仅在${afterEmergencyClearance}实施。`)] : []),
     ...(authored ? [adviceText(authored.lifestyle)] : []),
     adviceText(authored
       ? PATIENT_MEDICATION_NOTE
       : `饮食、作息、情绪和活动请按本次调护建议安排；${PATIENT_MEDICATION_NOTE}`),
     ]),
-    timelineItems: normalizedStructuredFollowupItems(timelineItems),
+    timelineItems: normalizedStructuredFollowupItems(redFlagWithDose ? timelineItems.map((item, index) => index === 0
+      ? { ...item, action: `请立即急诊或转诊。${afterEmergencyClearance}，${item.action}` }
+      : { ...item, time: `${afterEmergencyClearance}：${item.time}` }) : timelineItems),
   };
 }
 

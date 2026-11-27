@@ -1,3 +1,4 @@
+import { treatmentMethodDisplay } from "./treatment-method-display";
 import rxtextPolicy from "../data/rxtext-content-policy.source.json";
 import { readFileSync } from "node:fs";
 import strokeRecoveryPolicy from "../data/tcm-stroke-recovery-card-policy.source.json";
@@ -717,6 +718,7 @@ export type TextbookPlanInput = {
   westernNames: readonly string[];
   /** 已签名证候结论：主证 + 兼证。证型配穴/食疗只读它，不读病历原文。 */
   signedSyndromeText: string;
+  signedLocations?: readonly string[];
   /** 本例当前阳性事实（主诉/现病史/四诊，已阳性化）。按症状加穴只读它。 */
   currentFacts: string;
   /** 本例证候的病位/病机/治法叙述，仅供功法动作选择。 */
@@ -1835,6 +1837,11 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   let base: { points: string[]; content: string; system: string; line: number; entry: AcupunctureEntry } | undefined;
   // 教材分套写基本治疗的病：按本例证候只取对应的一套（见 pickBasicTreatmentVariant）。
   const variant = code === "acupuncture" ? pickBasicTreatmentVariant(primary, input) : undefined;
+  if (variant && input.signedLocations?.length) {
+    const target = syndromeConcepts(variant.therapy.split(/[。；]/u)[0]).organs;
+    const signed = syndromeConcepts([input.signedSyndromeText, input.signedMethod, ...input.signedLocations].join("；")).organs;
+    if (target.size && signed.size && ![...target].some(organ => signed.has(organ))) return undefined;
+  }
   const recovery = code === "acupuncture" && strokeRecoveryCard(input.diseaseNames, input.westernNames, input.chiefComplaint || "");
   if (code === "acupuncture") {
     base = { points: variant?.mainPoints || exteriorOrInteriorMainPoints(primary, entries, input) || primary.mainPoints, content: textbookOcrFixed(variant?.therapy || primary.therapy), system: "body", line: primary.line, entry: primary };
@@ -1912,7 +1919,14 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       ...withShared(primary),
       ...(secondary ? withShared(secondary) : []),
     ];
-    const candidateSyndromes = allSectionTypes.filter((item) => item.addPoints.length > 0);
+    const primaryNatures = syndromeConcepts(signedPrimaryCore(input.signedSyndromeText)).natures;
+    const mixedDeficiency = primaryNatures.has("阴虚") && primaryNatures.has("阳虚");
+    const candidateSyndromes = allSectionTypes.filter(item => {
+      if (!item.addPoints.length) return false;
+      if (!mixedDeficiency) return true;
+      const natures = syndromeConcepts(scoringLabel(item)).natures;
+      return natures.has("阴虚") === natures.has("阳虚");
+    });
     const picked = pickSyndromes(candidateSyndromes, input.signedSyndromeText, input.currentFacts, input.diseaseNames,
       input.signedRationale ? { allTypes: allSectionTypes, rationale: input.signedRationale } : undefined);
     if (picked.length > 0) {
@@ -1936,7 +1950,7 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
         }
       }
       syndromeClause = `本例属${picked.map((item) => item.label).join("、")}${addedNames.length > 0 ? `，在主穴基础上加${addedNames.join("、")}` : ""}。`;
-    } else if (input.catalogSyndromeRefinement && input.catalogSyndromeRefinement.addPoints.length > 0) {
+    } else if (!mixedDeficiency && input.catalogSyndromeRefinement && input.catalogSyndromeRefinement.addPoints.length > 0) {
       // 教材本节没有本例证型（腰痛节无湿热腰痛）、院内目录的证型配穴已命中时：教材主穴 + 目录配穴（2026-10-19 留出例 S086：
       // 目录模板主穴只是「局部阿是穴（查体确认）」「循经远端穴（按疼痛部位选择）」，没有委中、肾俞、大肠俞）。
       const refinement = input.catalogSyndromeRefinement;
@@ -2021,7 +2035,8 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   const variantTherapyFits = Boolean(variant) && !/^取/.test(therapyForCase);
   // 按本例证型配了穴时，治法写已签名的那一条，不写教材本病的通用治法（2026-10-19 第五轮留出例 S131 脾虚湿蕴、S132 血虚风燥的
   // 湿疮针刺卡都印着「清热利湿，润燥息风」）。没配上证型配穴时照旧只写按病取的主穴（10/14 起的口径）。
-  const signedMethod = String(input.signedMethod || "").trim().replace(/[。]+$/u, "");
+  const signedMethod = treatmentMethodDisplay(String(input.signedMethod || "").trim().replace(/[。]+$/u, ""),
+    input.diseaseNames[0] || "", String(input.signedSyndromeText || "").split(/[；;]/u)[0]).text;
   const contentHead = code === "acupuncture" && tailored && signedMethod
     ? `治法：${cutText(signedMethod, 80)}。${meridianSentence ? `${cutText(meridianSentence, 70)}。` : ""}`
     : code === "acupuncture"

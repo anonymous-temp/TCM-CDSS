@@ -11,6 +11,12 @@
   },
   "adultFollowupReferences": [
     {
+      "names": ["2型糖尿病"],
+      "monitoringNames": ["糖化血红蛋白", "HbA1c"],
+      "text": "已确诊的成年2型糖尿病患者，请与医生核对近期血糖记录。血糖或降糖方案尚未稳定时，由医生按个体情况每3至6个月复查糖化血红蛋白，稳定后通常每6个月复查。",
+      "source": "https://www.nice.org.uk/guidance/ng28/chapter/Blood-glucose-management#hba1c-measurement-and-targets"
+    },
+    {
       "names": [
         "缺铁性贫血",
         "缺铁贫血",

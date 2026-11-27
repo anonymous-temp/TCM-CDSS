@@ -1,3 +1,4 @@
+import { treatmentMethodDisplay } from "./treatment-method-display";
 import { modificationDecoctionPhrase } from "./herb-decoction-rules";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
@@ -4764,6 +4765,8 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
   const westernHeading = `## ${clinicalOutputLabel("M03-western", "西医诊断倾向")}`;
   const overviewHeading = `## ${clinicalOutputLabel("M03-overview", "中医诊断概览")}`;
   const pathogenesisHeading = `## ${clinicalOutputLabel("M03-pathogenesis", "病机拆解")}`;
+  const methodDisplay = treatmentMethodDisplay(markdownCell(therapy?.overallMethod) || markdownCell(overview?.overallTherapy),
+    markdownCell(overview?.tcmDiseaseName), markdownCell(overview?.primarySyndrome));
   const therapyHeading = `## ${clinicalOutputLabel("M03-therapy", "治则治法")}`;
   const lines = [
     "# 中医辅助诊疗报告",
@@ -5072,7 +5075,8 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
     "",
     therapyHeading,
     ...labeledLine("治则", markdownCell(therapy?.overallPrinciple)),
-    ...labeledLine("总治法", markdownCell(therapy?.overallMethod) || markdownCell(overview?.overallTherapy)),
+    ...labeledLine("总治法", methodDisplay.text),
+    ...labeledLine("治法说明", methodDisplay.reference),
   );
   if (subTherapies.length > 0) {
     lines.push(

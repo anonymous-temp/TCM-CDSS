@@ -41,6 +41,14 @@ await test("具名方首句与原方差异可重复投影", () => {
   const result = opening.finalFormulaOpening(c);
   assert.equal(result, "本方以薏苡仁汤为基础，去川乌，加白术。炒薏苡仁为君。");
   assert.equal(opening.finalFormulaOpening({ ...c, formulaAnalysis: result }), result);
+  const prefix = result.split("。")[0] + "。";
+  for (const old of ["去川乌，加白术一味。", "因正在抗凝，去生姜，改以自拟方。", "本方以薏苡仁汤加减。"]) {
+    const body = "炒薏苡仁为君。须观察出血。";
+    const once = opening.finalFormulaOpening({ ...c, formulaAnalysis: prefix + old + body });
+    assert.equal(once, prefix + body);
+    assert.equal(opening.finalFormulaOpening({ ...c, formulaAnalysis: once }), once);
+  }
+  assert.match(opening.finalFormulaOpening({ ...c, formulaAnalysis: prefix + "加白术以健脾。炒薏苡仁为君。" }), /加白术以健脾/u);
 });
 await test("后下按药物分时，两煎共用同一剂", () => {
   const text = decoction.SPECIAL_DECOCTION_ORDER[2].phrase("沉香、木香、大黄");

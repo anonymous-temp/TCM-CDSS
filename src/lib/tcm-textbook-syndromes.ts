@@ -1122,12 +1122,15 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
   }
   // 交付的国标合称（心脾两虚证、脾虚湿困证…）是从本病的教材证名换来的（delivered-surface compositeSyndromeRename，第三十七轮）：
   // 按换名表找回原教材行，开方阶段的教材组成、加减与方证对应照旧（不找回时完带汤失去「教材证—方」依据，整页退成无剂量页）。
-  for (const rule of [...COMPOSITE_SYNDROME_RULES, ...elementPromotionSource.rules]) {
-    if (syndromeCore(rule.composite) !== target) continue;
-    for (const disease of named) {
-      const original = disease.rows.find((row) => rule.primary.some((name) => syndromeCore(name) === syndromeCore(row.syndromeName) || syndromeCore(name) === syndromeCore(row.syndrome)));
-      if (original) return original;
-    }
+  const originalNames = new Set([...COMPOSITE_SYNDROME_RULES, ...elementPromotionSource.rules]
+    .filter(rule => syndromeCore(rule.composite) === target).flatMap(rule => rule.primary.map(syndromeCore)));
+  for (const disease of named) {
+    const matches = disease.rows.filter(row => originalNames.has(syndromeCore(row.syndromeName)) || originalNames.has(syndromeCore(row.syndrome)));
+    if (!matches.length) continue;
+    // Several distinct source syndromes can produce the same composite label. Chapter order
+    // cannot recover which organ and prescription were intended (e.g. heart vs lung qi deficiency).
+    if (new Set(matches.map(row => syndromeCore(row.syndromeName))).size === 1) return matches[0];
+    break;
   }
   const qualified = elementClosureSource.qualifiedComposites.find(rule => syndromeCore(rule.to) === target);
   if (qualified) {

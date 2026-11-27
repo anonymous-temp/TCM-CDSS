@@ -107,6 +107,8 @@ import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priori
  * requiredPrecautions 是本例注意事项必须写到的项目（required-precautions.server.ts 由病历算出）。
  */
 export type DeliveredSurfaceOptions = {
+  preservePreparedPrinciple?: boolean;
+  signedDiagnose?: CaseState["reasoningDiagnose"];
   /** Request-local closure authorization on the actual candidate before each clinical writer. */
   m03ElementAllows?: (reasoning: Json, value: string, source: "nature" | "method" | "element" | "pending") => boolean;
   /** 两步投影沿用已定红旗状态；仅作展示上下文，不重算安全结论。 */
@@ -4286,8 +4288,16 @@ function withEstablishedDiagnosis(projected: Json, options?: DeliveredSurfaceOpt
 }
 
 export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: DeliveredSurfaceOptions): T {
-  return withDerivedPrescriptionBookkeeping(withContiguousChainNodeIds(traceProjection("projectDeliveredReasoning", reasoning, () => projectDeliveredReasoningInternal(reasoning, rawOptions, false),
-    { ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.projectDeliveredReasoning" })));
+  const projected = withContiguousChainNodeIds(traceProjection("projectDeliveredReasoning", reasoning, () => projectDeliveredReasoningInternal(reasoning, rawOptions, false),
+    { ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.projectDeliveredReasoning" }));
+  const signed = rawOptions?.signedDiagnose;
+  if (signed && record(projected)?.stage === "prescribe") {
+    // Terminal prescription authoring can project several times. Every pass reads
+    // the same signed diagnosis before validating references into its fields.
+    const { overview, westernDiagnosis, pathogenesis, therapy } = signed;
+    return withDerivedPrescriptionBookkeeping({ ...projected, ...structuredClone({ overview, westernDiagnosis, pathogenesis, therapy }) });
+  }
+  return withDerivedPrescriptionBookkeeping(projected);
 }
 
 /**
@@ -4813,7 +4823,10 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
         }
       }
       qualifyDeficiencyTemperature(nature, names, String(overview?.overallPathogenesis || record(projected.pathogenesis)?.summary || ""));
-      therapy.overallPrinciple = principleWhenRedFlag(nationalTreatmentPrinciple(therapy.overallPrinciple, projected, options), redFlagActiveFor(options));
+      // M04 inherits the completed M03 treatment plan. Only M03 settles the principle.
+      if (projected.stage === "diagnose" && !readOnlyConclusions && !options?.preservePreparedPrinciple) {
+        therapy.overallPrinciple = principleWhenRedFlag(nationalTreatmentPrinciple(therapy.overallPrinciple, projected, options), redFlagActiveFor(options));
+      }
     }
     withResolvedAxisEvidenceConfidence(projected, options.recordText, redFlagActiveFor(options));
     if (options.caseState?.unconfirmedFollowupQuestions?.length && !readOnlyConclusions) {

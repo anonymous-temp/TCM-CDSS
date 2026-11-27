@@ -32,10 +32,17 @@ export function recipeContainsAlcohol(text: string): boolean {
   return careData.alcoholInDietRecipe.terms.some((term) => text.includes(term));
 }
 
-export function adultFollowupReferences(name: string, age?: number): string[] {
+export function adultFollowupReferences(name: string, age?: number, confirmedReviewText?: string): string[] {
   if (age == null || age < 18) return [];
-  const parts = compact(name).split(new RegExp(policy.careDiagnosisSeparators, "u")).map((part) => part.replace(/待[查排]$/u, ""));
-  return careData.adultFollowupReferences.filter((row) => row.names.some((label) => parts.includes(label))).map((row) => row.text);
+  const diagnosis = compact(name);
+  const parts = diagnosis.split(new RegExp(policy.careDiagnosisSeparators, "u"));
+  if (confirmedReviewText !== undefined) {
+    if (/待[查排]$/u.test(diagnosis)) return [];
+    return careData.adultFollowupReferences.filter(row => row.names.some(label => parts.includes(label)) &&
+      row.monitoringNames?.length && !row.monitoringNames.some(term => confirmedReviewText.toLowerCase().includes(term.toLowerCase()))).map(row => row.text);
+  }
+  const candidates = parts.map(part => part.replace(/待[查排]$/u, ""));
+  return careData.adultFollowupReferences.filter(row => row.names.some(label => candidates.includes(label))).map(row => row.text);
 }
 
 /** 只读最终西医病名，不从鉴别、病史或中医病名推断。并发病逐个匹配，长病名优先。 */

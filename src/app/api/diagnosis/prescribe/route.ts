@@ -340,11 +340,11 @@ async function computePrescribe(
     : "";
   if (dietGuidance) promptSuffixes.push(dietGuidance);
   const reviewItems = mergePrescriptionReviewItems(permission.reasons, gated.safetyGate?.missingItems);
-  const reviewItemsText = reviewItems.join("、") || "部分病历信息";
+  const reviewItemsText = reviewItems.map(item => item.replace(/^正式采纳前需优先/u, "优先")).join("、") || "部分病历信息";
   const informationNotice = limitedInformation
     ? [
         "## 信息完整性边界",
-        `本候选方药仅依据已经提供的信息生成；正式采纳前需确认：${reviewItemsText}。这些未知项不影响医生审阅本方，但不会被视为已核实事实。`,
+        `处方前请核实以下事项：${reviewItemsText}。`,
       ].join("\n")
     : "";
   const pediatricDose = permission.pediatricDose;
@@ -566,6 +566,7 @@ async function computePrescribe(
     structuredCaseState: safeState,
     structuredMedicineCandidates: medicinePlan.candidates,
     structuredPriorReasoning: signedPriorReasoning,
+    signedDiagnoseForDelivery: deliveredSignedPriorReasoning,
     // 首轮流里候选方一闭合就预热 M05 随访作文（只写按模型输入逐字命中的缓存；见 stage-prefetch.server.ts）。
     onInitialM04Candidate: (candidate) => {
       void prefetchAssessFollowupFromDraftCandidate(parsed.caseState, candidate);
@@ -579,7 +580,8 @@ async function computePrescribe(
         scheduledTreatmentCardReview(() => reviewTreatmentCards(
           parseReasoningV2(applyTcmTreatmentCapabilityPriority(content, safeState, signedPriorReasoning))?.nonPharma?.tcmTreatments || [],
           structuredClinicalContext, [signedPriorReasoning?.overview.tcmDiseaseName, signedPriorReasoning?.overview.primarySyndrome,
-            signedPriorReasoning?.westernDiagnosis?.primary?.name].filter(Boolean).join("；"), transformSignal,
+            signedPriorReasoning?.westernDiagnosis?.primary?.name, signedPriorReasoning?.therapy?.overallMethod,
+            signedPriorReasoning?.overview.overallPathogenesis, ...(signedPriorReasoning?.pathogenesis.locationDifferentiation?.items || [])].filter(Boolean).join("；"), transformSignal,
         )),
       ]);
       cardReview = reviewed;

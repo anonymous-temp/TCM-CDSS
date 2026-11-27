@@ -1,8 +1,13 @@
 import "server-only";
 
+import { treatmentMethodDisplay } from "./treatment-method-display";
+import { sanitizeFreeTextForModel } from "./diagnosis-safety";
+import { buildDeliveryInvariantGovernance } from "./delivery-invariant-governance";
+import { scanDeliveryInvariants } from "./delivery-invariants";
+import { settleWesternDiagnosisBasis } from "./recorded-test-claims";
 import { primaryModelJsonTask } from "./cross-model-small-task.server";
 import { quoteGroundedInText } from "./verbatim-quote";
-import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { splitTextbookDiseaseSubtype, textbookDiseaseDifferentialNames, textbookDiseaseTypicalManifestation, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { diagnosticsCriteriaFor } from "./m03-secondary-syndrome-consistency.server";
 import { natureLabelsNamedBySyndromeMissingFrom } from "./nature-column-classification";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
@@ -42,9 +47,9 @@ const RULES = `你是三甲医院中医科副主任医师，在门诊辅助诊�
 不能碰的：红旗判断；药味的增删与剂量。`;
 
 const SCOPE: Record<FinalReviewStage, string> = {
-  diagnose: `【本次审稿范围】只审改：病位、病性、总体病机、病机链、待核实、治法、中医鉴别、西医诊断、西医依据。
+  diagnose: `【本次审稿范围】只审改：病位、病性、总体病机、病机链、待核实、治法、中医鉴别、西医诊断、西医依据。有治则核对候选时才审治则。其他步骤已定稿的只读字段保持原样。
 - 逐项对照病历和教材。辨证依据中成组表现所支持的病因、脏腑与病性要落实到总体病机和相应栏目；分清致病之本和病后损伤，区分虚热和独立实邪。病名、证名和依据保留。
-- 治法每项四字、至多三项，覆盖主症及并病脏腑，按教材本证治法核对方义。每个病机节点只引病历中支持该节点的原话。已记载的舌脉和检查不再列为待核实，只保留影响辨证或用药的具体缺项。
+- 治法每项四字、至多三项，覆盖主症及并病脏腑，按教材本证治法核对方义。中医病名鉴别至少两项，逐项写本例与其如何区别。西医判断区分已确诊病史与本次待查的病因、分型或并发症。每个病机节点只引病历中支持该节点的原话。已记载的舌脉和检查不再列为待核实，只保留影响辨证或用药的具体缺项。
 - 西医诊断只改确定程度（加或去"待查"），不换成别的病。`,
   prescribe: `【本次审稿范围】只审改：方义、中成药、药味。辨证结论（病名、证名、治法）只作参照，不改。
 - 中成药只能删，不能加。
@@ -80,7 +85,7 @@ export function finalReviewDraft(stage: FinalReviewStage, reasoning: Json, prior
       总体病机: text(pathogenesis.overallPathogenesis || pathogenesis.summary || overview.overallPathogenesis),
       病机链: list(pathogenesis.chain).map((row) => ({ 表现: text(object(row)?.patientFact), 病机: text(object(row)?.pathogenesis), 治法方向: text(object(row)?.therapyDirection), 证据: text(object(row)?.syndromeEvidence) })),
       待核实: list(pathogenesis.uncertainties).map((row) => ({ 项目: text(object(row)?.item), 原因: text(object(row)?.reason) })),
-      治法: text(object(reasoning.therapy)?.overallMethod),
+      治法: text(object(reasoning.therapy)?.overallMethod), 治则: text(object(reasoning.therapy)?.overallPrinciple),
       中医鉴别: list(overview.tcmDiseaseDifferentials).map((row) => ({ 病名: text(object(row)?.diseaseName), 相似: text(object(row)?.reason), 要点: text(object(row)?.distinguishingPoints), 典型表现: text(object(row)?.typicalManifestation) })),
       西医诊断: text(western.name), 西医依据: text(western.clinicalRationale) || list(western.supportingFacts).map(text).join(""),
     };
@@ -100,13 +105,17 @@ export function finalReviewDraft(stage: FinalReviewStage, reasoning: Json, prior
 const core = (name: string) => name.replace(/待[查排]$/u, "");
 
 /** 按范围把读稿人的改动写回结构化结果；越界、类型不对、违反核对的改动不写，记进 rejected。返回实际写入的字段。 */
-type DiagnoseReviewContext = { recordText?: string; unconfirmedFollowupQuestions?: readonly string[] };
+type DiagnoseReviewContext = { suggestedPrinciple?: string; recordText?: string; unconfirmedFollowupQuestions?: readonly string[] };
 export function applyFinalReviewPatch(stage: FinalReviewStage, reasoning: Json, patch: Json, reviewed: ReadonlySet<string>, context: DiagnoseReviewContext = {}): { applied: string[]; rejected: string[] } {
   const applied: string[] = []; const rejected: string[] = [];
   const scope = new Set<string>(stage === "diagnose" ? DIAGNOSE_FIELDS : PRESCRIBE_FIELDS);
+  if (stage === "diagnose" && context.suggestedPrinciple) scope.add("治则");
   for (const [field, value] of Object.entries(patch)) {
     if (!scope.has(field)) { rejected.push(`${field}:out_of_scope`); continue; }
     if (!reviewed.has(field)) { rejected.push(`${field}:not_reviewed`); continue; }
+    if (JSON.stringify(value) !== sanitizeFreeTextForModel(JSON.stringify(value))) {
+      rejected.push(field + ":sensitive_text"); continue;
+    }
     const ok = stage === "diagnose" ? applyDiagnoseField(reasoning, field, value, context) : applyPrescribeField(reasoning, field, value);
     (ok === true ? applied : rejected).push(ok === true ? field : `${field}:${ok}`);
   }
@@ -181,6 +190,10 @@ function applyDiagnoseField(reasoning: Json, field: string, value: unknown, cont
       });
       return true;
     }
+    case "治则":
+      if (!therapy || !context.suggestedPrinciple || value !== context.suggestedPrinciple) return "unsupported_principle";
+      therapy.overallPrinciple = value;
+      return true;
     case "治法": {
       if (!nonEmpty(value) || !therapy) return "type";
       const items = value.split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
@@ -190,13 +203,25 @@ function applyDiagnoseField(reasoning: Json, field: string, value: unknown, cont
       return true;
     }
     case "中医鉴别": {
-      if (!Array.isArray(value) || value.length < Math.min(2, list(overview.tcmDiseaseDifferentials).length)) return "too_few";
-      overview.tcmDiseaseDifferentials = value.map((row) => ({ diseaseName: text(object(row)?.病名), reason: text(object(row)?.相似), distinguishingPoints: text(object(row)?.要点), typicalManifestation: text(object(row)?.典型表现) })).filter((row) => row.diseaseName);
+      if (!Array.isArray(value)) return "type";
+      const previous = list(overview.tcmDiseaseDifferentials).map(object);
+      const rows = value.map(item => {
+        const row = object(item);
+        const name = text(row?.病名).trim();
+        return { ...previous.find(old => old?.diseaseName === name), diseaseName: name, reason: text(row?.相似),
+          distinguishingPoints: text(row?.要点), typicalManifestation: textbookDiseaseTypicalManifestation(name) || text(previous.find(old => old?.diseaseName === name)?.typicalManifestation) };
+      });
+      if (rows.length < 2) return "too_few";
+      if (rows.some(row => !row.diseaseName || !row.reason || !row.distinguishingPoints || !row.typicalManifestation ||
+          row.diseaseName === overview.tcmDiseaseName) || new Set(rows.map(row => row.diseaseName)).size !== rows.length) return "invalid_differential";
+      overview.tcmDiseaseDifferentials = rows;
       return true;
     }
     case "西医诊断": {
       if (!nonEmpty(value) || !primary) return "type";
       if (core(value.trim()) !== core(text(primary.name).trim())) return "renamed";
+      if (context.recordText && /待[查排]$/u.test(value.trim()) &&
+          !/待[查排]$/u.test(settleWesternDiagnosisBasis(value.trim(), text(primary.clinicalRationale), context.recordText).name)) return "established_diagnosis";
       primary.name = value.trim(); return true;
     }
     case "西医依据": {
@@ -258,7 +283,7 @@ export async function selectFinalHerbFunctions(reasoning: Json, patient: HerbFun
   if (timeoutMs <= 0 || signal?.aborted || !rows.some((row) => row.sources.length > 1)) return result;
   const choices = await ask("m04_final_function_choices", "prescribe", [
     { role: "system", content: "按本方方义、证候和治法，逐味选择在本方起作用的一至两项功效。只选该味药给出的从零开始的编号，不选毒性。返回 JSON {rows:[{name,indices:[0]}]}。无合适选项时略过。" },
-    { role: "user", content: JSON.stringify({ analysis: candidate?.formulaAnalysis, syndrome: object(reasoning.overview)?.primarySyndrome,
+    { role: "user", content: JSON.stringify({ record: sanitizeFreeTextForModel(patient.recordText || ""), analysis: candidate?.formulaAnalysis, syndrome: object(reasoning.overview)?.primarySyndrome,
       therapy: object(reasoning.therapy)?.overallMethod, herbs: rows.map(({ name, sources, target }) => ({ name, target, options: sources.map((source) => source.text) })) }) },
   ], { maxTokens: 640, timeoutMs }, (raw) => {
     try { return list(object(JSON.parse(String(raw)))?.rows).map(object); } catch { return undefined; }
@@ -276,12 +301,14 @@ export async function selectFinalHerbFunctions(reasoning: Json, patient: HerbFun
   return result;
 }
 
-type ReviewReply = { review: Array<{ field: string }>; patch: Json };
+type ReviewReply = { review: Array<{ field: string; evidence: string }>; patch: Json };
 function parseReply(content: unknown): ReviewReply | undefined {
   try {
     const parsed = JSON.parse(text(content)) as Json;
-    const review = list(parsed.review).map((row) => ({ field: text(object(row)?.field) })).filter((row) => row.field);
-    const patch = object(parsed.patch) || {};
+    if (!Array.isArray(parsed.review) || !object(parsed.patch)) return undefined;
+    const review = parsed.review.map(row => ({ field: text(object(row)?.field), evidence: text(object(row)?.evidence).trim() }))
+      .filter(row => row.field && row.evidence);
+    const patch = object(parsed.patch)!;
     return { review, patch };
   } catch {
     return undefined;
@@ -295,9 +322,9 @@ function parseReply(content: unknown): ReviewReply | undefined {
 export async function finalConsistencyReview(
   stage: FinalReviewStage,
   reasoning: Json,
-  context: DiagnoseReviewContext & { recordText: string; redFlag: boolean; prior?: Json; signal?: AbortSignal; timeoutMs?: number },
+  context: DiagnoseReviewContext & { recordText: string; redFlag: boolean; visibleText?: string; lockedFields?: readonly string[]; prior?: Json; signal?: AbortSignal; timeoutMs?: number },
 ): Promise<{ reasoning: Json; applied: string[]; rejected: string[] } | undefined> {
-  if (!context.recordText.trim()) return undefined;
+  if (!context.recordText.trim() || context.signal?.aborted) return undefined;
   const draft = finalReviewDraft(stage, reasoning, context.prior);
   if (stage === "diagnose" && context.unconfirmedFollowupQuestions?.length) {
     draft.未确认事项 = context.unconfirmedFollowupQuestions;
@@ -306,13 +333,41 @@ export async function finalConsistencyReview(
       证候: object(reasoning.overview)?.primarySyndromeResolution };
     draft.说明 = "题干不是已发生事实。直接影响病位、病性或证候时，在待核实改稿中为该项写项目、原因、题干原文与影响（病位、病性、证候三选一）。项目和原因只写临床问题，无关的判断保留。";
   }
-  const user = `【病历】\n${context.recordText}\n【红旗状态】${context.redFlag ? "已判为急危重红旗（处方在风险解除前不可采纳），不要改动与此相关的内容" : "未判红旗"}\n【结果草稿 JSON】\n${JSON.stringify(draft)}`;
+  if (context.visibleText) draft.交付正文 = sanitizeFreeTextForModel(context.visibleText);
+  const evidenceText = [context.recordText, context.visibleText, JSON.stringify(draft)].join("\n");
+  let suggestedPrinciple: string | undefined;
+  if (stage === "diagnose") {
+    const overview = object(reasoning.overview);
+    const display = treatmentMethodDisplay(text(object(reasoning.therapy)?.overallMethod), text(overview?.tcmDiseaseName), text(overview?.primarySyndrome));
+    if (display.reference) draft.治法显示说明 = "治法正文：" + display.text + "。教材引文保留原文，不为凑字数改临床判断。" + display.reference;
+    const snapshot = { m03: reasoning };
+    const governedContext = buildDeliveryInvariantGovernance(snapshot);
+    const findings = scanDeliveryInvariants({ ...snapshot, governedContext });
+    const nature = object(object(reasoning.pathogenesis)?.natureDifferentiation);
+    if (!context.redFlag && findings.some(f => f.ruleId === "R04") && nature?.resolution === "resolved" &&
+        list(nature.rootDeficiency).length && list(nature.branchExcess).length && list(object(reasoning.therapy)?.subTherapies).length >= 2) {
+      suggestedPrinciple = governedContext.principle?.expected;
+      draft.治则核对 = { 候选: suggestedPrinciple, 分治法: object(reasoning.therapy)?.subTherapies,
+        说明: "本虚标实分栏只提供线索。仅当本例证候、病机和实际分治法均支持该候选且当前治则不符时，可在治则字段选它并引用证据。兼带或继发病性不足以更改治则。" };
+    }
+    if (findings.some(f => f.ruleId === "R09" && f.path.endsWith("/tcmDiseaseDifferentials"))) {
+      const disease = splitTextbookDiseaseSubtype(text(overview?.tcmDiseaseName)).disease;
+      draft.病名鉴别核对 = { 要求: "少于两项。用中医鉴别字段提交至少两种有病历依据的不同疾病，写明相似处与区分点。典型表现由教材提供。",
+        教材候选: textbookDiseaseDifferentialNames(disease).map(name => ({ 病名: name, 定义: textbookDiseaseTypicalManifestation(name) })) };
+    }
+  }
+  if (context.lockedFields?.length) draft.其他步骤已定稿只读 = context.lockedFields;
+  const user = `【病历】\n${sanitizeFreeTextForModel(context.recordText)}\n【红旗状态】${context.redFlag ? "已判为急危重红旗（处方在风险解除前不可采纳），不要改动与此相关的内容" : "未判红旗"}\n【结果草稿 JSON】\n${JSON.stringify(draft)}`;
   const reply = await primaryModelJsonTask(`final_consistency_review_${stage}`, stage,
     [{ role: "system", content: `${RULES}\n${SCOPE[stage]}\n${OUTPUT}` }, { role: "user", content: user }],
     { maxTokens: 3000, timeoutMs: context.timeoutMs ?? 9000 }, parseReply, context.signal);
-  if (!reply || Object.keys(reply.patch).length === 0) return undefined;
+  if (!reply || Object.keys(reply.patch).length === 0) {
+    console.info("[tcm-cdss:telemetry] final_consistency_review", { stage, status: reply ? "no_patch" : "unavailable" });
+    return undefined;
+  }
+  for (const field of context.lockedFields || []) delete reply.patch[field];
   const copy = structuredClone(reasoning);
-  const { applied, rejected } = applyFinalReviewPatch(stage, copy, reply.patch, new Set(reply.review.map((row) => row.field)), context);
-  console.info("[tcm-cdss:telemetry] final_consistency_review", { stage, applied, rejected, reviewItems: reply.review.length });
+  const { applied, rejected } = applyFinalReviewPatch(stage, copy, reply.patch, new Set(reply.review.filter(row => evidenceText.includes(row.evidence)).map(row => row.field)), { ...context, suggestedPrinciple });
+  console.info("[tcm-cdss:telemetry] final_consistency_review", { stage, proposed: applied, rejected, reviewItems: reply.review.length });
   return applied.length > 0 ? { reasoning: copy, applied, rejected } : undefined;
 }

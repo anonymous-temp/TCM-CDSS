@@ -4,7 +4,7 @@
     "tcm-disease-lexicon.json": "66c612518569ca97cdce2de79de820dc23785184e5f1fabb932398cd4ae5b11f",
     "tcm-location-lexicon.json": "2b790ee22f9a4f0e39cd52210754e7245bdf15a304c9420e613e1bd1194149f0",
     "tcm-inspection-lexicon.json": "aaac75e52dca885722527b2aa0394c2607ceb1208ed86dded0315db12f75cd67",
-    "phi-clinical-lexical-grammar.source.json": "45802efeef166f1af7de3d06d487f95316466730f9d018a66b47bce6e91a32d1",
+    "phi-clinical-lexical-grammar.source.json": "1b80d93d7c18797a1b99bb2279ffe67db0c6b9f71467b4a3dc697c51094dc8c5",
     "tcm-knowledge.json": "0759b8d0863f6c89267530238555dc953b57c523d69e720da260e6123823c779",
     "tcm-herb-function-categories.json": "64d50aa0bc64eb21a67aed3b822c9eaff8c183e917d351427c47679532c65223"
   },
@@ -1126,6 +1126,7 @@
     "平时入",
     "平时常",
     "平素入",
+    "平素时",
     "平躺",
     "年幼",
     "年老",

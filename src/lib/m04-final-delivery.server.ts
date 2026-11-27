@@ -52,7 +52,7 @@ export function compileFinalExistingModification(row: Record<string, unknown>, r
 
 export type M04FinalDeliveryContext = {
   structuredStage?: string; structuredCaseState?: unknown; structuredPriorReasoning?: ClinicalReasoningResultV2;
-  structuredClinicalContext?: string;
+  structuredClinicalContext?: string; signedDiagnoseForDelivery?: ClinicalReasoningResultV2;
 };
 
 /** Single normal-stream seam, AFTER the last delivery projection and BEFORE attestation/signing. */
@@ -91,7 +91,8 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
   // 在这里抛错让整页退成无剂量页。它与 direction_drift 等同属方名身份，不是剂量/配伍/人群安全，一并不在这里判死。
   if (beforeIssue && !/^(?:formula_(?:direction_drift|reference_|selection_missed_lockable)|named_formula_positive_sufficiency_missing)/u.test(beforeIssue)) throw new Error(`m04_final_safety:${beforeIssue}`);
   // Terminal snapshot must have the same public projection on a second read.
-  const projected = projectDeliveredReasoning(reasoning, { caseState, recordText: record });
+  const surfaceOptions = { caseState, recordText: record, signedDiagnose: context.signedDiagnoseForDelivery };
+  const projected = projectDeliveredReasoning(reasoning, surfaceOptions);
   let final: ClinicalReasoningResultV2;
   if (caseState && prior) {
     const ctx: FinalizeM04Context = { record, prior, caseState, signal, deadline,
@@ -108,7 +109,7 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
   // Reproject against the final table. Optional D1 additions still use the shared
   // deterministic compiler and safety predicates; closed-set verdicts bind to this table.
   const selectedTable = contentDigest(final.formula?.candidates.map(({ name, herbs }) => ({ name, herbs })));
-  final = projectDeliveredReasoning(final, { caseState, recordText: record });
+  final = projectDeliveredReasoning(final, surfaceOptions);
   if (policy.modifications === "on" && selectedTable !== contentDigest(final.formula?.candidates.map(({ name, herbs }) => ({ name, herbs })))) {
     // Application verdicts bind to their input table. A later identity/role/dose
     // change invalidates the whole verdict, never silently reuses it for new facts.
@@ -121,7 +122,7 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
     const topped = await topUpModificationConditions(renderFinalM04Content(content, final, caseState), { recordText: record, prior, caseState }, signal);
     const topStart = topped.lastIndexOf("<!-- DIAGNOSIS_JSON_START -->"), topEnd = topped.indexOf("<!-- DIAGNOSIS_JSON_END -->", topStart);
     const candidate = topStart >= 0 && topEnd > topStart ? normalizeReasoningV2(JSON.parse(topped.slice(topStart + "<!-- DIAGNOSIS_JSON_START -->".length, topEnd))) : undefined;
-    if (candidate) final = projectDeliveredReasoning(candidate, { caseState, recordText: record });
+    if (candidate) final = projectDeliveredReasoning(candidate, surfaceOptions);
   }
   const schemaIssue = reasoningV2SchemaIssueCode(final);
   const issue = safety(final);

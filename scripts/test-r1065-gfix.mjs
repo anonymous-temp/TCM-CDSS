@@ -70,6 +70,10 @@ await check('1.5', '教材主症补足先核对功效，不将制酸药的止血
 });
 await check('2.1', '易感因素和背景病不顶替本次问题；直接表现可关联', () => {
   assert.equal(encounter.establishedDiseaseExplainsEncounter('2型糖尿病', '尿频尿急再发5天'), false);
+  assert.equal(encounter.establishedDiseaseExplainsEncounter('2型糖尿病', '尿频量多、腰膝酸软3月'), true);
+  const suggested = { primary: { name: '2型糖尿病' }, candidates: [{ name: '尿路感染' }] };
+  encounter.settleEncounterPrimary(suggested, '主诉：尿频尿急再发5天\n既往史：2型糖尿病6年');
+  assert.notEqual(suggested.primary.name, '尿路感染');
   assert.equal(encounter.establishedDiseaseExplainsEncounter('帕金森病', '大便干结2年'), false);
   assert.equal(encounter.establishedDiseaseExplainsEncounter('高血压病', '头晕2天'), true);
   assert.equal(encounter.establishedDiseaseExplainsEncounter('帕金森病', '双手颤抖动作变慢1年'), true);

@@ -283,6 +283,15 @@ try {
     assert.deepEqual(parseTcmTreatmentCapabilities("针刺, moxibustion；未知项目"), ["acupuncture", "moxibustion"]);
   });
 
+  check("夹在针刺或耳穴卡中的放血同样受感染禁忌约束", () => {
+    configureSimple(["acupuncture", "auricular"]);
+    const prior = signedM03({ tcmDiseaseName: "丹毒", primarySyndrome: "湿热毒蕴证",
+      westernPrimary: "下肢丹毒", chainPathogenesis: "湿热毒邪蕴结肌肤", therapyDirection: "清热利湿" });
+    const selected = ["acupuncture", "auricular"].map(projectCode => ({ projectCode, targetRef: "P1" }));
+    const cards = compileTcmTreatmentRecommendations(selected, prior, { patient: { age: "45", sex: "男" }, chiefComplaint: "小腿红肿热痛，发热两天" });
+    assert.doesNotMatch(JSON.stringify(cards), /散刺出血|点刺出血|可(?:用.*|行)刺络/u);
+  });
+
   check("unconfigured deployment fails closed", () => {
     clearConfiguration();
     const status = getTcmTreatmentProjectStatus();

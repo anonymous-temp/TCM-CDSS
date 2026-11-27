@@ -1,7 +1,18 @@
 import { originalFormulaNameKey } from "./formula-original-composition";
 import { deriveFormulaDelta } from "./m04-final-snapshot";
 import { withOpeningMatchingFormulaName } from "./formula-analysis-review";
-import { asRecords, asText } from "./m04-final-content-types";
+import { asRecords, asText, type FormulaDelta } from "./m04-final-content-types";
+import { originalHerbMatches } from "./tcm-formula-provenance";
+
+function repeatsVerifiedChanges(sentence: string, changes: FormulaDelta["changes"]): boolean {
+  return sentence.split(/[，,]/u).every(clause => {
+    const mention = /^(?:并|另)?(去|加)([^，,。；;]+)$/u.exec(clause.trim());
+    if (!mention) return false;
+    const kind = mention[1] === "去" ? "removed" : "added";
+    const names = changes.filter(change => change.kind === kind).map(change => (kind === "removed" ? change.from : change.to) || "");
+    return mention[2].replace(/一味$/u, "").split("、").every(herb => names.some(name => originalHerbMatches(name, herb)));
+  });
+}
 
 /** Bind the public opening to the final name and versioned original composition. */
 export function finalFormulaOpening(candidate: Record<string, unknown>, modifications: unknown = []): string {
@@ -20,12 +31,17 @@ export function finalFormulaOpening(candidate: Record<string, unknown>, modifica
   const edits = parts.flatMap(([verb, names]) => names.length ? [verb + [...new Set(names)].join("、")] : []);
   if (!edits.length) return analysis;
   const opening = `本方以${label}为基础，${edits.join("，")}。`;
-  if (analysis.startsWith(opening)) return analysis;
   const identity = `本方以${label}为基础加减`;
-  if (analysis.startsWith(identity)) {
-    const rest = analysis.slice(identity.length).replace(/^[，,。；;：:]\s*/u, "");
-    return opening + rest;
+  let rest = analysis;
+  if (rest.startsWith(opening)) rest = rest.slice(opening.length);
+  else if (rest.startsWith(identity)) rest = rest.slice(identity.length).replace(/^[，,。；;：:]\s*/u, "");
+  // 核过的原方与药表共同决定加去。旧草稿只复述这份清单、或说明为何改投自拟方的首句不能跟在成方之后。
+  // 逐句保留有配伍依据的加减解释，以及单独的用药注意事项。
+  for (let leading; (leading = /^([^。；;]+)[。；;]/u.exec(rest));) {
+    const sentence = leading[1].trim();
+    if (sentence !== `本方以${name}` && !repeatsVerifiedChanges(sentence, delta.changes) && !/(?:改以|改为|改用)自拟方$/u.test(sentence)) break;
+    rest = rest.slice(leading[0].length);
   }
-  // Preserve authored reasons. When there is no identity sentence, prepend the verified delta.
-  return opening + analysis;
+  return opening + rest;
 }
+

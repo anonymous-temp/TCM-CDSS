@@ -86,11 +86,94 @@ await check("R5", "开方阶段：方义漏讲原来讲到的药不写；中成�
   assert.equal(r.formula.candidates[0].herbs[3].dose, "9g");
   assert.deepEqual(apply("prescribe", r, { 加减: [] }).rejected, ["加减:out_of_scope"]);
 });
-await check("R6", "接线：定稿通读在交付面投影之前（投影、合同与签名照常作用于改写结果），改写后过不了合同整份放弃", () => {
+await check("R6", "接线：定稿通读在交付面投影与末端撰写之后（投影、合同与签名照常作用于改写结果），改写后过不了合同整份放弃", () => {
   const source = fs.readFileSync(`${root}/src/lib/diagnosis-api.ts`, "utf8");
-  const reviewAt = source.indexOf("emissionContent = await reviewEmissionConsistency(emissionContent);");
+  const reviewAt = source.indexOf("const revised = await reviewEmissionConsistency(prepared, locked);");
   const projectAt = source.indexOf("const surfaced = projectEmissionSurface(emissionContent);");
-  assert.ok(reviewAt > 0 && projectAt > reviewAt && projectAt - reviewAt < 200);
+  assert.ok(projectAt > 0 && reviewAt > source.indexOf("await applyM04FinalContent(emissionContent") && reviewAt > projectAt);
+  const gateAt = source.indexOf("emissionContent = await finalDelivery.run(emissionContent);", projectAt);
+  assert.ok(gateAt > projectAt && gateAt < reviewAt);
+  assert.ok(source.indexOf("await finalDelivery.run(revised)", reviewAt) > reviewAt);
   assert.match(source, /final_consistency_review_rejected/u);
   assert.match(source, /m04SafetyContractIssue\(reasoning, opts\.structuredPriorReasoning/u);
 });
+await check("R7", "正文分项均为四字，来源必须匹配本病本证；无可核实表述时正文照原文", async () => {
+  const { treatmentMethodDisplay } = await jiti.import("../src/lib/treatment-method-display.ts");
+  const result = treatmentMethodDisplay("健脾温阳利水", "水肿", "脾阳虚衰证");
+  assert.equal(result.text, "健脾温阳，温阳利水");
+  assert.equal(result.reference, "《中医内科学》水肿·脾阳虚衰证：健脾温阳利水");
+  const alreadyFormatted = treatmentMethodDisplay("清热凉血，祛风止血，润肠通便", "内痔", "风伤肠络证");
+  assert.equal(alreadyFormatted.text, "清热凉血，祛风止血，润肠通便");
+  assert.match(alreadyFormatted.reference, /《中医外科学》内痔·风伤肠络证：清热凉血祛风/u);
+  const related = treatmentMethodDisplay("补血养心，益气安神，健脾和胃", "心悸", "心脾两虚证");
+  assert.match(related.reference, /同病相关证型教材原文：《中医内科学》心悸·心血不足证：补血养心，益气安神/u);
+  assert.match(related.reference, /本例辨证另取健脾和胃/u);
+  const subtype = treatmentMethodDisplay("清热利湿，通淋止痛", "淋证（热淋）", "膀胱湿热证");
+  assert.match(subtype.reference, /本病分型教材原文：《中医内科学》淋证·热淋：清热利湿通淋/u);
+  const unresolved = treatmentMethodDisplay("健脾温阳利水", "胃痛", "肝气犯胃证");
+  // 无可核实的四字拆法时正文照原文，不出现「待核」类流程用语，也不借用别的病证出处。
+  assert.equal(unresolved.text, "健脾温阳利水");
+  assert.doesNotMatch(unresolved.reference, /《|待核|待医师/u);
+  const unsplittable = treatmentMethodDisplay("健脾利湿止痒", "湿疮", "脾虚湿蕴证");
+  assert.equal(unsplittable.text, "健脾利湿止痒");
+  assert.match(unsplittable.reference, /《中医外科学》湿疮·脾虚湿蕴证：健脾利湿止痒/u);
+  const overflow = treatmentMethodDisplay("清暑祛湿解表，和胃降逆，健脾化湿", "感冒", "暑湿伤表证");
+  assert.equal(overflow.text, "清暑祛湿解表，和胃降逆，健脾化湿");
+  const signed = "清热利湿止带，理气和胃，清热止痒";
+  const overlap = treatmentMethodDisplay(signed, "带下过多", "湿热下注证");
+  assert.ok(overlap.text.split("，").every(term => /^\p{Script=Han}{4}$/u.test(term)));
+  assert.match(overlap.reference, /清热利湿止带/u);
+});
+await check("R8", "写回治则须命中受控候选并被复核点名；双病史不能证明新增并发症", async () => {
+  const context = { suggestedPrinciple: "扶正祛邪" };
+  const r = diagnose();
+  assert.deepEqual(review.applyFinalReviewPatch("diagnose", r, { 治则: "扶正祛邪" }, new Set(), context).applied, []);
+  assert.deepEqual(review.applyFinalReviewPatch("diagnose", r, { 治则: "虚则补之" }, new Set(["治则"]), context).applied, []);
+  assert.deepEqual(review.applyFinalReviewPatch("diagnose", r, { 治则: "扶正祛邪" }, new Set(["治则"]), context).applied, ["治则"]);
+  const { settleWesternDiagnosisBasis } = await jiti.import("../src/lib/recorded-test-claims.ts");
+  const prior = "既往史：慢性肾小球肾炎病史8年，2年前诊断慢性肾脏病3期";
+  assert.equal(settleWesternDiagnosisBasis("慢性肾小球肾炎伴慢性肾脏病3期待查", "本次水肿加重。", prior).name, "慢性肾小球肾炎伴慢性肾脏病3期");
+  assert.equal(settleWesternDiagnosisBasis("慢性肾小球肾炎伴慢性肾脏病4期待查", "分期尚待检查。", prior).name, "慢性肾小球肾炎伴慢性肾脏病4期待查");
+});
+await check("R9", "随访按已签西医诊断补客观监测；待查、儿童、已经写过的指标不重复", async () => {
+  const { adultFollowupReferences } = await jiti.import("../src/lib/western-disease-care.ts");
+  assert.match(adultFollowupReferences("2型糖尿病伴血糖控制不佳", 60, "核对夜尿次数").join(""), /糖化血红蛋白/u);
+  assert.deepEqual(adultFollowupReferences("2型糖尿病待查", 60, ""), []);
+  assert.deepEqual(adultFollowupReferences("2型糖尿病", 16, ""), []);
+  assert.deepEqual(adultFollowupReferences("2型糖尿病", 60, "请带上近期HbA1c结果。"), []);
+});
+await check("R10", "处方投影从签名诊断取回诊断、证、病机和治法，处方仍通过自己的投影", async () => {
+  const { applyDeliveredSurfaceToContent, projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
+  const prior = diagnose();
+  const proposal = { ...prior, ...prescribe(), therapy: { overallMethod: "活血化瘀" } };
+  const wrap = obj => "<!-- DIAGNOSIS_JSON_START -->" + JSON.stringify(obj) + "<!-- DIAGNOSIS_JSON_END -->";
+  const projected = applyDeliveredSurfaceToContent(wrap(proposal), { signedDiagnose: prior });
+  const actual = JSON.parse(projected.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+  for (const key of ["overview", "westernDiagnosis", "pathogenesis", "therapy"]) assert.deepEqual(actual[key], prior[key]);
+  const terminal = projectDeliveredReasoning(actual, { signedDiagnose: prior });
+  for (const key of ["overview", "westernDiagnosis", "pathogenesis", "therapy"]) assert.deepEqual(terminal[key], prior[key]);
+  assert.ok(terminal.formula.candidates.length);
+});
+await check("R11", "外治不得把已签的阴阳俱虚缩成阴虚；病位不同的变体方案不用", async () => {
+  const { textbookTreatmentPlan } = await jiti.import("../src/lib/tcm-nondrug-textbook-plan.server.ts");
+  const mixed = textbookTreatmentPlan({
+    projectCode: "acupuncture", diseaseNames: ["绝经前后诸证"], westernNames: [],
+    signedSyndromeText: "肾阴阳俱虚证", signedMethod: "阴阳双补，调补肝肾", signedLocations: ["肾"],
+    currentFacts: "绝经后忽冷忽热，腰背冷痛，下肢发凉，手足心热，汗出。",
+  });
+  assert.ok(mixed?.treatmentContent);
+  assert.doesNotMatch(mixed.treatmentContent, /本例属肾阴虚[，。]/u);
+  const unrelated = textbookTreatmentPlan({
+    projectCode: "acupuncture", diseaseNames: ["耳鸣耳聋"], westernNames: [], signedSyndromeText: "气血亏虚证",
+    signedPrinciple: "虚则补之", signedMethod: "益气养血", signedLocations: ["耳窍", "脾"],
+    currentFacts: "耳鸣伴乏力，劳累后加重，休息缓解。",
+  });
+  assert.ok(!unrelated?.treatmentContent.includes("补肾养窍"));
+});
+
+await check("R12", "合称对上多个脏腑时不按教材顺序选方", async () => {
+  const { textbookRowForSyndrome } = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
+  assert.equal(textbookRowForSyndrome("虚劳", "气血两虚证")?.syndromeName, undefined);
+  assert.equal(textbookRowForSyndrome("虚劳", "肺气虚证")?.syndromeName, "肺气虚证");
+});
+

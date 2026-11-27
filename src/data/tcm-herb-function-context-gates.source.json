@@ -14,7 +14,7 @@
     { "id": "pus", "functionTerms": ["排脓", "托毒", "生肌", "敛疮"], "contextTerms": ["脓", "痈", "疮", "疡", "溃"] },
     { "id": "diarrhea", "functionTerms": ["止泻", "涩肠", "止痢"], "contextTerms": ["泻", "便溏", "泄", "痢", "大便稀", "滑脱"] },
     { "id": "constipation", "functionTerms": ["通便", "润肠", "泻下", "攻下"], "contextTerms": ["便秘", "便干", "便结", "大便干", "腑", "燥屎", "大便难", "大便偏干"] },
-    { "id": "bleeding", "functionTerms": ["止血"], "contextTerms": ["血证", "出血", "衄", "咯血", "吐血", "便血", "尿血", "崩漏", "紫癜", "瘀斑"] },
+    { "id": "bleeding", "functionTerms": ["收敛止血", "止血"], "contextTerms": ["血证", "出血", "滴鲜血", "纸上鲜红血", "衄", "咯血", "吐血", "便血", "尿血", "崩漏", "紫癜", "瘀斑"] },
     { "id": "mind", "functionTerms": ["安神", "宁心", "镇惊", "定志"], "contextTerms": ["神", "眠", "寐", "悸", "惊", "烦", "怔忡"] },
     { "id": "parasite", "functionTerms": ["杀虫", "驱虫"], "contextTerms": ["虫"] },
     { "id": "alcohol", "functionTerms": ["解酒"], "contextTerms": ["酒"] },

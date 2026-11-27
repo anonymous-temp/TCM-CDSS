@@ -132,6 +132,9 @@ check("⑤ 红旗 / 无结构化剂量 / 硬剂量边界：三条降级路径完
   const withDose = buildDeterministicRiskFollowupPayload(redFlag, AUTHORED);
   assert.equal(withDose.timelineItems.length, 2, "剂量一致化：红旗给了剂量照常出随访方案");
   assert.match(JSON.stringify(withDose), /红旗解除前不得采纳本方/);
+  assert.match(withDose.timelineItems[0].action, /^请立即急诊或转诊/u);
+  assert.match(withDose.timelineItems[1].time, /接诊医生确认可以按本方用药后/u);
+  assert.match(withDose.markdown, /当前请立即就医，以下居家调护仅在/u);
   process.env.CDSS_DOSE_CONSISTENCY = "false";
   let redFlagPayload;
   try {
