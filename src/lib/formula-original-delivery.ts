@@ -6,7 +6,7 @@ import { originalHerbMatches } from "./tcm-formula-provenance";
 
 function repeatsVerifiedChanges(sentence: string, changes: FormulaDelta["changes"]): boolean {
   return sentence.split(/[，,]/u).every(clause => {
-    const mention = /^(?:并|另)?(去|加)([^，,。；;]+)$/u.exec(clause.trim());
+    const mention = /^[并另]?([去加])([^，,。；;]+)$/u.exec(clause.trim());
     if (!mention) return false;
     const kind = mention[1] === "去" ? "removed" : "added";
     const names = changes.filter(change => change.kind === kind).map(change => (kind === "removed" ? change.from : change.to) || "");
@@ -39,7 +39,7 @@ export function finalFormulaOpening(candidate: Record<string, unknown>, modifica
   // 逐句保留有配伍依据的加减解释，以及单独的用药注意事项。
   for (let leading; (leading = /^([^。；;]+)[。；;]/u.exec(rest));) {
     const sentence = leading[1].trim();
-    if (sentence !== `本方以${name}` && !repeatsVerifiedChanges(sentence, delta.changes) && !/(?:改以|改为|改用)自拟方$/u.test(sentence)) break;
+    if (sentence !== `本方以${name}` && !repeatsVerifiedChanges(sentence, delta.changes) && !/改[以为用]自拟方$/u.test(sentence)) break;
     rest = rest.slice(leading[0].length);
   }
   return opening + rest;
