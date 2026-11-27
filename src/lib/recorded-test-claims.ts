@@ -300,8 +300,11 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
   // 只凭同一分句里的本人确诊记录恢复表外病名；裸症状、家族史、
   // 下位分型和旧病的新发并发症均不能用病名的一部分举证。
   const components = core.split(/(?:合并|伴)/u);
+  // 「X伴血糖控制不佳」类：X 是病历写明的诊断，后半是 X 的控制状态（封闭词形），不是另一个待确立的病（第六十三轮 D047）。
+  const controlState = /^(?:血糖|血压|血脂|病情|症状)?控制(?:不佳|欠佳|不良|不理想)$/u;
   const explicitDiagnosis = explicitlyDiagnosedInRecord(core, recordText) || (components.length === 2 &&
-    components.every(part => part.length >= 2 && explicitlyDiagnosedInRecord(part, recordText)));
+    components.every((part, index) => part.length >= 2 && (explicitlyDiagnosedInRecord(part, recordText) ||
+      (index === 1 && controlState.test(part) && explicitlyDiagnosedInRecord(components[0], recordText)))));
   const known = explicitDiagnosis || diagnosedContext || treated || Boolean(establishedHistoryText(core, recordText));
   const criteria = westernCriteriaCertainty(core, recordText, known);
   // 可凭临床诊断的病（要点表注明、没有必需检查与病程门槛）：依据句里的「X待查」只是病名被改成待查以后带进去的回声

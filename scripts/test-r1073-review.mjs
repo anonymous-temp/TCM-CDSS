@@ -198,3 +198,11 @@ await check("R13", "第六十三轮：通读不减治法项、不写受治理词
   assert.deepEqual(review.applyFinalReviewPatch("diagnose", pharyngitis, { 西医诊断: "急性咽炎" }, new Set(["西医诊断"]),
     { recordText: "主诉：咽痛2天。查体：咽黏膜鲜红肿胀。", redFlag: false }).applied, ["西医诊断"], "结算认可、非红旗时可去待查（对照）");
 });
+
+await check("R14", "病历写明的诊断伴其控制状态不写待查；伴另一个未确立的并发症照旧待查（D047）", async () => {
+  const { settleWesternDiagnosisBasis } = await jiti.import("../src/lib/recorded-test-claims.ts");
+  const rec = "主诉：尿频量多、腰膝酸软3月\n现病史：患者6年前体检发现血糖升高，诊断为2型糖尿病。\n既往史：2型糖尿病病史6年，现服盐酸二甲双胍片0.5g每日3次\n辅助检查：空腹血糖8.9mmol/L，糖化血红蛋白7.9%";
+  assert.equal(settleWesternDiagnosisBasis("2型糖尿病伴血糖控制不佳待查", "符合血糖控制不佳。", rec).name, "2型糖尿病伴血糖控制不佳");
+  assert.equal(settleWesternDiagnosisBasis("2型糖尿病伴糖尿病肾病待查", "尿蛋白阳性。", rec).name, "2型糖尿病伴糖尿病肾病待查");
+  assert.equal(settleWesternDiagnosisBasis("2型糖尿病伴血糖控制不佳待查", "符合血糖控制不佳。", "主诉：口干多饮3月\n辅助检查：空腹血糖8.9mmol/L").name, "2型糖尿病伴血糖控制不佳待查", "病历没写明诊断时照旧待查（对照）");
+});
