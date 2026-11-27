@@ -206,3 +206,11 @@ await check("R14", "病历写明的诊断伴其控制状态不写待查；伴另
   assert.equal(settleWesternDiagnosisBasis("2型糖尿病伴糖尿病肾病待查", "尿蛋白阳性。", rec).name, "2型糖尿病伴糖尿病肾病待查");
   assert.equal(settleWesternDiagnosisBasis("2型糖尿病伴血糖控制不佳待查", "符合血糖控制不佳。", "主诉：口干多饮3月\n辅助检查：空腹血糖8.9mmol/L").name, "2型糖尿病伴血糖控制不佳待查", "病历没写明诊断时照旧待查（对照）");
 });
+
+await check("R15", "未诉改写不拆「不省人事」；方义里「审阅候选」一类流程用语删那一小句（d024、d098）", async () => {
+  const { negativeClaimItems } = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
+  assert.deepEqual(negativeClaimItems("无突然昏仆、不省人事及四肢厥冷")?.items, ["突然昏仆", "不省人事及四肢厥冷"]);
+  assert.deepEqual(negativeClaimItems("无恶寒、不发热")?.items, ["恶寒", "发热"], "列举里的「不」仍是否认（对照）");
+  const { withoutInternalCompositionTalk } = await jiti.import("../src/lib/delivered-surface.ts");
+  assert.equal(withoutInternalCompositionTalk("本方以泻心汤合十灰散加减，为急危出血的审阅候选。以大黄为君。"), "本方以泻心汤合十灰散加减。以大黄为君。");
+});

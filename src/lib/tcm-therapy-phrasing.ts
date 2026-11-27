@@ -247,6 +247,8 @@ export function negativeClaimItems(span: string): { subject: string; items: stri
       const parts = /^([\u4e00-\u9fff]{1,3}?)(?:无|不)([\u4e00-\u9fff]{1,10})$/u.exec(part);
       // 否认词后只剩一个字时，前面得是部位（腹不胀）；「按之无形」的「形」不是一个表现。
       if (parts && (parts[2].length >= 2 || parts[1].length === 1)) items.push(`${EXAM_VERB_HEAD.test(parts[1]) ? "" : parts[1]}${parts[2]}`);
+      // 「不省人事」「不寐」「不仁」里的「不」是词的一部分，不是又一层否认：整项照留（第六十三轮 d024 曾成「未诉…省人事」）。
+      else if (items.length > 0 && /^不(?:省人事|寐|仁|孕|育)/u.test(part)) items.push(part);
       else if (items.length > 0 && /^不[\u4e00-\u9fff]{2,}/u.test(part)) items.push(part.slice(1));
       // 前面是「无X」时后面的裸项才接着否认；「发热不恶寒、口渴汗出、舌红苔黄腻」后面是肯定写的（第三十五轮 C002 曾成「未诉舌红苔黄腻」）。
       else if (items.length > 0 && !NEGATIVE_FORM_CLAIM.test(part) && NEGATIVE_CLAIM_LEAD.test(body)) items.push(part);
@@ -254,7 +256,7 @@ export function negativeClaimItems(span: string): { subject: string; items: stri
     }
   }
   // 半身不遂、肢体无力这类词里的「不」「无」不是又一层否认（第三十五轮 aug-headache：「无半身不遂、口舌歪斜」改写不了，整段删后「与中风相区分」没了依据）。
-  return items.length > 0 && items.every((item) => item.length >= 2 && !/未|非|无(?!力|华|神|味)|不(?!遂|利|清|宁|寐|振|适|畅|固|足|安|仁|眠)/u.test(item)) ? { subject, items } : undefined;
+  return items.length > 0 && items.every((item) => item.length >= 2 && !/未|非|无(?!力|华|神|味)|不(?!遂|利|清|宁|寐|振|适|畅|固|足|安|仁|眠|省人事|孕|育)/u.test(item)) ? { subject, items } : undefined;
 }
 /** 证名里写了病邪（脾虚湿蕴证的湿）。 */
 export const PATHOGEN_ELEMENT_IN_SYNDROME_NAME = /湿|痰|瘀|饮|热|寒/u;
